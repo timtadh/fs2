@@ -1,0 +1,36 @@
+                                  fs2
+                          File Structures 2
+
+This library is wholly written by the authors below. Please respect all
+licensing terms. This library makes use of the library "data-structures"
+available at "github.com/timtadh/data-structures" which is licensed
+under the GPL version 2. As this library is licensed under GPL version 3
+the effective license of "data-structures" when distributed as part of
+this library is GPL version 3.
+
+By Tim Henderson (tadh@case.edu)
+
+Copyright (c) 2015
+Tim Henderson
+Case Western Reserve University
+Cleveland, Ohio 44106
+All Rights Reserved.
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 3 of the License, or (at your
+option) any later version.
+
+This library is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this library; if not, write to the
+  Free Software Foundation, Inc.,
+  51 Franklin Street, Fifth Floor,
+  Boston, MA  02110-1301
+  USA
+
+
