@@ -1,0 +1,3 @@
+[submodule "src/github.com/timtadh/data-structures"]
+	path = src/github.com/timtadh/data-structures
+	url = git@github.com:timtadh/data-structures.git
