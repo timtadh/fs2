@@ -1,0 +1,122 @@
+/* Copyright (c) 2015 Tim Henderson
+ * Release under the GNU General Public License version 3.
+ *
+ * fs2 is free software: you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * fs2 is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with goiso.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#define _GNU_SOURCE
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+/* create map(*addr, fd, length)
+ *
+ * creates a mmap using the file descriptor and the length.
+ *
+ * (*addr) is a pointer to the address pointer. This is an out paramter.
+ *    The output will be placed in this pointer.
+ *
+ * (fd) is the file descriptor to map. It must be valid as this creates
+ *    a shared mapping to an actual file.
+ *
+ * (returns) 0 on success and an errno value of failure.
+ */
+int
+create_mmap(void ** addr, int fd);
+
+/* destroy_map(addr, length)
+ *
+ * destroys the mapping. Caution: subsequent access will cause a
+ * SIGSEGV
+ *
+ * (addr) the address of the mapping.
+ *
+ * (fd) is the file descriptor for this map.
+ *
+ * (returns) 0 on success and an errno value on failure.
+ */
+int
+destroy_mmap(void *addr, int fd);
+
+
+/* sync_map(addr, length)
+ *
+ * syncs any changes down to disk. This function is NON-BLOCKING. It
+ * uses MS_ASYNC flags to msync such that this program will not block on
+ * the sync. It also uses MS_INVALIDATE to invalidate any other
+ * mappings.
+ *
+ * (addr) the address of the mapping.
+ *
+ * (fd) is the file descriptor for this map.
+ *
+ * (returns) 0 on success and an errno value on failure.
+ */
+int
+sync_mmap(void *addr, int fd);
+
+/* resize(addr, new_addr, fd, new_length)
+ *
+ * this resizes both file and the mapping to the new length.
+ *
+ * (old_addr) the address of the mapping.
+ *
+ * (*new_addr) is a pointer to the address pointer. This is an out paramter.
+ *    This function may move the mapping. When that happens the
+ *    new_address will be at this pointer. You should only call this if
+ *    you can know there are no outstanding pointers into the memory of
+ *    the mapping.
+ *
+ * (fd) is the file descriptor for this map.
+ *
+ * (new_length) the new size of the file/mapping
+ *
+ * (returns) 0 on success and an errno value on failure.
+ */
+int
+resize(void *old_addr, void **new_addr, int fd, size_t new_length);
+
+/* is_sequential(addr, offset, length)
+ *
+ * mark the address + offset, for length as a sequential segment.
+ *
+ * (addr) the address of the mapping
+ *
+ * (offset) the start of the sequential region
+ *
+ * (length) the length of the sequential region
+ *
+ * (returns) 0 on success and an errno value on failure
+ */
+int
+is_sequential(void *addr, size_t offset, size_t length);
+
+/* is_normal(addr, offset, length)
+ *
+ * mark the address + offset, for length as a normal segment.
+ *
+ * (addr) the address of the mapping
+ *
+ * (offset) the start of the sequential region
+ *
+ * (length) the length of the sequential region
+ *
+ * (returns) 0 on success and an errno value on failure
+ */
+int
+is_normal(void *addr, size_t offset, size_t length);
+

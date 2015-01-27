@@ -266,3 +266,4 @@ func (self *lru) Read(p int64, length uint32) ([]byte, bool) {
 	// miss
 	return nil, false
 }
+
