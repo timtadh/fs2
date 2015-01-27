@@ -52,13 +52,15 @@ func (n *internal) String() string {
 			n.meta, len(n.keys), n.keys, len(n.ptrs), n.ptrs)
 }
 
-func loadInternal(backing []byte) *internal {
+func loadInternal(backing []byte) (*internal, error) {
 	meta := loadBaseMeta(backing)
+	if meta.flags & INTERNAL == 0 {
+		return nil, fmt.Errorf("Was not an internal node")
+	}
 	return attachInternal(backing, meta)
 }
 
-func newInternal(alloc Allocator, keySize uint16) *internal {
-	backing := alloc()
+func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	meta := loadBaseMeta(backing)
 
 	available := uintptr(len(backing)) - meta.Size()
@@ -70,7 +72,7 @@ func newInternal(alloc Allocator, keySize uint16) *internal {
 	return attachInternal(backing, meta)
 }
 
-func attachInternal(backing []byte, meta *baseMeta) *internal {
+func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 	back := slice.AsSlice(&backing)
 	base := uintptr(back.Array) + meta.Size()
 	keys := make([][]byte, meta.keyCap)
@@ -93,6 +95,6 @@ func attachInternal(backing []byte, meta *baseMeta) *internal {
 		meta: meta,
 		keys: keys,
 		ptrs: ptrs,
-	}
+	}, nil
 }
 

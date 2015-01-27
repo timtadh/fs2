@@ -11,7 +11,10 @@ func testAlloc() []byte {
 }
 
 func TestNewInternal(t *testing.T) {
-	n := newInternal(testAlloc, 16)
+	n, err := newInternal(testAlloc(), 16)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n.meta.flags != INTERNAL {
 		t.Error("was not an internal node")
 	}
@@ -74,7 +77,10 @@ func TestNewInternal(t *testing.T) {
 
 func TestLoadInternal(t *testing.T) {
 	back := func() []byte {
-		n := newInternal(testAlloc, 16)
+		n, err := newInternal(testAlloc(), 16)
+		if err != nil {
+			t.Fatal(err)
+		}
 		n.keys[0][0] = 1
 		n.keys[n.meta.keyCap-1][15] = 0xf
 		n.ptrs[0] = 1
@@ -85,7 +91,10 @@ func TestLoadInternal(t *testing.T) {
 		return n.back
 	}()
 
-	n := loadInternal(back)
+	n, err := loadInternal(back)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	one := []byte{1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
 	fifteen := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,15}
