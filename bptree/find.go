@@ -27,14 +27,25 @@ func find(keyCount int, keys [][]byte, key []byte) (int, bool) {
 	return l, false
 }
 
-func putKey(keyCount, keys [][]byte, key []byte, put func(i int) error) error {
+func shift(bytes []byte, idx, length, amt int, left bool) {
+	moving := bytes[idx:idx+length]
+	var to []byte
+	if left {
+		to = bytes[idx+amt:idx+length+amt]
+	} else {
+		to = bytes[idx-amt:idx+length-amt]
+	}
+	copy(to, moving)
+}
+
+func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
 	if keyCount + 1 >= len(keys) {
 		return fmt.Errorf("Block is full.")
 	}
 	i, _ := find(keyCount, keys, key)
 	if i < 0 {
 		panic(fmt.Errorf("find returned a negative int"))
-	} else if i >= len(self.keys) {
+	} else if i >= len(keys) {
 		panic(fmt.Errorf("find returned a int > than cap(keys)"))
 	}
 	if err := putItemAt(keyCount, keys, key, i); err != nil {

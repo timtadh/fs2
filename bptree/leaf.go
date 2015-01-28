@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"unsafe"
@@ -9,6 +10,8 @@ import (
 import (
 	"github.com/timtadh/fs2/slice"
 )
+
+type WhereFunc func(value []byte) bool
 
 type leafMeta struct {
 	baseMeta
@@ -20,8 +23,8 @@ type leaf struct {
 	back []byte
 	meta *leafMeta
 	valueSizes []uint16
-	next_kv uintptr
 	end uintptr
+	kvs []byte
 	keys [][]byte
 	vals [][]byte
 }
@@ -54,9 +57,32 @@ func (n *leaf) String() string {
 			n.meta, len(n.valueSizes), n.valueSizes, len(n.keys), n.keys, n.vals)
 }
 
+func (n *leaf) Has(key []byte) bool {
+	_, has := find(int(n.meta.keyCount), n.keys, key)
+	return has
+}
+
+func (n *leaf) next_kv_in_kvs() int {
+	return n.keyOffset(int(n.meta.keyCount))
+}
+
+func (n *leaf) size(value []byte) int {
+	return int(n.meta.keySize) + len(value)
+}
+
 func (n *leaf) fits(value []byte) bool {
-	total_size := int(n.meta.keySize) + len(value)
-	return uintptr(total_size) + n.next_kv < end
+	size := n.size(value)
+	end := n.next_kv_in_kvs()
+	return end + size < len(n.kvs)
+}
+
+func (n *leaf) keyOffset(idx int) int {
+	offset := 0
+	for i := 0; i < idx; i++ {
+		offset += int(n.meta.keySize)
+		offset += int(n.valueSizes[i])
+	}
+	return offset
 }
 
 func (n *leaf) putKV(key []byte, value []byte) error {
@@ -67,21 +93,85 @@ func (n *leaf) putKV(key []byte, value []byte) error {
 		return fmt.Errorf("block is full")
 	}
 	if !n.fits(value) {
-		return fmt.Errorf("block is full")
+		return fmt.Errorf("block is full (value doesn't fit)")
 	}
-	// Tim You Are Here!
-	// the situtation.
-	// you put the keys and values all mixed up together.
-	// the problem is the values are not of equal sizes. this allows you
-	// to "pack" these guys in very tightly. However, maintaining sorted
-	// order is no longer simple. Need to rethink this a bit.
-	err = putKey(int(n.meta.keyCount), n.keys, key, func(i int) error {
-		
-	})
-	if err != nil {
-		return err
+	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
+	key_offset := n.keyOffset(key_idx)
+	kv_size := n.size(value)
+	length := n.next_kv_in_kvs()
+	if key_idx == int(n.meta.keyCount) {
+		// fantastic we don't nee to move any thing.
+		// we can just append
+	} else {
+		// we move the valueSizes around to expand
+		chunk_size := int(n.meta.keyCount) - key_idx
+		from := n.valueSizes[key_idx:key_idx+chunk_size]
+		to := n.valueSizes[key_idx+1:key_idx+chunk_size+1]
+		copy(to, from)
+		// then we make room for the kv
+		to_shift := length - key_offset
+		shift(n.kvs, key_offset, to_shift, kv_size, true)
 	}
+	// do the book keeping
+	n.valueSizes[key_idx] = uint16(len(value))
 	n.meta.keyCount += 1
+	// copy in the new kv
+	key_end := key_offset+int(n.meta.keySize)
+	key_slice := n.kvs[key_offset:key_end]
+	val_slice := n.kvs[key_end:key_end+len(value)]
+	copy(key_slice, key)
+	copy(val_slice, value)
+	// reattach our byte slices
+	return n.reattachLeaf()
+}
+
+func (n *leaf) delKV(key []byte, where WhereFunc) error {
+	if len(key) != int(n.meta.keySize) {
+		return fmt.Errorf("key was the wrong size")
+	}
+	if n.meta.keyCount <= 0 {
+		return fmt.Errorf("block is empty")
+	}
+	key_idx, has := find(int(n.meta.keyCount), n.keys, key)
+	if !has {
+		return fmt.Errorf("that key was not in the block")
+	}
+	for ; key_idx < int(n.meta.keyCount); key_idx++ {
+		if !bytes.Equal(key, n.keys[key_idx]) {
+			return nil
+		}
+		if where(n.vals[key_idx]) {
+			break
+		}
+	}
+	// ok we have our key_idx
+	length := n.next_kv_in_kvs()
+	if key_idx + 1 == int(n.meta.keyCount) {
+		// sweet we can just drop the last
+		// key value
+		n.valueSizes[key_idx] = 0
+		n.meta.keyCount--
+		return n.reattachLeaf()
+	}
+	// drop the k4
+	{
+		key_offset := n.keyOffset(key_idx)
+		i := n.keyOffset(key_idx+1)
+		size := length - i
+		shift(n.kvs, i, size, i - key_offset, false)
+	}
+	// drop the valueSize
+	{
+		size := int(n.meta.keyCount) - key_idx - 1
+		from := n.valueSizes[key_idx+1:key_idx+1+size]
+		to := n.valueSizes[key_idx:key_idx+size]
+		copy(to, from)
+		n.valueSizes[n.meta.keyCount-1] = 0
+	}
+	// do the book keeping
+	n.meta.keyCount--
+	// retattach the leaf
+	return n.reattachLeaf()
 }
 
 func loadLeaf(backing []byte) (*leaf, error) {
@@ -98,6 +188,7 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 	available := uintptr(len(backing)) - meta.Size()
 
 	// best case: values are all 1 byte
+	// the size value is the size of the valueLength
 	//             size + 1 byte
 	valMin := uintptr(2 + 1)
 	kvSize := uintptr(keySize) + valMin
@@ -111,6 +202,7 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 	back := slice.AsSlice(&backing)
 	ptr := uintptr(back.Array) + meta.Size()
 	end := uintptr(back.Array) + uintptr(back.Cap)
+
 	valueSizes_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
 		Len: int(meta.keyCap),
@@ -118,20 +210,49 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 	}
 	ptr = ptr + uintptr(meta.keyCap)*2
 	valueSizes := *valueSizes_s.AsUint16s()
-	keys := make([][]byte, 0, meta.keyCap)
-	vals := make([][]byte, 0, meta.keyCap)
 
-	for i := uint16(0); i < meta.keyCount; i++ {
+	kvs_s := &slice.Slice{
+		Array: unsafe.Pointer(ptr),
+		Len: int(end - ptr),
+		Cap: int(end - ptr),
+	}
+	kvs := *kvs_s.AsBytes()
+
+	node := &leaf{
+		back: backing,
+		meta: meta,
+		valueSizes: valueSizes,
+		end: end,
+		kvs: kvs,
+	}
+
+	err := node.reattachLeaf()
+	if err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+
+func (n *leaf) reattachLeaf() error {
+	kvs_s := slice.AsSlice(&n.kvs)
+	ptr := uintptr(kvs_s.Array)
+	end := ptr + uintptr(kvs_s.Len)
+
+	keys := make([][]byte, 0, n.meta.keyCap)
+	vals := make([][]byte, 0, n.meta.keyCap)
+
+	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {
-			break;
+			return fmt.Errorf("overran backing array on reattachLeaf()")
 		}
-		vSize := valueSizes[i]
+		vSize := n.valueSizes[i]
 		key_s := &slice.Slice{
 			Array: unsafe.Pointer(ptr),
-			Len: int(meta.keySize),
-			Cap: int(meta.keySize),
+			Len: int(n.meta.keySize),
+			Cap: int(n.meta.keySize),
 		}
-		ptr += uintptr(meta.keySize)
+		ptr += uintptr(n.meta.keySize)
 		value_s := &slice.Slice{
 			Array: unsafe.Pointer(ptr),
 			Len: int(vSize),
@@ -143,14 +264,10 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 		vals = append(vals, *value_s.AsBytes())
 	}
 
-	return &leaf{
-		back: backing,
-		meta: meta,
-		valueSizes: valueSizes,
-		next_kv: ptr,
-		end: end,
-		keys: keys,
-		vals: vals,
-	}, nil
+	n.keys = keys
+	n.vals = vals
+
+	return nil
 }
+
 
