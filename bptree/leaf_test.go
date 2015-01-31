@@ -72,7 +72,7 @@ func (t *T) bkey(key *uint64) []byte {
 }
 
 func (t *T) key(bytes []byte) *uint64 {
-	t.assert("bytes must have length 8", len(bytes) != 8)
+	t.assert("bytes must have length 8", len(bytes) == 8)
 	s := slice.AsSlice(&bytes)
 	return (*uint64)(s.Array)
 }

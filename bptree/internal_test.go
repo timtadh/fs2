@@ -4,6 +4,7 @@ import "testing"
 
 import (
 	"bytes"
+	"fmt"
 )
 
 func testAlloc() []byte {
@@ -16,6 +17,44 @@ func (t *T) newInternal() *internal {
 	return n
 }
 
+func (t *T) assert_ptr(expect uint64) func(ptr uint64, err error) {
+	return func(ptr uint64, err error) {
+		t.assert_nil(err)
+		t.assert(fmt.Sprintf("ptrs were not equal %d != %d", expect, ptr), expect == ptr)
+	}
+}
+
+func TestPutKPRand(x *testing.T) {
+	t := (*T)(x)
+	for TEST := 0; TEST < TESTS*5; TEST++ {
+		n, err := newInternal(make([]byte, 1027+TEST*16), 8)
+		t.assert_nil(err)
+		type KP struct {
+			key []byte
+			ptr uint64
+		}
+		make_kp := func() *KP {
+			return &KP{
+				key: t.rand_key(),
+				ptr: *t.key(t.rand_key()),
+			}
+		}
+		kps := make([]*KP, 0, n.meta.keyCap-1)
+		// t.Log(n)
+		for i := 0; i < cap(kps); i++ {
+			kp := make_kp()
+			kps = append(kps, kp)
+			t.assert_nil(n.putKP(kp.key, kp.ptr))
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for _, kp := range kps {
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+	}
+}
+
 func TestPutKP(x *testing.T) {
 	t := (*T)(x)
 	n := t.newInternal()
@@ -24,27 +63,36 @@ func TestPutKP(x *testing.T) {
 	k3 := uint64(12)
 	k4 := uint64(8)
 	k5 := uint64(5)
-	// t.Log(n)
 	t.assert_nil(n.putKP(t.bkey(&k1), k1))
-	// t.Log(n)
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
+	t.assert_ptr(k1)(n.ptr(t.bkey(&k1)))
+
 	t.assert_nil(n.putKP(t.bkey(&k2), k2))
-	// t.Log(n)
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
+	t.assert_ptr(k2)(n.ptr(t.bkey(&k2)))
+
 	t.assert_nil(n.putKP(t.bkey(&k3), k3))
-	// t.Log(n)
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
+	t.assert_ptr(k3)(n.ptr(t.bkey(&k3)))
+
 	t.assert_nil(n.putKP(t.bkey(&k4), k4))
-	// t.Log(n)
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
+	t.assert_ptr(k4)(n.ptr(t.bkey(&k4)))
+
 	t.assert_nil(n.putKP(t.bkey(&k5), k5))
-	// t.Log(n)
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
+	t.assert_ptr(k5)(n.ptr(t.bkey(&k5)))
+
+	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
+	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
+	t.assert_ptr(k1)(n.ptr(t.bkey(&k1)))
+	t.assert_ptr(k2)(n.ptr(t.bkey(&k2)))
+	t.assert_ptr(k3)(n.ptr(t.bkey(&k3)))
+	t.assert_ptr(k4)(n.ptr(t.bkey(&k4)))
+	t.assert_ptr(k5)(n.ptr(t.bkey(&k5)))
 }
 
 func TestNewInternal(t *testing.T) {

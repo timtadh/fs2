@@ -37,33 +37,3 @@ func shift(bytes []byte, idx, length, amt int, left bool) {
 	copy(to, moving)
 }
 
-func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
-	if keyCount + 1 >= len(keys) {
-		return Errorf("Block is full.")
-	}
-	i, _ := find(keyCount, keys, key)
-	if i < 0 {
-		return Errorf("find returned a negative int")
-	} else if i >= len(keys) {
-		return Errorf("find returned a int > than cap(keys)")
-	}
-	if err := putItemAt(keyCount, keys, key, i); err != nil {
-		return err
-	}
-	return put(i)
-}
-
-func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
-	if itemCount == len(items) {
-		return Errorf("The items slice is full")
-	}
-	if i < 0 || i >= len(items) {
-		return Errorf("i was not in range")
-	}
-	for j := itemCount + 1; j > i; j-- {
-		copy(items[j], items[j-1])
-	}
-	copy(items[i], item)
-	return nil
-}
-

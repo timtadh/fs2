@@ -57,6 +57,14 @@ func (n *internal) Has(key []byte) bool {
 	return has
 }
 
+func (n *internal) ptr(key []byte) (uint64, error) {
+	i, has := find(int(n.meta.keyCount), n.keys, key)
+	if !has {
+		return 0, Errorf("key was not in the internal node")
+	}
+	return n.ptrs[i], nil
+}
+
 func (n *internal) putKP(key []byte, p uint64) error {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
@@ -69,12 +77,45 @@ func (n *internal) putKP(key []byte, p uint64) error {
 		from := n.ptrs[i:i+chunk_size]
 		to := n.ptrs[i+1:i+chunk_size+1]
 		copy(to, from)
+		n.ptrs[i] = p
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 	n.meta.keyCount++
+	return nil
+}
+
+func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
+	if keyCount + 1 >= len(keys) {
+		return Errorf("Block is full.")
+	}
+	i, has := find(keyCount, keys, key)
+	if i < 0 {
+		return Errorf("find returned a negative int")
+	} else if i >= len(keys) {
+		return Errorf("find returned a int > than len(keys)")
+	} else if has {
+		return Errorf("would have inserted a duplicate key")
+	}
+	if err := putItemAt(keyCount, keys, key, i); err != nil {
+		return err
+	}
+	return put(i)
+}
+
+func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
+	if itemCount + 1 >= len(items) {
+		return Errorf("The items slice is full")
+	}
+	if i < 0 || i > itemCount {
+		return Errorf("i was not in range")
+	}
+	for j := itemCount + 1; j > i; j-- {
+		copy(items[j], items[j-1])
+	}
+	copy(items[i], item)
 	return nil
 }
 
