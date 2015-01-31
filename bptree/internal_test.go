@@ -10,6 +10,43 @@ func testAlloc() []byte {
 	return make([]byte, 127)
 }
 
+func (t *T) newInternal() *internal {
+	n, err := newInternal(testAlloc(), 8)
+	t.assert_nil(err)
+	return n
+}
+
+func TestPutKP(x *testing.T) {
+	t := (*T)(x)
+	n := t.newInternal()
+	k1 := uint64(7)
+	k2 := uint64(3)
+	k3 := uint64(12)
+	k4 := uint64(8)
+	k5 := uint64(5)
+	// t.Log(n)
+	t.assert_nil(n.putKP(t.bkey(&k1), k1))
+	// t.Log(n)
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert_nil(n.putKP(t.bkey(&k2), k2))
+	// t.Log(n)
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert_nil(n.putKP(t.bkey(&k3), k3))
+	// t.Log(n)
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert_nil(n.putKP(t.bkey(&k4), k4))
+	// t.Log(n)
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert_nil(n.putKP(t.bkey(&k5), k5))
+	// t.Log(n)
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+}
+
 func TestNewInternal(t *testing.T) {
 	n, err := newInternal(testAlloc(), 16)
 	if err != nil {

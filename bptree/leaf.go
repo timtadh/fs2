@@ -87,13 +87,13 @@ func (n *leaf) keyOffset(idx int) int {
 
 func (n *leaf) putKV(key []byte, value []byte) error {
 	if len(key) != int(n.meta.keySize) {
-		return fmt.Errorf("key was the wrong size")
+		return Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount + 1 >= n.meta.keyCap {
-		return fmt.Errorf("block is full")
+		return Errorf("block is full")
 	}
 	if !n.fits(value) {
-		return fmt.Errorf("block is full (value doesn't fit)")
+		return Errorf("block is full (value doesn't fit)")
 	}
 	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
 	key_offset := n.keyOffset(key_idx)
@@ -127,14 +127,14 @@ func (n *leaf) putKV(key []byte, value []byte) error {
 
 func (n *leaf) delKV(key []byte, where WhereFunc) error {
 	if len(key) != int(n.meta.keySize) {
-		return fmt.Errorf("key was the wrong size")
+		return Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount <= 0 {
-		return fmt.Errorf("block is empty")
+		return Errorf("block is empty")
 	}
 	key_idx, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
-		return fmt.Errorf("that key was not in the block")
+		return Errorf("that key was not in the block")
 	}
 	for ; key_idx < int(n.meta.keyCount); key_idx++ {
 		if !bytes.Equal(key, n.keys[key_idx]) {
@@ -177,7 +177,7 @@ func (n *leaf) delKV(key []byte, where WhereFunc) error {
 func loadLeaf(backing []byte) (*leaf, error) {
 	meta := loadLeafMeta(backing)
 	if meta.flags & LEAF == 0 {
-		return nil, fmt.Errorf("Was not a leaf node")
+		return nil, Errorf("Was not a leaf node")
 	}
 	return attachLeaf(backing, meta)
 }
@@ -244,7 +244,7 @@ func (n *leaf) reattachLeaf() error {
 
 	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {
-			return fmt.Errorf("overran backing array on reattachLeaf()")
+			return Errorf("overran backing array on reattachLeaf()")
 		}
 		vSize := n.valueSizes[i]
 		key_s := &slice.Slice{

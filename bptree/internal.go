@@ -52,10 +52,36 @@ func (n *internal) String() string {
 			n.meta, len(n.keys), n.keys, len(n.ptrs), n.ptrs)
 }
 
+func (n *internal) Has(key []byte) bool {
+	_, has := find(int(n.meta.keyCount), n.keys, key)
+	return has
+}
+
+func (n *internal) putKP(key []byte, p uint64) error {
+	if len(key) != int(n.meta.keySize) {
+		return Errorf("key was the wrong size")
+	}
+	if n.meta.keyCount + 1 >= n.meta.keyCap {
+		return Errorf("block is full")
+	}
+	err := putKey(int(n.meta.keyCount), n.keys, key, func(i int) error {
+		chunk_size := int(n.meta.keyCount) - i
+		from := n.ptrs[i:i+chunk_size]
+		to := n.ptrs[i+1:i+chunk_size+1]
+		copy(to, from)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	n.meta.keyCount++
+	return nil
+}
+
 func loadInternal(backing []byte) (*internal, error) {
 	meta := loadBaseMeta(backing)
 	if meta.flags & INTERNAL == 0 {
-		return nil, fmt.Errorf("Was not an internal node")
+		return nil, Errorf("Was not an internal node")
 	}
 	return attachInternal(backing, meta)
 }
