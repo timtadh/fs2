@@ -87,6 +87,31 @@ func (n *internal) putKP(key []byte, p uint64) error {
 	return nil
 }
 
+func (n *internal) delKP(key []byte) error {
+	i, has := find(int(n.meta.keyCount), n.keys, key)
+	if !has {
+		return Errorf("key was not in the internal node")
+	} else if i < 0 {
+		return Errorf("find returned a negative int")
+	} else if i >= int(n.meta.keyCount) {
+		return Errorf("find returned a int > than len(keys)")
+	}
+	// remove the key
+	err := delItemAt(int(n.meta.keyCount), n.keys, i)
+	if err != nil {
+		return err
+	}
+	// remove the ptr
+	size := int(n.meta.keyCount) - i - 1
+	from := n.ptrs[i+1:i+1+size]
+	to := n.ptrs[i:i+size]
+	copy(to, from)
+	n.ptrs[n.meta.keyCount-1] = 0
+	// do the book keeping
+	n.meta.keyCount--
+	return nil
+}
+
 func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
 	if keyCount + 1 >= len(keys) {
 		return Errorf("Block is full.")
@@ -116,6 +141,21 @@ func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
 		copy(items[j], items[j-1])
 	}
 	copy(items[i], item)
+	return nil
+}
+
+func delItemAt(itemCount int, items [][]byte, i int) error {
+	if itemCount == 0 {
+		return Errorf("The items slice is empty")
+	}
+	if i < 0 || i >= itemCount {
+		return Errorf("i was not in range")
+	}
+	for j := i; j + 1 < itemCount; j++ {
+		copy(items[j], items[j+1])
+	}
+	// zero the old
+	copy(items[itemCount-1], make([]byte, len(items[itemCount-1])))
 	return nil
 }
 

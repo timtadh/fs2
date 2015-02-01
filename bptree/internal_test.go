@@ -24,6 +24,69 @@ func (t *T) assert_ptr(expect uint64) func(ptr uint64, err error) {
 	}
 }
 
+func TestPutDelKPRand(x *testing.T) {
+	t := (*T)(x)
+	for TEST := 0; TEST < TESTS; TEST++ {
+		n, err := newInternal(make([]byte, 1027+TEST*16), 8)
+		t.assert_nil(err)
+		type KP struct {
+			key []byte
+			ptr uint64
+		}
+		make_kp := func() *KP {
+			return &KP{
+				key: t.rand_key(),
+				ptr: *t.key(t.rand_key()),
+			}
+		}
+		kps := make([]*KP, 0, n.meta.keyCap-1)
+		for i := 0; i < cap(kps); i++ {
+			kp := make_kp()
+			kps = append(kps, kp)
+			t.assert_nil(n.putKP(kp.key, kp.ptr))
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for _, kp := range kps {
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for i, kp := range kps {
+			t.assert_nil(n.delKP(kp.key))
+			for _, kp2 := range kps[:i+1] {
+				t.assert("found key in internal", !n.Has(kp2.key))
+			}
+		}
+		for _, kp := range kps {
+			t.assert_nil(n.putKP(kp.key, kp.ptr))
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for i, kp := range kps {
+			t.assert_nil(n.delKP(kp.key))
+			t.assert("found key in internal", !n.Has(kp.key))
+			for j, kp2 := range kps {
+				if j != i {
+					t.assert("could not find key in internal", n.Has(kp2.key))
+				}
+			}
+			t.assert_nil(n.putKP(kp.key, kp.ptr))
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for _, kp := range kps {
+			t.assert("could not find key in internal", n.Has(kp.key))
+			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+		}
+		for _, kp := range kps {
+			t.assert_nil(n.delKP(kp.key))
+		}
+		for _, kp := range kps {
+			t.assert("found key in internal", !n.Has(kp.key))
+		}
+	}
+}
+
 func TestPutKPRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*5; TEST++ {
@@ -40,7 +103,6 @@ func TestPutKPRand(x *testing.T) {
 			}
 		}
 		kps := make([]*KP, 0, n.meta.keyCap-1)
-		// t.Log(n)
 		for i := 0; i < cap(kps); i++ {
 			kp := make_kp()
 			kps = append(kps, kp)
