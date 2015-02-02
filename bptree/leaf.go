@@ -62,6 +62,17 @@ func (n *leaf) Has(key []byte) bool {
 	return has
 }
 
+func (n *leaf) first_value(key []byte) ([]byte, error) {
+	i, has := find(int(n.meta.keyCount), n.keys, key)
+	if !has {
+		return nil, Errorf("key was not in the leaf node")
+	}
+	my_value := n.vals[i]
+	value := make([]byte, len(my_value))
+	copy(value, my_value)
+	return value, nil
+}
+
 func (n *leaf) next_kv_in_kvs() int {
 	return n.keyOffset(int(n.meta.keyCount))
 }

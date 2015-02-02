@@ -22,7 +22,6 @@ func TestNewBigLeaf(t *testing.T) {
 	if n.meta.keyCount != 1 {
 		t.Error("keyCount was not 1")
 	}
-	t.Log(n)
 }
 
 func TestLoadBigLeaf(t *testing.T) {
@@ -54,6 +53,5 @@ func TestLoadBigLeaf(t *testing.T) {
 	if n.meta.keyCount != 1 {
 		t.Error("keyCount was not 1")
 	}
-	t.Log(n)
 }
 
