@@ -16,6 +16,12 @@
 
 #include "fmap.h"
 
+void
+memclr(void *addr, size_t size) {
+	memset(addr, 0, size);
+	return;
+}
+
 int
 create_mmap(void **addr, int fd) {
 	size_t length;

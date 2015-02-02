@@ -23,6 +23,15 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+/* memclr(*addr, size)
+ *
+ * clears the memory starting at addr, for size.
+ *
+ */
+void
+memclr(void *addr, size_t size);
+
+
 /* create map(*addr, fd, length)
  *
  * creates a mmap using the file descriptor and the length.

@@ -112,6 +112,14 @@ type BlockFile struct {
 	outstanding int "total outstanding pointers"
 }
 
+func MemClr(bytes []byte) {
+	memClr(slice.AsSlice(&bytes).Array, uintptr(len(bytes)))
+}
+
+func memClr(ptr unsafe.Pointer, size uintptr) {
+	C.memclr(ptr, C.size_t(size))
+}
+
 func CreateBlockFile(path string) (*BlockFile, error) {
 	return CreateBlockFileCustomBlockSize(path, BLOCKSIZE)
 }
@@ -361,10 +369,10 @@ func (self *BlockFile) pop_free() (offset uint64, err error) {
 }
 
 func (self *BlockFile) zero(offset uint64, n int) (uint64, error) {
-	zeros := make([]byte, self.blksize)
 	for i := 0; i < n; i++ {
 		err := self.Do(offset + uint64(i*self.blksize), 1, func(block []byte) error {
-			copy(block, zeros)
+			ptr := slice.AsSlice(&block).Array
+			memClr(ptr, uintptr(len(block)))
 			return nil
 		})
 		if err != nil {
