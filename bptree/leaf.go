@@ -96,6 +96,19 @@ func (n *leaf) keyOffset(idx int) int {
 	return offset
 }
 
+func (n *leaf) pure() bool {
+	if n.meta.keyCount == 0 {
+		return true
+	}
+	key := n.keys[0]
+	for i := 1; i < int(n.meta.keyCount); i++ {
+		if !bytes.Equal(key, n.keys[i]) {
+			return false
+		}
+	}
+	return true
+}
+
 func (n *leaf) putKV(key []byte, value []byte) error {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
