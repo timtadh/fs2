@@ -71,10 +71,10 @@ func (t *T) bkey(key *uint64) []byte {
 	return *s.AsBytes()
 }
 
-func (t *T) key(bytes []byte) *uint64 {
+func (t *T) key(bytes []byte) uint64 {
 	t.assert("bytes must have length 8", len(bytes) == 8)
 	s := slice.AsSlice(&bytes)
-	return (*uint64)(s.Array)
+	return *(*uint64)(s.Array)
 }
 
 func (t *T) newLeaf() *leaf {

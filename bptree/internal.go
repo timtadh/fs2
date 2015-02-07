@@ -57,6 +57,10 @@ func (n *internal) Has(key []byte) bool {
 	return has
 }
 
+func (n *internal) full() bool {
+	return n.meta.keyCount + 1 >= n.meta.keyCap
+}
+
 func (n *internal) ptr(key []byte) (uint64, error) {
 	i, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
@@ -69,7 +73,7 @@ func (n *internal) putKP(key []byte, p uint64) error {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
 	}
-	if n.meta.keyCount + 1 >= n.meta.keyCap {
+	if n.full() {
 		return Errorf("block is full")
 	}
 	err := putKey(int(n.meta.keyCount), n.keys, key, func(i int) error {

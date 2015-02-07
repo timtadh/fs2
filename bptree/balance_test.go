@@ -26,7 +26,7 @@ func TestBalanceInternal(x *testing.T) {
 		make_kp := func() *KP {
 			return &KP{
 				key: t.rand_key(),
-				ptr: *t.key(t.rand_key()),
+				ptr: t.key(t.rand_key()),
 			}
 		}
 		kps := make([]*KP, 0, n.meta.keyCap-1)

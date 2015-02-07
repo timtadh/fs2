@@ -3,7 +3,7 @@ package bptree
 
 func (self *BpTree) newInternal() (a uint64, err error) {
 	return self.new(func(bytes []byte) error {
-		_, err := newLeaf(bytes, self.meta.keySize)
+		_, err := newInternal(bytes, self.meta.keySize)
 		return err
 	})
 }
