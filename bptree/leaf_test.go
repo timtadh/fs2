@@ -22,7 +22,7 @@ func (t *T) assert(msg string, oks ...bool) {
 		if !ok {
 			t.Log("\n"+string(debug.Stack()))
 			t.Error(msg)
-			t.Fatal("assert failed")
+			t.Error("assert failed")
 		}
 	}
 }

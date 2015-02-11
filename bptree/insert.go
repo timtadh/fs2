@@ -35,7 +35,7 @@ func (self *BpTree) Put(key, value []byte) error {
 		return err
 	}
 	self.meta.root = root
-	return nil
+	return self.writeMeta()
 }
 
 
@@ -312,7 +312,7 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 		prev := start
 		next := n.meta.next
 		notDone := func(next uint64, node *leaf) bool {
-			 return next != 0 && node.pure() && bytes.Equal(key, node.keys[0])
+			return next != 0 && node.pure() && bytes.Equal(key, node.keys[0])
 		}
 		not_done := notDone(next, n)
 		for not_done {
