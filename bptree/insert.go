@@ -92,7 +92,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	err = self.doInternal(n, func(n *internal) error {
 		n.ptrs[i] = p
 		err := self.firstKey(p, func(key []byte) error {
-			n.keys[i] = key
+			copy(n.keys[i], key)
 			return nil
 		})
 		if err != nil {
@@ -172,6 +172,25 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 			} else {
 				return m.putKP(key, ptr)
 			}
+		})
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	// verify the split
+	err = self.doInternal(a, func(n *internal) error {
+		return self.doInternal(b, func(m *internal) (err error) {
+			for _, k := range n.keys[:n.meta.keyCount] {
+				for _, bk := range m.keys[:m.meta.keyCount] {
+					if bytes.Compare(k, bk) == 0 {
+						return Errorf("Error in internalSplit %v == %v", k, bk)
+					}
+					if bytes.Compare(k, bk) > 0 {
+						return Errorf("Error in internalSplit %v > %v", k, bk)
+					}
+				}
+			}
+			return nil
 		})
 	})
 	if err != nil {
