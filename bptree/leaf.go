@@ -249,6 +249,8 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 		end: end,
 		kvs: kvs,
 	}
+	node.keys = make([][]byte, 0, node.meta.keyCap)
+	node.vals = make([][]byte, 0, node.meta.keyCap)
 
 	err := node.reattachLeaf()
 	if err != nil {
@@ -263,8 +265,8 @@ func (n *leaf) reattachLeaf() error {
 	ptr := uintptr(kvs_s.Array)
 	end := ptr + uintptr(kvs_s.Len)
 
-	keys := make([][]byte, 0, n.meta.keyCap)
-	vals := make([][]byte, 0, n.meta.keyCap)
+	keys := n.keys[:0]
+	vals := n.vals[:0]
 
 	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {

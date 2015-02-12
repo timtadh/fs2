@@ -89,6 +89,6 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 }
 
 func (b *BpTree) writeMeta() error {
-	return b.bf.SetControlData(b.metaBack)
+	return b.bf.SetControlDataNoSync(b.metaBack)
 }
 

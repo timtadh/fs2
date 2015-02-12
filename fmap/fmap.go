@@ -286,17 +286,21 @@ func (self *BlockFile) ControlData() (data []byte, err error) {
 }
 
 func (self *BlockFile) SetControlData(data []byte) (err error) {
-	err = self.ctrl(func(ctrl *ctrlblk) error {
+	err = self.SetControlDataNoSync(data)
+	if err != nil {
+		return err
+	}
+	return self.Sync()
+}
+
+func (self *BlockFile) SetControlDataNoSync(data []byte) (err error) {
+	return self.ctrl(func(ctrl *ctrlblk) error {
 		if len(data) > len(ctrl.user) {
 			return fmt.Errorf("control data was too large")
 		}
 		copy(ctrl.user, data)
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return self.Sync()
 }
 
 func (self *BlockFile) Path() string {
@@ -344,7 +348,7 @@ func (self *BlockFile) Free(offset uint64) error {
 			free.next = head
 			ctrl.data.free_head = offset
 			ctrl.data.free_len += 1
-			return self.Sync()
+			return nil
 		})
 	})
 }
@@ -359,7 +363,7 @@ func (self *BlockFile) pop_free() (offset uint64, err error) {
 			free := loadFreeBlk(bytes)
 			ctrl.data.free_head = free.next
 			ctrl.data.free_len -= 1
-			return self.Sync()
+			return nil
 		})
 	})
 	if err != nil {
@@ -393,6 +397,25 @@ func (self *BlockFile) alloc(n int) (offset uint64, err error) {
 	return start_size, nil
 }
 
+func (self *BlockFile) allocOne() (offset uint64, err error) {
+	n := uint64(256)
+	start_size := self.size
+	amt := uint64(self.blksize) * n
+	if err := self.resize(self.size + amt); err != nil {
+		return 0, err
+	}
+	extra := make([]int, n)
+	self.ptrs = append(self.ptrs, extra...)
+	for i := uint64(1); i < n; i++ {
+		o := i * uint64(self.blksize)
+		err := self.Free(start_size + o)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return start_size, nil
+}
+
 func (self *BlockFile) Allocate() (offset uint64, err error) {
 	var resize bool = false
 	err = self.ctrl(func(ctrl *ctrlblk) error {
@@ -408,7 +431,7 @@ func (self *BlockFile) Allocate() (offset uint64, err error) {
 		return 0, err
 	}
 	if resize {
-		offset, err = self.alloc(1)
+		offset, err = self.allocOne()
 		if err != nil {
 			return 0, err
 		}
