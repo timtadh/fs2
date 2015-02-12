@@ -15,7 +15,7 @@ func (t *T) assert_value(expect []byte) func(value []byte, err error) {
 }
 func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
-	for TEST := 0; TEST < TESTS; TEST++ {
+	for TEST := 0; TEST < TESTS*10; TEST++ {
 		SIZE := 1027+TEST*16
 		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
