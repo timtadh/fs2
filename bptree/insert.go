@@ -56,8 +56,6 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 		return self.internalInsert(n, key, value)
 	} else if flags & LEAF != 0 {
 		return self.leafInsert(n, key, value)
-	} else if flags & BIG_LEAF != 0 {
-		return self.bigLeafInsert(n, key, value)
 	} else {
 		return 0, 0, Errorf("Unknown block type")
 	}
@@ -139,10 +137,6 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 		return self.leafSplit(n, key, value)
 	}
 	return n, 0, nil
-}
-
-func (self *BpTree) bigLeafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
-	return self.bigLeafSplit(n, key, value)
 }
 
 /*
@@ -340,14 +334,6 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 		return 0, err
 	}
 	return a, nil
-}
-
-/* there are two cases
- * 1) the inserted key is less than the key in block. A new block is create to left.
- * 2) greater than or equal to it will create one to the right.
- */
-func (self *BpTree) bigLeafSplit(n uint64, key, value []byte) (a, b uint64, err error) {
-	return 0, 0, Errorf("unimplemented")
 }
 
 

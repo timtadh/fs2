@@ -24,13 +24,6 @@ func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
 			copy(key, n.keys[i])
 			return nil
 		},
-		func(n *bigLeaf) error {
-			if i >= int(n.meta.keyCount) {
-				return Errorf("out of range")
-			}
-			copy(key, n.key)
-			return nil
-		},
 	)
 	if err != nil {
 		return nil, err
@@ -58,8 +51,6 @@ func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error)
 		return self.internalGetStart(n, key)
 	} else if flags & LEAF != 0 {
 		return self.leafGetStart(n, key)
-	} else if flags & BIG_LEAF != 0 {
-		return self.bigLeafGetStart(n, key)
 	} else {
 		return 0, 0, Errorf("Unknown block type")
 	}
@@ -105,9 +96,5 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		return self.leafGetStart(next, key)
 	}
 	return n, i, nil
-}
-
-func (self *BpTree) bigLeafGetStart(n uint64, key []byte) (a uint64, i int, err error) {
-	return n, 0, nil
 }
 
