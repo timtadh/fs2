@@ -4,6 +4,7 @@ import "testing"
 
 import (
 	"bytes"
+	// "fmt"
 	"os"
 	"runtime/debug"
 	"unsafe"
@@ -16,6 +17,12 @@ import (
 const TESTS = 50
 
 type T testing.T
+
+func (t *T) Log(msgs ...interface{}) {
+	x := (*testing.T)(t)
+	// fmt.Println(msgs...)
+	x.Log(msgs...)
+}
 
 func (t *T) assert(msg string, oks ...bool) {
 	for _, ok := range oks {

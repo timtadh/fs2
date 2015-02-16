@@ -145,6 +145,13 @@ func (self *BpTree) bigLeafInsert(n uint64, key, value []byte) (a, b uint64, err
 	return self.bigLeafSplit(n, key, value)
 }
 
+/*
+ * This function splits the leaf on the given key. It then inserts
+ * between the two keys the bigLeaf. The problem this creates is we
+ * actually have 3 split going on as we will have two new blocks (not
+ * one) which need to propogate up.
+ *
+ */
 func (self *BpTree) leafInsertBigValue(n uint64, key, value []byte) (a, b uint64, err error) {
 	return 0, 0, Errorf("unimplemented")
 }
@@ -172,25 +179,6 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 			} else {
 				return m.putKP(key, ptr)
 			}
-		})
-	})
-	if err != nil {
-		return 0, 0, err
-	}
-	// verify the split
-	err = self.doInternal(a, func(n *internal) error {
-		return self.doInternal(b, func(m *internal) (err error) {
-			for _, k := range n.keys[:n.meta.keyCount] {
-				for _, bk := range m.keys[:m.meta.keyCount] {
-					if bytes.Compare(k, bk) == 0 {
-						return Errorf("Error in internalSplit %v == %v", k, bk)
-					}
-					if bytes.Compare(k, bk) > 0 {
-						return Errorf("Error in internalSplit %v > %v", k, bk)
-					}
-				}
-			}
-			return nil
 		})
 	})
 	if err != nil {
