@@ -128,35 +128,6 @@ func TestPutKVRand(x *testing.T) {
 	bf_clean()
 }
 
-func TestPutKBVRand(x *testing.T) {
-	t := (*T)(x)
-	for TEST := 0; TEST < TESTS; TEST++ {
-		bf, bf_clean := t.blkfile()
-		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
-		t.assert_nil(err)
-		kvs := make([]*KV, 0, n.meta.keyCap/2)
-		for i := 0; i < cap(kvs); i++ {
-			kv := &KV{
-				key: t.rand_key(),
-				value: t.rand_bigValue(2048, 4096*5),
-			}
-			if !n.fits(kv.value) {
-				break
-			}
-			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
-		}
-		t.assert("at least one kv must be added", len(kvs) > 0)
-		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
-		}
-		bf_clean()
-	}
-}
-
 func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
 	bf, bf_clean := t.blkfile()
