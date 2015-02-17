@@ -13,6 +13,14 @@ func (t *T) assert_value(expect []byte) func(value []byte, err error) {
 		t.assert(fmt.Sprintf("values were not equal %v != %v", expect, value), bytes.Equal(expect, value))
 	}
 }
+
+func (t *T) assert_notValue(expect []byte) func(value []byte, err error) {
+	return func(value []byte, err error) {
+		t.assert_nil(err)
+		t.assert(fmt.Sprintf("values should not have been equal %v == %v", expect, value), !bytes.Equal(expect, value))
+	}
+}
+
 func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*10; TEST++ {

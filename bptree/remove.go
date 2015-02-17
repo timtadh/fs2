@@ -8,6 +8,12 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 	if err != nil {
 		return err
 	}
+	if a == 0 {
+		a, err = self.newLeaf()
+		if err != nil {
+			return err
+		}
+	}
 	self.meta.root = a
 	return self.writeMeta()
 }

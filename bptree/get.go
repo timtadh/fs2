@@ -6,7 +6,6 @@ import (
 
 type bpt_iterator func() (a uint64, idx int, err error, bi bpt_iterator)
 
-
 /* returns the key at the address and index or an error
  */
 func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
@@ -77,7 +76,6 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 	return self._getStart(kid, key)
 }
 
-
 func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err error) {
 	var next uint64 = 0
 	err = self.doLeaf(n, func(n *leaf) error {
@@ -118,6 +116,9 @@ func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, er
 		if err != nil {
 			return 0, 0, err, nil
 		}
+		if end {
+			return 0, 0, nil, nil
+		}
 		var less bool = false
 		err = self.doLeaf(a, func(n *leaf) error {
 			less = bytes.Compare(to, n.keys[i]) < 0
@@ -126,7 +127,7 @@ func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, er
 		if err != nil {
 			return 0, 0, err, nil
 		}
-		if end || less {
+		if less {
 			return 0, 0, nil, nil
 		}
 		return a, i, nil, bi
