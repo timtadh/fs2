@@ -69,6 +69,14 @@ func (t *T) rand_value(max int) []byte {
 	return t.rand_bytes(length)
 }
 
+func (t *T) rand_bigValue(min, max int) []byte {
+	bytes := t.rand_bytes(4)
+	s := slice.AsSlice(&bytes)
+	length := int(*(*uint32)(s.Array))
+	length = (length % (max)) + min
+	return t.rand_bytes(length)
+}
+
 func (t *T) bkey(key *uint64) []byte {
 	s := &slice.Slice{
 		Array: unsafe.Pointer(key),
@@ -92,65 +100,79 @@ func (t *T) newLeaf() *leaf {
 
 func TestPutKVRand(x *testing.T) {
 	t := (*T)(x)
+	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
-		type KV struct {
-			key []byte
-			value []byte
-		}
-		make_kv := func() *KV {
-			return &KV{
-				key: t.rand_key(),
-				value: t.rand_value(24),
-			}
-		}
 		do_put := func(kv *KV) {
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
-			kv := make_kv()
-			if !n.fits(kv.value) {
+			kv := t.make_kv()
+			if !n.fits(bf, kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
 			do_put(kv)
 			// t.Log(n)
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
+	}
+	bf_clean()
+}
+
+func TestPutKBVRand(x *testing.T) {
+	t := (*T)(x)
+	for TEST := 0; TEST < TESTS; TEST++ {
+		bf, bf_clean := t.blkfile()
+		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
+		t.assert_nil(err)
+		kvs := make([]*KV, 0, n.meta.keyCap/2)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key: t.rand_key(),
+				value: t.rand_bigValue(2048, 4096*5),
+			}
+			if !n.fits(bf, kv.value) {
+				break
+			}
+			kvs = append(kvs, kv)
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+		}
+		for _, kv := range kvs {
+			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+		}
+		bf_clean()
 	}
 }
 
 func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
+	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS*2; TEST++ {
 		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
-		type KV struct {
-			key []byte
-			value []byte
-		}
-		make_kv := func() *KV {
-			return &KV{
-				key: t.rand_key(),
-				value: t.rand_value(24),
-			}
-		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
-			kv := make_kv()
-			if !n.fits(kv.value) {
+			kv := t.make_kv()
+			if !n.fits(bf, kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
@@ -164,11 +186,13 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -180,7 +204,7 @@ func TestPutDelKVRand(x *testing.T) {
 				}
 			}
 			t.assert("found key in leaf", !n.Has(kv.key))
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -191,37 +215,54 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 	}
+	bf_clean()
 }
 
 func TestPutKV(x *testing.T) {
 	t := (*T)(x)
+	bf, bf_clean := t.blkfile()
 	n := t.newLeaf()
 	k1 := uint64(7)
+	v1 := []byte{7,7,7,7,7,7,7,7}
 	k2 := uint64(3)
+	v2 := []byte{3,3,3}
 	k3 := uint64(12)
+	v3 := []byte{12,12,12,12,12,12,12,12}
 	k4 := uint64(8)
+	v4 := []byte{8,8}
 	k5 := uint64(5)
-	// t.Log(n)
-	t.assert_nil(n.putKV(t.bkey(&k1), []byte{7,7,7,7,7,7,7,7}))
-	// t.Log(n)
+	v5 := []byte{5,5,5,5,5,5,5,5,5,5,5}
+	t.assert_nil(n.putKV(bf, t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert_nil(n.putKV(t.bkey(&k2), []byte{3,3,3}))
-	// t.Log(n)
+	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
+
+	t.assert_nil(n.putKV(bf, t.bkey(&k2), v2))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert_nil(n.putKV(t.bkey(&k3), []byte{12,12,12,12,12,12,12,12}))
-	// t.Log(n)
+	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
+
+	t.assert_nil(n.putKV(bf, t.bkey(&k3), v3))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert_nil(n.putKV(t.bkey(&k4), []byte{8,8}))
-	// t.Log(n)
+	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
+
+	t.assert_nil(n.putKV(bf, t.bkey(&k4), v4))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert_nil(n.putKV(t.bkey(&k5), []byte{5,5,5,5,5,5,5,5,5,5,5}))
-	// t.Log(n)
+	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
+
+	t.assert_nil(n.putKV(bf, t.bkey(&k5), v5))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
+
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
+	bf_clean()
 }
 
 func TestNewLeaf(t *testing.T) {

@@ -119,16 +119,13 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 }
 
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
-	if len(value) > self.bf.BlockSize()>>2 {
-		return self.leafInsertBigValue(n, key, value)
-	}
 	var mustSplit bool = false
 	err = self.doLeaf(n, func(n *leaf) error {
-		if !n.fits(value) {
+		if !n.fits(self.bf, value) {
 			mustSplit = true
 			return nil
 		}
-		return n.putKV(key, value)
+		return n.putKV(self.bf, key, value)
 	})
 	if err != nil {
 		return 0, 0, err
@@ -137,31 +134,6 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 		return self.leafSplit(n, key, value)
 	}
 	return n, 0, nil
-}
-
-/*
- * This function splits the leaf on the given key. It then inserts
- * between the two keys the bigLeaf. The problem this creates is we
- * actually have 3 split going on as we will have two new blocks (not
- * one) which need to propogate up.
- *
- */
-func (self *BpTree) leafInsertBigValue(n uint64, key, value []byte) (a, b uint64, err error) {
-	blkCount := self.blksNeeded(len(value))
-	_, err = self.bf.AllocateBlocks(blkCount)
-	if err != nil {
-		return 0, 0, err
-	}
-	return 0, 0, Errorf("unimplemented")
-}
-
-func (self *BpTree) blksNeeded(size int) int {
-	blk := int(self.bf.BlockSize())
-	m := size % blk
-	if m == 0 {
-		return size / blk
-	}
-	return (size + (blk - m))/blk
 }
 
 /* On split
@@ -229,9 +201,9 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 				return err
 			}
 			if bytes.Compare(key, m.keys[0]) < 0 {
-				return n.putKV(key, value)
+				return n.putKV(self.bf, key, value)
 			} else {
-				return m.putKV(key, value)
+				return m.putKV(self.bf, key, value)
 			}
 		})
 	})
@@ -268,7 +240,7 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 				return err
 			}
 			return self.doLeaf(a, func(anode *leaf) (err error) {
-				return anode.putKV(key, value)
+				return anode.putKV(self.bf, key, value)
 			})
 		} else {
 			a = n
@@ -277,12 +249,12 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 				return err
 			}
 			return self.doLeaf(e, func(m *leaf) (err error) {
-				if m.fits(value) && bytes.Equal(key, m.keys[0]) {
+				if m.fits(self.bf, value) && bytes.Equal(key, m.keys[0]) {
 					unneeded = true
-					return m.putKV(key, value)
+					return m.putKV(self.bf, key, value)
 				} else {
 					return self.doLeaf(b, func(o *leaf) (err error) {
-						err = o.putKV(key, value)
+						err = o.putKV(self.bf, key, value)
 						if err != nil {
 							return err
 						}

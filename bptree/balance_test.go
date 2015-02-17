@@ -79,11 +79,11 @@ func TestBalanceLeaf(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := make_kv()
-			if !n.fits(kv.value) {
+			if !n.fits(bf, kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -111,6 +111,7 @@ func TestBalanceLeaf(x *testing.T) {
 
 func TestBalancePureLeaf(x *testing.T) {
 	t := (*T)(x)
+	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027+TEST*16
 		n, err := newLeaf(make([]byte, SIZE), 8)
@@ -130,11 +131,11 @@ func TestBalancePureLeaf(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := make_kv()
-			if !n.fits(kv.value) {
+			if !n.fits(bf, kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bf, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 		}
 		for _, kv := range kvs {
@@ -152,5 +153,6 @@ func TestBalancePureLeaf(x *testing.T) {
 			}
 		}
 	}
+	bf_clean()
 }
 

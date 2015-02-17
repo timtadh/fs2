@@ -136,7 +136,7 @@ resize(void *old_addr, void **new_addr, int fd, size_t new_length) {
 		int err = errno;
 		errno = 0;
 		char *msg = strerror(err);
-		fprintf(stderr, "MMAP ERROR: %s\n", msg);
+		fprintf(stderr, "MREMAP ERROR: %s\n", msg);
 		return err;
 	}
 	*new_addr = mapped;

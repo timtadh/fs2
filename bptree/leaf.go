@@ -72,13 +72,24 @@ func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) er
 	switch flag(n.valueFlags[i]) {
 	case 0: return Errorf("Unset value flag")
 	case SMALL_VALUE: return do(n.vals[i])
-	case BIG_VALUE: return n.doBigValue(bf, key, do)
+	case BIG_VALUE: return n.doBigValue(bf, i, do)
 	default: return Errorf("Unexpected value type")
 	}
 }
 
-func (n *leaf) doBigValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) error {
-	return Errorf("Unimplemented")
+func (n *leaf) doBigValue(bf *fmap.BlockFile, i int, do func([]byte) error) error {
+	bv_bytes := make([]byte, bvSize)
+	copy(bv_bytes, n.vals[i])
+	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
+	blks := n.blksNeeded(bf, int(bv.size))
+	if bv.offset == 0 {
+		return Errorf("the bv.offset, %d, was 0.", bv.offset)
+	} else if bv.offset % 4096 != 0 {
+		return Errorf("the bv.offset, %d, was not block aligned", bv.offset)
+	}
+	return bf.Do(bv.offset, uint64(blks), func(bytes []byte) error {
+		return do(bytes[:bv.size])
+	})
 }
 
 func (n *leaf) first_value(bf *fmap.BlockFile, key []byte) (value []byte, err error) {
@@ -97,12 +108,15 @@ func (n *leaf) next_kv_in_kvs() int {
 	return n.keyOffset(int(n.meta.keyCount))
 }
 
-func (n *leaf) size(value []byte) int {
+func (n *leaf) size(bf *fmap.BlockFile, value []byte) int {
+	if len(value) > int(bf.BlockSize()) / 4 {
+		return int(n.meta.keySize) + int(bvSize)
+	}
 	return int(n.meta.keySize) + len(value)
 }
 
-func (n *leaf) fits(value []byte) bool {
-	size := n.size(value)
+func (n *leaf) fits(bf *fmap.BlockFile, value []byte) bool {
+	size := n.size(bf, value)
 	end := n.next_kv_in_kvs()
 	return end + size < len(n.kvs)
 }
@@ -129,7 +143,47 @@ func (n *leaf) pure() bool {
 	return true
 }
 
-func (n *leaf) putKV(key []byte, value []byte) (err error) {
+func (n *leaf) makeBigValue(bf *fmap.BlockFile, value []byte) (bigVal []byte, err error) {
+	N := n.blksNeeded(bf, len(value))
+	a, err := bf.AllocateBlocks(N)
+	if err != nil {
+		return nil, err
+	}
+	err = bf.Do(a, uint64(N), func(bytes []byte) error {
+		if len(bytes) < len(value) {
+			return Errorf("Did not have enough bytes")
+		}
+		copy(bytes, value)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	var bv *bigValue = &bigValue{
+		size: uint32(len(value)),
+		offset: a,
+	}
+	bv_bytes := bv.Bytes()
+	nbv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
+	if nbv.offset != bv.offset {
+		return nil, Errorf("nvb was wrong on offset")
+	}
+	if nbv.size != bv.size {
+		return nil, Errorf("nvb was wrong on size")
+	}
+	return bv_bytes, nil
+}
+
+func (n *leaf) blksNeeded(bf *fmap.BlockFile, size int) int {
+	blk := int(bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m))/blk
+}
+
+func (n *leaf) putKV(bf *fmap.BlockFile, key []byte, value []byte) (err error) {
 	var bigValue bool = false
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
@@ -137,16 +191,19 @@ func (n *leaf) putKV(key []byte, value []byte) (err error) {
 	if n.meta.keyCount + 1 >= n.meta.keyCap {
 		return Errorf("block is full")
 	}
-	// if len(value) > int(bf.BlockSize() / 4 {
-		// value, err = n.makeBigValue(value)
-		// bigValue = true
-	// } else
-	if !n.fits(value) {
+	if len(value) > int(bf.BlockSize()) / 4 {
+		value, err = n.makeBigValue(bf, value)
+		if err != nil {
+			return err
+		}
+		bigValue = true
+	}
+	if !n.fits(bf, value) {
 		return Errorf("block is full (value doesn't fit)")
 	}
 	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
 	key_offset := n.keyOffset(key_idx)
-	kv_size := n.size(value)
+	kv_size := n.size(bf, value)
 	length := n.next_kv_in_kvs()
 	if key_idx == int(n.meta.keyCount) {
 		// fantastic we don't nee to move any thing.

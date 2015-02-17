@@ -81,11 +81,11 @@ func TestLeafInsert(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
-			if !n.fits(kv.value) {
+			if !n.fits(bpt.bf, kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bpt.bf, kv.key, kv.value))
 			t.assert_nil(bpt.Put(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
@@ -174,7 +174,7 @@ func TestEndOfPureRun(x *testing.T) {
 			kvs = append(kvs, kv)
 			var fits bool = false
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				fits = cur.fits(kv.value)
+				fits = cur.fits(bpt.bf, kv.value)
 				return nil
 			}))
 			if !fits {
@@ -184,7 +184,7 @@ func TestEndOfPureRun(x *testing.T) {
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				return cur.putKV(kv.key, kv.value)
+				return cur.putKV(bpt.bf, kv.key, kv.value)
 			}))
 		}
 		end, err := bpt.endOfPureRun(start)
@@ -288,10 +288,10 @@ func TestInternalInsertSplit(x *testing.T) {
 		t.assert_nil(bpt.writeMeta())
 		t.assert_nil(bpt.doInternal(I, func(I *internal) error {
 			t.assert_nil(bpt.doLeaf(a, func(a *leaf) error {
-				return a.putKV(kvs[0].key, kvs[0].value)
+				return a.putKV(bpt.bf, kvs[0].key, kvs[0].value)
 			}))
 			t.assert_nil(bpt.doLeaf(b, func(b *leaf) error {
-				return b.putKV(kvs[LEAF_CAP].key, kvs[LEAF_CAP].value)
+				return b.putKV(bpt.bf, kvs[LEAF_CAP].key, kvs[LEAF_CAP].value)
 			}))
 			t.assert_nil(I.putKP(kvs[0].key, a))
 			t.assert_nil(I.putKP(kvs[LEAF_CAP].key, b))

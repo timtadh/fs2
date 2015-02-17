@@ -6,7 +6,6 @@ package fmap
 import "C"
 
 import (
-	"fmt"
 	"hash/crc32"
 	"os"
 	"reflect"
@@ -52,7 +51,7 @@ func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
 	ptr := uintptr(back.Array) + data.Size()
 	new_chksum := crc32.ChecksumIEEE(bytes[4:])
 	if new_chksum != data.checksum {
-		return nil, fmt.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
+		return nil, Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
 	}
 	user_len := len(bytes) - int(data.Size())
 	user_s := &slice.Slice{
@@ -126,7 +125,7 @@ func CreateBlockFile(path string) (*BlockFile, error) {
 
 func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error) {
 	if size % 4096 != 0 {
-		panic(fmt.Errorf("blocksize must be divisible by 4096"))
+		panic(Errorf("blocksize must be divisible by 4096"))
 	}
 	bf := &BlockFile{
 		path: path,
@@ -226,17 +225,17 @@ func do_map(f *os.File) (unsafe.Pointer, error) {
 	var mmap unsafe.Pointer = unsafe.Pointer(uintptr(0))
 	errno := C.create_mmap(&mmap, C.int(f.Fd()))
 	if errno != 0 {
-		return nil, fmt.Errorf("Could not create map fd = %d, %d", f.Fd(), errno)
+		return nil, Errorf("Could not create map fd = %d, %d", f.Fd(), errno)
 	}
 	return mmap, nil
 }
 
 func (self *BlockFile) Close() error {
 	if self.outstanding > 0 {
-		return fmt.Errorf("Tried to close file when there were outstanding pointers")
+		return Errorf("Tried to close file when there were outstanding pointers")
 	}
 	if errno := C.destroy_mmap(self.mmap, C.int(self.file.Fd())); errno != 0 {
-		return fmt.Errorf("destroy_mmap failed, %d", errno)
+		return Errorf("destroy_mmap failed, %d", errno)
 	}
 	if err := self.file.Close(); err != nil {
 		return err
@@ -249,7 +248,7 @@ func (self *BlockFile) Close() error {
 
 func (self *BlockFile) Remove() error {
 	if self.opened {
-		return fmt.Errorf("Expected file to be closed")
+		return Errorf("Expected file to be closed")
 	}
 	return os.Remove(self.Path())
 }
@@ -296,7 +295,7 @@ func (self *BlockFile) SetControlData(data []byte) (err error) {
 func (self *BlockFile) SetControlDataNoSync(data []byte) (err error) {
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		if len(data) > len(ctrl.user) {
-			return fmt.Errorf("control data was too large")
+			return Errorf("control data was too large")
 		}
 		copy(ctrl.user, data)
 		return nil
@@ -313,7 +312,7 @@ func (self *BlockFile) BlockSize() int {
 
 func (self *BlockFile) Size() (uint64, error) {
 	if !self.opened {
-		return 0, fmt.Errorf("File is not open")
+		return 0, Errorf("File is not open")
 	}
 	fi, err := self.file.Stat()
 	if err != nil {
@@ -324,12 +323,12 @@ func (self *BlockFile) Size() (uint64, error) {
 
 func (self *BlockFile) resize(size uint64) error {
 	if self.outstanding > 0 {
-		return fmt.Errorf("cannot resize the file while there are outstanding pointers")
+		return Errorf("cannot resize the file while there are outstanding pointers")
 	}
 	var new_mmap unsafe.Pointer
 	errno := C.resize(self.mmap, &new_mmap, C.int(self.file.Fd()), C.size_t(size))
 	if errno != 0 {
-		return fmt.Errorf("resize failed, %d", errno)
+		return Errorf("resize failed, %d", errno)
 	}
 	self.size = size
 	self.mmap = new_mmap
@@ -339,7 +338,7 @@ func (self *BlockFile) resize(size uint64) error {
 func (self *BlockFile) Free(offset uint64) error {
 	errno := C.is_normal(self.mmap, C.size_t(offset), C.size_t(self.blksize))
 	if errno != 0 {
-		return fmt.Errorf("is_normal failed, %d", errno)
+		return Errorf("is_normal failed, %d", errno)
 	}
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		head := ctrl.data.free_head
@@ -356,7 +355,7 @@ func (self *BlockFile) Free(offset uint64) error {
 func (self *BlockFile) pop_free() (offset uint64, err error) {
 	err = self.ctrl(func(ctrl *ctrlblk) error {
 		if ctrl.data.free_head == 0 || ctrl.data.free_len == 0 {
-			return fmt.Errorf("No blocks free")
+			return Errorf("No blocks free")
 		}
 		offset = ctrl.data.free_head
 		return self.Do(offset, 1, func(bytes []byte) error {
@@ -444,11 +443,11 @@ func (self *BlockFile) AllocateBlocks(n int) (offset uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	amt := uint64(self.blksize) * uint64(n)
+	/*amt := uint64(self.blksize) * uint64(n)
 	errno := C.is_sequential(self.mmap, C.size_t(offset), C.size_t(amt))
 	if errno != 0 {
-		return 0, fmt.Errorf("is_sequential failed, %d", errno)
-	}
+		return 0, Errorf("is_sequential failed, %d", errno)
+	}*/
 	return self.zero(offset, n)
 }
 
@@ -463,8 +462,8 @@ func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 
 func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	length := blocks * uint64(self.blksize)
-	if offset + length > uint64(self.size) {
-		return nil, fmt.Errorf("Get outside of the file, %d + %d > %d", offset, self.blksize, self.size)
+	if (offset + length) > uint64(self.size) {
+		return nil, Errorf("Get outside of the file, (%d) %d + %d > %d", offset + length, offset, length, self.size)
 	}
 	blk := (offset/uint64(self.blksize))
 	for i := uint64(0); i < blocks; i++ {
@@ -488,10 +487,10 @@ func (self *BlockFile) Release(bytes []byte) (error) {
 	for i := uint64(0); i < blocks; i++ {
 		cblk := blk + i
 		if cblk < 0 || cblk >= uint64(len(self.ptrs)) {
-			return fmt.Errorf("Tried to release a block that was not in this mapping")
+			return Errorf("Tried to release a block that was not in this mapping")
 		}
 		if self.ptrs[cblk] <= 0 {
-			return fmt.Errorf("Tried to release block with no outstanding pointers (double free?)")
+			return Errorf("Tried to release block with no outstanding pointers (double free?)")
 		}
 		self.ptrs[cblk] -= 1
 		self.outstanding -= 1
@@ -502,7 +501,7 @@ func (self *BlockFile) Release(bytes []byte) (error) {
 func (self *BlockFile) Sync() (error) {
 	errno := C.sync_mmap(self.mmap, C.int(self.file.Fd()))
 	if (errno != 0) {
-		return fmt.Errorf("sync_mmap failed, %d", errno)
+		return Errorf("sync_mmap failed, %d", errno)
 	}
 	return nil
 }
