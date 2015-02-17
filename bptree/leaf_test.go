@@ -29,7 +29,7 @@ func (t *T) assert(msg string, oks ...bool) {
 		if !ok {
 			t.Log("\n"+string(debug.Stack()))
 			t.Error(msg)
-			t.Error("assert failed")
+			t.Fatal("assert failed")
 		}
 	}
 }
@@ -128,7 +128,7 @@ func TestPutKVRand(x *testing.T) {
 
 func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
-	for TEST := 0; TEST < TESTS; TEST++ {
+	for TEST := 0; TEST < TESTS*2; TEST++ {
 		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
 		type KV struct {

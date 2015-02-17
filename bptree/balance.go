@@ -40,6 +40,8 @@ func (a *leaf) balance(b *leaf) error {
 		j := m + i
 		b.valueSizes[i] = a.valueSizes[j]
 		a.valueSizes[j] = 0
+		b.valueFlags[i] = a.valueFlags[j]
+		a.valueFlags[j] = 0
 	}
 	m_offset := a.keyOffset(m)
 	from := a.kvs[m_offset:]

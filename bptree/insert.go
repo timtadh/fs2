@@ -147,7 +147,21 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
  *
  */
 func (self *BpTree) leafInsertBigValue(n uint64, key, value []byte) (a, b uint64, err error) {
+	blkCount := self.blksNeeded(len(value))
+	_, err = self.bf.AllocateBlocks(blkCount)
+	if err != nil {
+		return 0, 0, err
+	}
 	return 0, 0, Errorf("unimplemented")
+}
+
+func (self *BpTree) blksNeeded(size int) int {
+	blk := int(self.bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m))/blk
 }
 
 /* On split

@@ -60,6 +60,7 @@ func TestBalanceInternal(x *testing.T) {
 
 func TestBalanceLeaf(x *testing.T) {
 	t := (*T)(x)
+	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027+TEST*16
 		n, err := newLeaf(make([]byte, SIZE), 8)
@@ -84,22 +85,28 @@ func TestBalanceLeaf(x *testing.T) {
 			kvs = append(kvs, kv)
 			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(kv.key))
+			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
 		b, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		t.assert_nil(n.balance(b))
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
+			if n.Has(kv.key) {
+				t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			} else {
+				t.assert_value(kv.value)(b.first_value(bf, kv.key))
+			}
 		}
 		for _, key := range n.keys {
 			t.assert("key >= to start key in b", bytes.Compare(key, b.keys[0]) < 0)
 		}
 	}
+	bf_clean()
 }
 
 func TestBalancePureLeaf(x *testing.T) {
