@@ -4,6 +4,10 @@ import (
 	"bytes"
 )
 
+import (
+	"github.com/timtadh/fs2/fmap"
+)
+
 
 func (self *BpTree) Put(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
@@ -119,21 +123,69 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 }
 
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+	if len(value) > int(self.bf.BlockSize()) / 4 {
+		return self.leafBigInsert(n, key, value)
+	}
+	return self.leafDoInsert(n, SMALL_VALUE, key, value)
+}
+
+func (self *BpTree) leafBigInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+	value, err = self.makeBigValue(value)
+	if err != nil {
+		return 0, 0, err
+	}
+	return self.leafDoInsert(n, BIG_VALUE, key, value)
+}
+
+func (self *BpTree) leafDoInsert(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {
 	var mustSplit bool = false
 	err = self.doLeaf(n, func(n *leaf) error {
-		if !n.fits(self.bf, value) {
+		if !n.fits(value) {
 			mustSplit = true
 			return nil
 		}
-		return n.putKV(self.bf, key, value)
+		return n.putKV(valFlags, key, value)
 	})
 	if err != nil {
 		return 0, 0, err
 	}
 	if mustSplit {
-		return self.leafSplit(n, key, value)
+		return self.leafSplit(n, valFlags, key, value)
 	}
 	return n, 0, nil
+}
+
+func (self *BpTree) makeBigValue(value []byte) (bigVal []byte, err error) {
+	N := blksNeeded(self.bf, len(value))
+	a, err := self.bf.AllocateBlocks(N)
+	if err != nil {
+		return nil, err
+	}
+	err = self.bf.Do(a, uint64(N), func(bytes []byte) error {
+		if len(bytes) < len(value) {
+			return Errorf("Did not have enough bytes")
+		}
+		copy(bytes, value)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	var bv *bigValue = &bigValue{
+		size: uint32(len(value)),
+		offset: a,
+	}
+	bv_bytes := bv.Bytes()
+	return bv_bytes, nil
+}
+
+func blksNeeded(bf *fmap.BlockFile, size int) int {
+	blk := int(bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m))/blk
 }
 
 /* On split
@@ -173,7 +225,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
  * - the two blocks will be balanced with balanced_nodes
  * - if the key is less than b.keys[0] it will go in a else b
  */
-func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {
 	var isPure bool = false
 	a = n
 	err = self.doLeaf(a, func(n *leaf) (err error) {
@@ -184,7 +236,7 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 		return 0, 0, err
 	}
 	if isPure {
-		return self.pureLeafSplit(n, key, value)
+		return self.pureLeafSplit(n, valFlags, key, value)
 	}
 	b, err = self.newLeaf()
 	if err != nil {
@@ -201,9 +253,9 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 				return err
 			}
 			if bytes.Compare(key, m.keys[0]) < 0 {
-				return n.putKV(self.bf, key, value)
+				return n.putKV(valFlags, key, value)
 			} else {
-				return m.putKV(self.bf, key, value)
+				return m.putKV(valFlags, key, value)
 			}
 		})
 	})
@@ -225,7 +277,7 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
  *       and putting the new key there.
  *     - always return the current block as "a" and the new block as "b"
  */
-func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {
 	var unneeded bool = false
 	new_off, err := self.newLeaf() // this needs to be hoisted!!
 	if err != nil {
@@ -240,7 +292,7 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 				return err
 			}
 			return self.doLeaf(a, func(anode *leaf) (err error) {
-				return anode.putKV(self.bf, key, value)
+				return anode.putKV(valFlags, key, value)
 			})
 		} else {
 			a = n
@@ -249,12 +301,12 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 				return err
 			}
 			return self.doLeaf(e, func(m *leaf) (err error) {
-				if m.fits(self.bf, value) && bytes.Equal(key, m.keys[0]) {
+				if m.fits(value) && bytes.Equal(key, m.keys[0]) {
 					unneeded = true
-					return m.putKV(self.bf, key, value)
+					return m.putKV(valFlags, key, value)
 				} else {
 					return self.doLeaf(b, func(o *leaf) (err error) {
-						err = o.putKV(self.bf, key, value)
+						err = o.putKV(valFlags, key, value)
 						if err != nil {
 							return err
 						}

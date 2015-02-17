@@ -12,7 +12,7 @@ import (
 	"github.com/timtadh/fs2/slice"
 )
 
-type WhereFunc func(value []byte) bool
+type WhichFunc func(value []byte) bool
 
 type leafMeta struct {
 	baseMeta
@@ -81,7 +81,7 @@ func (n *leaf) doBigValue(bf *fmap.BlockFile, i int, do func([]byte) error) erro
 	bv_bytes := make([]byte, bvSize)
 	copy(bv_bytes, n.vals[i])
 	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
-	blks := n.blksNeeded(bf, int(bv.size))
+	blks := blksNeeded(bf, int(bv.size))
 	if bv.offset == 0 {
 		return Errorf("the bv.offset, %d, was 0.", bv.offset)
 	} else if bv.offset % 4096 != 0 {
@@ -108,15 +108,12 @@ func (n *leaf) next_kv_in_kvs() int {
 	return n.keyOffset(int(n.meta.keyCount))
 }
 
-func (n *leaf) size(bf *fmap.BlockFile, value []byte) int {
-	if len(value) > int(bf.BlockSize()) / 4 {
-		return int(n.meta.keySize) + int(bvSize)
-	}
+func (n *leaf) size(value []byte) int {
 	return int(n.meta.keySize) + len(value)
 }
 
-func (n *leaf) fits(bf *fmap.BlockFile, value []byte) bool {
-	size := n.size(bf, value)
+func (n *leaf) fits(value []byte) bool {
+	size := n.size(value)
 	end := n.next_kv_in_kvs()
 	return end + size < len(n.kvs)
 }
@@ -143,67 +140,19 @@ func (n *leaf) pure() bool {
 	return true
 }
 
-func (n *leaf) makeBigValue(bf *fmap.BlockFile, value []byte) (bigVal []byte, err error) {
-	N := n.blksNeeded(bf, len(value))
-	a, err := bf.AllocateBlocks(N)
-	if err != nil {
-		return nil, err
-	}
-	err = bf.Do(a, uint64(N), func(bytes []byte) error {
-		if len(bytes) < len(value) {
-			return Errorf("Did not have enough bytes")
-		}
-		copy(bytes, value)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	var bv *bigValue = &bigValue{
-		size: uint32(len(value)),
-		offset: a,
-	}
-	bv_bytes := bv.Bytes()
-	nbv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
-	if nbv.offset != bv.offset {
-		return nil, Errorf("nvb was wrong on offset")
-	}
-	if nbv.size != bv.size {
-		return nil, Errorf("nvb was wrong on size")
-	}
-	return bv_bytes, nil
-}
-
-func (n *leaf) blksNeeded(bf *fmap.BlockFile, size int) int {
-	blk := int(bf.BlockSize())
-	m := size % blk
-	if m == 0 {
-		return size / blk
-	}
-	return (size + (blk - m))/blk
-}
-
-func (n *leaf) putKV(bf *fmap.BlockFile, key []byte, value []byte) (err error) {
-	var bigValue bool = false
+func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount + 1 >= n.meta.keyCap {
 		return Errorf("block is full")
 	}
-	if len(value) > int(bf.BlockSize()) / 4 {
-		value, err = n.makeBigValue(bf, value)
-		if err != nil {
-			return err
-		}
-		bigValue = true
-	}
-	if !n.fits(bf, value) {
+	if !n.fits(value) {
 		return Errorf("block is full (value doesn't fit)")
 	}
 	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
 	key_offset := n.keyOffset(key_idx)
-	kv_size := n.size(bf, value)
+	kv_size := n.size(value)
 	length := n.next_kv_in_kvs()
 	if key_idx == int(n.meta.keyCount) {
 		// fantastic we don't nee to move any thing.
@@ -229,11 +178,7 @@ func (n *leaf) putKV(bf *fmap.BlockFile, key []byte, value []byte) (err error) {
 	// do the book keeping
 	n.valueSizes[key_idx] = uint16(len(value))
 	n.meta.keyCount += 1
-	if bigValue {
-		n.valueFlags[key_idx] = uint8(BIG_VALUE)
-	} else {
-		n.valueFlags[key_idx] = uint8(SMALL_VALUE)
-	}
+	n.valueFlags[key_idx] = uint8(valFlags)
 	// copy in the new kv
 	key_end := key_offset+int(n.meta.keySize)
 	key_slice := n.kvs[key_offset:key_end]
@@ -244,7 +189,7 @@ func (n *leaf) putKV(bf *fmap.BlockFile, key []byte, value []byte) (err error) {
 	return n.reattachLeaf()
 }
 
-func (n *leaf) delKV(key []byte, where WhereFunc) error {
+func (n *leaf) delKV(key []byte, which WhichFunc) error {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
 	}
@@ -259,7 +204,7 @@ func (n *leaf) delKV(key []byte, where WhereFunc) error {
 		if !bytes.Equal(key, n.keys[key_idx]) {
 			return nil
 		}
-		if where(n.vals[key_idx]) {
+		if which(n.vals[key_idx]) {
 			break
 		}
 	}

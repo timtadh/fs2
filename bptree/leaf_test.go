@@ -105,13 +105,13 @@ func TestPutKVRand(x *testing.T) {
 		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
 		do_put := func(kv *KV) {
-			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
 		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
-			if !n.fits(bf, kv.value) {
+			if !n.fits(kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
@@ -140,14 +140,15 @@ func TestPutKBVRand(x *testing.T) {
 				key: t.rand_key(),
 				value: t.rand_bigValue(2048, 4096*5),
 			}
-			if !n.fits(bf, kv.value) {
+			if !n.fits(kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
+		t.assert("at least one kv must be added", len(kvs) > 0)
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
@@ -166,11 +167,11 @@ func TestPutDelKVRand(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
-			if !n.fits(bf, kv.value) {
+			if !n.fits(kv.value) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -186,7 +187,7 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -204,7 +205,7 @@ func TestPutDelKVRand(x *testing.T) {
 				}
 			}
 			t.assert("found key in leaf", !n.Has(kv.key))
-			t.assert_nil(n.putKV(bf, kv.key, kv.value))
+			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -232,23 +233,23 @@ func TestPutKV(x *testing.T) {
 	v4 := []byte{8,8}
 	k5 := uint64(5)
 	v5 := []byte{5,5,5,5,5,5,5,5,5,5,5}
-	t.assert_nil(n.putKV(bf, t.bkey(&k1), v1))
+	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
 	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
 
-	t.assert_nil(n.putKV(bf, t.bkey(&k2), v2))
+	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k2), v2))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
 	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
 
-	t.assert_nil(n.putKV(bf, t.bkey(&k3), v3))
+	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k3), v3))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
 	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
 
-	t.assert_nil(n.putKV(bf, t.bkey(&k4), v4))
+	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k4), v4))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
 	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
 
-	t.assert_nil(n.putKV(bf, t.bkey(&k5), v5))
+	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k5), v5))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
 	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
 
