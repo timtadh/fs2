@@ -12,8 +12,6 @@ import (
 	"github.com/timtadh/fs2/slice"
 )
 
-type WhichFunc func(value []byte) bool
-
 type leafMeta struct {
 	baseMeta
 	next uint64
@@ -69,6 +67,10 @@ func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) er
 	if !has {
 		return Errorf("key was not in the leaf node")
 	}
+	return n.doValueAt(bf, i, do)
+}
+
+func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	switch flag(n.valueFlags[i]) {
 	case 0: return Errorf("Unset value flag")
 	case SMALL_VALUE: return do(n.vals[i])
@@ -189,7 +191,7 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	return n.reattachLeaf()
 }
 
-func (n *leaf) delKV(key []byte, which WhichFunc) error {
+func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
 	if len(key) != int(n.meta.keySize) {
 		return Errorf("key was the wrong size")
 	}
@@ -208,6 +210,10 @@ func (n *leaf) delKV(key []byte, which WhichFunc) error {
 			break
 		}
 	}
+	return n.delItemAt(key_idx)
+}
+
+func (n *leaf) delItemAt(key_idx int) error {
 	// ok we have our key_idx
 	length := n.next_kv_in_kvs()
 	if key_idx + 1 == int(n.meta.keyCount) {

@@ -49,6 +49,19 @@ func (self *BpTree) doLeaf(a uint64, do func(*leaf) error) error {
 	)
 }
 
+/* provides a do context for the kv at the given address/idx
+ */
+func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err error) {
+	return self.doLeaf(a, func(n *leaf) error {
+		if i >= int(n.meta.keyCount) {
+			return Errorf("Index out of range")
+		}
+		return n.doValueAt(self.bf, i, func(value []byte) error {
+			return do(n.keys[i], value)
+		})
+	})
+}
+
 func (self *BpTree) do(
 	a uint64,
 	internalDo func(*internal) error,

@@ -100,6 +100,10 @@ func (n *internal) delKP(key []byte) error {
 	} else if i >= int(n.meta.keyCount) {
 		return Errorf("find returned a int > than len(keys)")
 	}
+	return n.delItemAt(i)
+}
+
+func (n *internal) delItemAt(i int) error {
 	// remove the key
 	err := delItemAt(int(n.meta.keyCount), n.keys, i)
 	if err != nil {

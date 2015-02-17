@@ -4,6 +4,9 @@ import (
 	"bytes"
 )
 
+type bpt_iterator func() (a uint64, idx int, err error, bi bpt_iterator)
+
+
 /* returns the key at the address and index or an error
  */
 func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
@@ -96,5 +99,117 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		return self.leafGetStart(next, key)
 	}
 	return n, i, nil
+}
+
+func (self *BpTree) forward(from, to []byte) (bi bpt_iterator, err error) {
+	a, i, err := self.getStart(from)
+	if err != nil {
+		return nil, err
+	}
+	return self.forwardFrom(a, i, to)
+}
+
+func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, err error) {
+	i--
+	bi = func() (uint64, int, error, bpt_iterator) {
+		var err error
+		var end bool
+		a, i, end, err = self.nextLoc(a, i)
+		if err != nil {
+			return 0, 0, err, nil
+		}
+		var less bool = false
+		err = self.doLeaf(a, func(n *leaf) error {
+			less = bytes.Compare(to, n.keys[i]) < 0
+			return nil
+		})
+		if err != nil {
+			return 0, 0, err, nil
+		}
+		if end || less {
+			return 0, 0, nil, nil
+		}
+		return a, i, nil, bi
+	}
+	return bi, nil
+}
+
+func (self *BpTree) nextLoc(a uint64, i int) (uint64, int, bool, error) {
+	j := i + 1
+	nextBlk := func(a uint64, j int) (uint64, int, bool, error) {
+		changed := false
+		err := self.doLeaf(a, func(n *leaf) error {
+			if j >= int(n.meta.keyCount) && n.meta.next != 0 {
+				a = n.meta.next
+				j = 0
+				changed = true
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, 0, false, err
+		}
+		return a, j, changed, nil
+	}
+	var changed bool = true
+	var err error = nil
+	for changed {
+		a, j, changed, err = nextBlk(a, j)
+		if err != nil {
+			return 0, 0, false, err
+		}
+	}
+	var end bool = false
+	err = self.doLeaf(a, func(n *leaf) error {
+		if j >= int(n.meta.keyCount) {
+			end = true
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, false, err
+	}
+	return a, j, end, nil
+}
+
+func (self *BpTree) prevLoc(a uint64, i int) (uint64, int, bool, error) {
+	j := i - 1
+	prevBlk := func(a uint64, j int) (uint64, int, bool, error) {
+		changed := false
+		err := self.doLeaf(a, func(n *leaf) error {
+			if j < 0 && n.meta.prev != 0 {
+				a = n.meta.prev
+				changed = true
+				return self.doLeaf(a, func(m *leaf) error {
+					j = int(m.meta.keyCount) - 1
+					return nil
+				})
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, 0, false, err
+		}
+		return a, j, changed, nil
+	}
+	var changed bool = true
+	var err error = nil
+	for changed {
+		a, j, changed, err = prevBlk(a, j)
+		if err != nil {
+			return 0, 0, false, err
+		}
+	}
+	var end bool = false
+	err = self.doLeaf(a, func(n *leaf) error {
+		if j < 0 {
+			end = true
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, 0, false, err
+	}
+	return a, j, end, nil
 }
 
