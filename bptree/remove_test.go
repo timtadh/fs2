@@ -69,7 +69,7 @@ func TestLeafRemove(x *testing.T) {
 func TestLeafBigRemove(x *testing.T) {
 	t := (*T)(x)
 	LEAF_CAP := 152
-	for TEST := 0; TEST < 10; TEST++ {
+	for TEST := 0; TEST < 5; TEST++ {
 		bpt, clean := t.bpt()
 		kvs := make([]*KV, 0, LEAF_CAP)
 		for i := 0; i < LEAF_CAP; i++ {
@@ -97,6 +97,24 @@ func TestLeafBigRemove(x *testing.T) {
 			t.assert("wrong key", t.key(kv.key) == t.key(k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 				t.assert_value(kv.value)(n.first_value(bpt.bf, kv.key))
+				return nil
+			}))
+		}
+		for idx, kv := range kvs {
+			t.assert_nil(bpt.Remove(kv.key, func(value []byte) bool {
+				return bytes.Equal(kv.value, value)
+			}))
+			if idx + 1 == len(kvs) {
+				break
+			}
+			a, i, err := bpt.getStart(kv.key)
+			t.assert_nil(err)
+			k, err := bpt.keyAt(a, i)
+			t.assert_nil(err)
+			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
+				if t.key(kv.key) == t.key(k) {
+					t.assert_notValue(kv.value)(n.first_value(bpt.bf, kv.key))
+				}
 				return nil
 			}))
 		}

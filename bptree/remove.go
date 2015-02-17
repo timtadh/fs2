@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"github.com/timtadh/fs2/slice"
 )
 
 func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
@@ -127,6 +128,13 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
+				if flag(n.valueFlags[i]) & BIG_VALUE != 0 {
+					bv := (*bigValue)(slice.AsSlice(&n.vals[i]).Array)
+					err = self.removeBigValue(bv.offset, bv.size)
+					if err != nil {
+						return err
+					}
+				}
 				err = n.delItemAt(i)
 				if err != nil {
 					return err
@@ -157,5 +165,17 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		return 0, err
 	}
 	return b, nil
+}
+
+func (self *BpTree) removeBigValue(a uint64, size uint32) (err error) {
+	blksize := uint64(self.bf.BlockSize())
+	blks := uint64(blksNeeded(self.bf, int(size)))
+	for i := uint64(0); i < blks; i++ {
+		err = self.bf.Free(a + (blksize * i))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 

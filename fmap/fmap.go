@@ -336,10 +336,11 @@ func (self *BlockFile) resize(size uint64) error {
 }
 
 func (self *BlockFile) Free(offset uint64) error {
+	/*
 	errno := C.is_normal(self.mmap, C.size_t(offset), C.size_t(self.blksize))
 	if errno != 0 {
 		return Errorf("is_normal failed, %d", errno)
-	}
+	}*/
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		head := ctrl.data.free_head
 		return self.Do(offset, 1, func(free_bytes []byte) error {
