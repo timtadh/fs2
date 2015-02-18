@@ -1,6 +1,9 @@
 package bptree
 
 import (
+)
+
+import (
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -117,7 +120,20 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		return 0, err
 	}
 	b = a
+	type loc struct {
+		a uint64
+		i int
+	}
+	locs := make([]*loc, 0, 10)
 	for a, i, err, next = next(); next != nil; a, i, err, next = next() {
+		locs = append(locs, &loc{a,i})
+	}
+	if err != nil {
+		return 0, err
+	}
+	for x := len(locs)-1; x >= 0; x-- {
+		a := locs[x].a
+		i := locs[x].i
 		err = self.doLeaf(a, func(n *leaf) error {
 			var remove bool = false
 			err = n.doValueAt(self.bf, i, func(value []byte) error {
@@ -160,9 +176,6 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		if err != nil {
 			return 0, err
 		}
-	}
-	if err != nil {
-		return 0, err
 	}
 	return b, nil
 }
