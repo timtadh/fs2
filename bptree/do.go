@@ -62,6 +62,24 @@ func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err
 	})
 }
 
+func (self *BpTree) doKey(a uint64, i int, do func(key []byte) error) (err error) {
+	return self.do(
+		a,
+		func(n *internal) error {
+			if i >= int(n.meta.keyCount) {
+				return Errorf("Index out of range")
+			}
+			return do(n.keys[i])
+		},
+		func(n *leaf) error {
+			if i >= int(n.meta.keyCount) {
+				return Errorf("Index out of range")
+			}
+			return do(n.keys[i])
+		},
+	)
+}
+
 func (self *BpTree) do(
 	a uint64,
 	internalDo func(*internal) error,

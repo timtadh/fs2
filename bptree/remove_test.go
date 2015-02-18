@@ -6,6 +6,26 @@ import (
 	"bytes"
 )
 
+func (t *T) assert_has(bpt *BpTree) func(key []byte) {
+	return func(key []byte) {
+		// var err error = nil
+		// var has bool = true
+		has, err := bpt.Has(key)
+		t.assert_nil(err)
+		t.assert("should have found key", has)
+	}
+}
+
+func (t *T) assert_notHas(bpt *BpTree) func(key []byte) {
+	return func(key []byte) {
+		// var err error = nil
+		// var has bool = false
+		has, err := bpt.Has(key)
+		t.assert_nil(err)
+		t.assert("should not have found key", !has)
+	}
+}
+
 func TestLeafRemove(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
@@ -117,6 +137,74 @@ func TestLeafBigRemove(x *testing.T) {
 				}
 				return nil
 			}))
+		}
+		clean()
+	}
+}
+
+
+func TestPutRemoveRand(x *testing.T) {
+	t := (*T)(x)
+	for TEST := 0; TEST < TESTS; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make([]*KV, 0, 500)
+		for i := 0; i < cap(kvs); i++ {
+			kv := t.make_kv()
+			kvs = append(kvs, kv)
+			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_has(bpt)(kv.key)
+		}
+		/*
+		for _, kv := range kvs {
+			t.assert_has(bpt)(kv.key)
+		}*/
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
+				return bytes.Equal(b, kv.value)
+			}))
+			/*
+			for _, kv2 := range kvs[:i+1] {
+				t.assert_notHas(bpt)(kv2.key)
+			}*/
+		}
+		for _, kv := range kvs {
+			t.assert_notHas(bpt)(kv.key)
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_has(bpt)(kv.key)
+		}
+		/*
+		for _, kv := range kvs {
+			t.assert_has(bpt)(kv.key)
+		}*/
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
+				return bytes.Equal(b, kv.value)
+			}))
+			/*
+			for _, kv2 := range kvs {
+				if !bytes.Equal(kv.key, kv2.key) {
+					t.assert_has(bpt)(kv2.key)
+				}
+			}*/
+			t.assert_notHas(bpt)(kv.key)
+			t.assert_nil(bpt.Put(kv.key, kv.value))
+		}
+		for _, kv := range kvs {
+			t.assert_has(bpt)(kv.key)
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
+				return bytes.Equal(b, kv.value)
+			}))
+			/*
+			for _, kv2 := range kvs[:i+1] {
+				t.assert_notHas(bpt)(kv2.key)
+			}*/
+		}
+		for _, kv := range kvs {
+			t.assert_notHas(bpt)(kv.key)
 		}
 		clean()
 	}
