@@ -91,10 +91,10 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	p, q, err := self.insert(ptr, key, value)
 	var must_split bool = false
 	var split_key []byte = nil
-	err = self.doInternal(n, func(n *internal) error {
-		n.ptrs[i] = p
+	err = self.doInternal(n, func(m *internal) error {
+		m.ptrs[i] = p
 		err := self.firstKey(p, func(key []byte) error {
-			copy(n.keys[i], key)
+			copy(m.keys[i], key)
 			return nil
 		})
 		if err != nil {
@@ -102,13 +102,13 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 		}
 		if q != 0 {
 			return self.firstKey(q, func(key []byte) error {
-				if n.full() {
+				if m.full() {
 					must_split = true
 					split_key = make([]byte, len(key))
 					copy(split_key, key)
 					return nil
 				}
-				return n.putKP(key, q)
+				return m.putKP(key, q)
 			})
 		}
 		return nil
@@ -305,16 +305,21 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 					unneeded = true
 					return m.putKV(valFlags, key, value)
 				} else {
-					return self.doLeaf(b, func(o *leaf) (err error) {
+					return self.doLeaf(new_off, func(o *leaf) (err error) {
 						err = o.putKV(valFlags, key, value)
 						if err != nil {
 							return err
 						}
-						err = insertListNode(self.bf, b, e, m.meta.next)
+						if bytes.Compare(key, m.keys[0]) >= 0 {
+							err = insertListNode(self.bf, new_off, e, m.meta.next)
+						} else {
+							err = insertListNode(self.bf, new_off, m.meta.prev, e)
+						}
 						if err != nil {
 							return err
 						}
-						if !bytes.Equal(key, m.keys[0]) {
+						b = 0
+						if !bytes.Equal(key, node.keys[0]) {
 							b = new_off
 						}
 						return nil

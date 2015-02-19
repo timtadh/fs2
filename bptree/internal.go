@@ -49,7 +49,7 @@ func (m *baseMeta) String() string {
 func (n *internal) String() string {
 	return fmt.Sprintf(
 		"meta: <%v>, keys: <%d, %v>, ptrs: <%d, %v>",
-			n.meta, len(n.keys), n.keys, len(n.ptrs), n.ptrs)
+			n.meta, len(n.keys), n.keys[:n.meta.keyCount], len(n.ptrs), n.ptrs[:n.meta.keyCount])
 }
 
 func (n *internal) Has(key []byte) bool {
@@ -130,7 +130,7 @@ func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) erro
 	} else if i >= len(keys) {
 		return Errorf("find returned a int > than len(keys)")
 	} else if has {
-		return Errorf("would have inserted a duplicate key")
+		return Errorf(fmt.Sprintf("would have inserted a duplicate key, %v", key))
 	}
 	if err := putItemAt(keyCount, keys, key, i); err != nil {
 		return err
