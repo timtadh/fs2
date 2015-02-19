@@ -65,7 +65,7 @@ func (t *T) rand_value(max int) []byte {
 	bytes := t.rand_bytes(2)
 	s := slice.AsSlice(&bytes)
 	length := int(*(*uint16)(s.Array))
-	length = (length % (max))
+	length = (length % (max)) + 1
 	return t.rand_bytes(length)
 }
 
