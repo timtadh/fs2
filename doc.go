@@ -2,8 +2,8 @@
 File Structures 2
 
 This is a follow up to my crufty
-[file-structures](github.com/timtadh/file-structures) work. That
-system has some endemic problems:
+http://github.com/timtadh/file-structures work. That system has some
+endemic problems:
 
 1. It uses the read/write interface to files. This means that it needs
 to do block management and cache management. In theory this can be
