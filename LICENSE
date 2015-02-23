@@ -2,11 +2,7 @@
                           File Structures 2
 
 This library is wholly written by the authors below. Please respect all
-licensing terms. This library makes use of the library "data-structures"
-available at "github.com/timtadh/data-structures" which is licensed
-under the GPL version 2. As this library is licensed under GPL version 3
-the effective license of "data-structures" when distributed as part of
-this library is GPL version 3.
+licensing terms.
 
 By Tim Henderson (tadh@case.edu)
 
