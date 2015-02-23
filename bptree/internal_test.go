@@ -152,7 +152,7 @@ func TestNewInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != INTERNAL {
+	if n.meta.flags != iNTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -186,7 +186,7 @@ func TestNewInternal(t *testing.T) {
 	fifteen := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != INTERNAL {
+	if n.meta.flags != iNTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -237,7 +237,7 @@ func TestLoadInternal(t *testing.T) {
 	fifteen := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != INTERNAL {
+	if n.meta.flags != iNTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {

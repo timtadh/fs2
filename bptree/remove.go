@@ -32,9 +32,9 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 	if err != nil {
 		return 0, err
 	}
-	if flags & INTERNAL != 0 {
+	if flags & iNTERNAL != 0 {
 		return self.internalRemove(n, sibling, key, where)
-	} else if flags & LEAF != 0 {
+	} else if flags & lEAF != 0 {
 		return self.leafRemove(n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")
@@ -145,7 +145,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if flag(n.valueFlags[i]) & BIG_VALUE != 0 {
+				if flag(n.valueFlags[i]) & bIG_VALUE != 0 {
 					bv := (*bigValue)(slice.AsSlice(&n.vals[i]).Array)
 					err = self.removeBigValue(bv.offset, bv.size)
 					if err != nil {

@@ -91,7 +91,7 @@ func TestBalanceLeaf(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -142,7 +142,7 @@ func TestBalancePureLeaf(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 		}
 		for _, kv := range kvs {

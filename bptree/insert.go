@@ -57,9 +57,9 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags & INTERNAL != 0 {
+	if flags & iNTERNAL != 0 {
 		return self.internalInsert(n, key, value)
-	} else if flags & LEAF != 0 {
+	} else if flags & lEAF != 0 {
 		return self.leafInsert(n, key, value)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")
@@ -127,7 +127,7 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 	if len(value) > int(self.bf.BlockSize()) / 4 {
 		return self.leafBigInsert(n, key, value)
 	}
-	return self.leafDoInsert(n, SMALL_VALUE, key, value)
+	return self.leafDoInsert(n, sMALL_VALUE, key, value)
 }
 
 func (self *BpTree) leafBigInsert(n uint64, key, value []byte) (a, b uint64, err error) {
@@ -135,7 +135,7 @@ func (self *BpTree) leafBigInsert(n uint64, key, value []byte) (a, b uint64, err
 	if err != nil {
 		return 0, 0, err
 	}
-	return self.leafDoInsert(n, BIG_VALUE, key, value)
+	return self.leafDoInsert(n, bIG_VALUE, key, value)
 }
 
 func (self *BpTree) leafDoInsert(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {

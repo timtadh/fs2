@@ -74,8 +74,8 @@ func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) er
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	switch flag(n.valueFlags[i]) {
 	case 0: return errors.Errorf("Unset value flag")
-	case SMALL_VALUE: return do(n.vals[i])
-	case BIG_VALUE: return n.doBigValue(bf, i, do)
+	case sMALL_VALUE: return do(n.vals[i])
+	case bIG_VALUE: return n.doBigValue(bf, i, do)
 	default: return errors.Errorf("Unexpected value type")
 	}
 }
@@ -255,7 +255,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 
 func loadLeaf(backing []byte) (*leaf, error) {
 	meta := loadLeafMeta(backing)
-	if meta.flags & LEAF == 0 {
+	if meta.flags & lEAF == 0 {
 		return nil, errors.Errorf("Was not a leaf node")
 	}
 	return attachLeaf(backing, meta)
@@ -273,7 +273,7 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 	kvSize := uintptr(keySize) + valMin
 	keyCap := available/kvSize
 
-	meta.Init(LEAF, keySize, uint16(keyCap))
+	meta.Init(lEAF, keySize, uint16(keyCap))
 	return attachLeaf(backing, meta)
 }
 

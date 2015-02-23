@@ -209,9 +209,9 @@ func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags & INTERNAL != 0 {
+	if flags & iNTERNAL != 0 {
 		return self.internalGetStart(n, key)
-	} else if flags & LEAF != 0 {
+	} else if flags & lEAF != 0 {
 		return self.leafGetStart(n, key)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")

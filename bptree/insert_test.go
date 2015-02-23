@@ -85,7 +85,7 @@ func TestLeafInsert(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
@@ -230,7 +230,7 @@ func TestEndOfPureRun(x *testing.T) {
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				return cur.putKV(SMALL_VALUE, kv.key, kv.value)
+				return cur.putKV(sMALL_VALUE, kv.key, kv.value)
 			}))
 		}
 		end, err := bpt.endOfPureRun(start)
@@ -334,10 +334,10 @@ func TestInternalInsertSplit(x *testing.T) {
 		t.assert_nil(bpt.writeMeta())
 		t.assert_nil(bpt.doInternal(I, func(I *internal) error {
 			t.assert_nil(bpt.doLeaf(a, func(a *leaf) error {
-				return a.putKV(SMALL_VALUE, kvs[0].key, kvs[0].value)
+				return a.putKV(sMALL_VALUE, kvs[0].key, kvs[0].value)
 			}))
 			t.assert_nil(bpt.doLeaf(b, func(b *leaf) error {
-				return b.putKV(SMALL_VALUE, kvs[LEAF_CAP].key, kvs[LEAF_CAP].value)
+				return b.putKV(sMALL_VALUE, kvs[LEAF_CAP].key, kvs[LEAF_CAP].value)
 			}))
 			t.assert_nil(I.putKP(kvs[0].key, a))
 			t.assert_nil(I.putKP(kvs[LEAF_CAP].key, b))

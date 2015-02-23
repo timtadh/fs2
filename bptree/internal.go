@@ -170,7 +170,7 @@ func delItemAt(itemCount int, items [][]byte, i int) error {
 
 func loadInternal(backing []byte) (*internal, error) {
 	meta := loadBaseMeta(backing)
-	if meta.flags & INTERNAL == 0 {
+	if meta.flags & iNTERNAL == 0 {
 		return nil, errors.Errorf("Was not an internal node")
 	}
 	return attachInternal(backing, meta)
@@ -183,7 +183,7 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	ptrSize := uintptr(8)
 	kvSize := uintptr(keySize) + ptrSize
 	keyCap := uint16(available/kvSize)
-	meta.Init(INTERNAL, keySize, keyCap)
+	meta.Init(iNTERNAL, keySize, keyCap)
 
 	return attachInternal(backing, meta)
 }

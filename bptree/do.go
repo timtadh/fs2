@@ -90,13 +90,13 @@ func (self *BpTree) do(
 ) error {
 	return self.bf.Do(a, 1, func(bytes []byte) error {
 		flags := flag(bytes[0])
-		if flags & INTERNAL != 0 {
+		if flags & iNTERNAL != 0 {
 			n, err := loadInternal(bytes)
 			if err != nil {
 				return err
 			}
 			return internalDo(n)
-		} else if flags & LEAF != 0 {
+		} else if flags & lEAF != 0 {
 			n, err := loadLeaf(bytes)
 			if err != nil {
 				return err

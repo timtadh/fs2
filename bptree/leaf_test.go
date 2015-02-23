@@ -105,7 +105,7 @@ func TestPutKVRand(x *testing.T) {
 		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
 		do_put := func(kv *KV) {
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
@@ -142,7 +142,7 @@ func TestPutDelKVRand(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -158,7 +158,7 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 			t.assert_value(kv.value)(n.first_value(bf, kv.key))
 		}
@@ -176,7 +176,7 @@ func TestPutDelKVRand(x *testing.T) {
 				}
 			}
 			t.assert("found key in leaf", !n.Has(kv.key))
-			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -204,23 +204,23 @@ func TestPutKV(x *testing.T) {
 	v4 := []byte{8,8}
 	k5 := uint64(5)
 	v5 := []byte{5,5,5,5,5,5,5,5,5,5,5}
-	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k1), v1))
+	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
 	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
 
-	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k2), v2))
+	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k2), v2))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
 	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
 
-	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k3), v3))
+	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k3), v3))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
 	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
 
-	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k4), v4))
+	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k4), v4))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
 	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
 
-	t.assert_nil(n.putKV(SMALL_VALUE, t.bkey(&k5), v5))
+	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k5), v5))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
 	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
 
@@ -242,7 +242,7 @@ func TestNewLeaf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != LEAF {
+	if n.meta.flags != lEAF {
 		t.Error("was not a LEAF node")
 	}
 	if n.meta.keySize != 16 {
@@ -268,7 +268,7 @@ func TestNewLeaf(t *testing.T) {
 
 	valueSizes := []uint16{1, 21, 23, 125, 0xffff}
 
-	if n.meta.flags != LEAF {
+	if n.meta.flags != lEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {
@@ -309,7 +309,7 @@ func TestLoadLeaf(t *testing.T) {
 
 	valueSizes := []uint16{1, 21, 23, 125, 0xffff}
 
-	if n.meta.flags != LEAF {
+	if n.meta.flags != lEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {
