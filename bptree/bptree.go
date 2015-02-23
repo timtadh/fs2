@@ -93,3 +93,7 @@ func (b *BpTree) writeMeta() error {
 	return b.bf.SetControlDataNoSync(b.metaBack)
 }
 
+func (self *BpTree) KeySize int {
+	return int(self.meta.keySize)
+}
+
