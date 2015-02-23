@@ -20,10 +20,6 @@ func init() {
 	bvSize = reflect.TypeOf(bigValue{}).Size()
 }
 
-func (self *BpTree) doValue(a uint64, idx int, do func([]byte) error) error {
-	return Errorf("Not yet implemented")
-}
-
 func (bv *bigValue) BytesUnsafe() []byte {
 	ss := &slice.Slice{
 		Array: unsafe.Pointer(bv),

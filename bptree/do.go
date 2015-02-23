@@ -1,5 +1,8 @@
 package bptree
 
+import (
+	"github.com/timtadh/fs2/errors"
+)
 
 func (self *BpTree) newInternal() (a uint64, err error) {
 	return self.new(func(bytes []byte) error {
@@ -34,7 +37,7 @@ func (self *BpTree) doInternal(a uint64, do func(*internal) error) error {
 		a,
 		do,
 		func(n *leaf) error {
-			return Errorf("Unexpected leaf node")
+			return errors.Errorf("Unexpected leaf node")
 		},
 	)
 }
@@ -43,7 +46,7 @@ func (self *BpTree) doLeaf(a uint64, do func(*leaf) error) error {
 	return self.do(
 		a,
 		func(n *internal) error {
-			return Errorf("Unexpected internal node")
+			return errors.Errorf("Unexpected internal node")
 		},
 		do,
 	)
@@ -54,7 +57,7 @@ func (self *BpTree) doLeaf(a uint64, do func(*leaf) error) error {
 func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err error) {
 	return self.doLeaf(a, func(n *leaf) error {
 		if i >= int(n.meta.keyCount) {
-			return Errorf("Index out of range")
+			return errors.Errorf("Index out of range")
 		}
 		return n.doValueAt(self.bf, i, func(value []byte) error {
 			return do(n.keys[i], value)
@@ -67,13 +70,13 @@ func (self *BpTree) doKey(a uint64, i int, do func(key []byte) error) (err error
 		a,
 		func(n *internal) error {
 			if i >= int(n.meta.keyCount) {
-				return Errorf("Index out of range")
+				return errors.Errorf("Index out of range")
 			}
 			return do(n.keys[i])
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
-				return Errorf("Index out of range")
+				return errors.Errorf("Index out of range")
 			}
 			return do(n.keys[i])
 		},
@@ -100,7 +103,7 @@ func (self *BpTree) do(
 			}
 			return leafDo(n)
 		} else {
-			return Errorf("Unknown block type")
+			return errors.Errorf("Unknown block type")
 		}
 	})
 }

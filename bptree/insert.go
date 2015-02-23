@@ -5,13 +5,14 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 )
 
 
 func (self *BpTree) Add(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
-		return Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
+		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
 	a, b, err := self.insert(self.meta.root, key, value)
 	if err != nil {
@@ -61,7 +62,7 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 	} else if flags & LEAF != 0 {
 		return self.leafInsert(n, key, value)
 	} else {
-		return 0, 0, Errorf("Unknown block type")
+		return 0, 0, errors.Errorf("Unknown block type")
 	}
 }
 
@@ -163,7 +164,7 @@ func (self *BpTree) makeBigValue(value []byte) (bigVal []byte, err error) {
 	}
 	err = self.bf.Do(a, uint64(N), func(bytes []byte) error {
 		if len(bytes) < len(value) {
-			return Errorf("Did not have enough bytes")
+			return errors.Errorf("Did not have enough bytes")
 		}
 		copy(bytes, value)
 		return nil
@@ -350,7 +351,7 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 	 */
 	err = self.doLeaf(start, func(n *leaf) error {
 		if n.meta.keyCount < 0 {
-			return Errorf("block was empty")
+			return errors.Errorf("block was empty")
 		}
 		key := n.keys[0]
 		prev := start

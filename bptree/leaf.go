@@ -8,6 +8,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
@@ -65,17 +66,17 @@ func (n *leaf) Has(key []byte) bool {
 func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) error {
 	i, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
-		return Errorf("key was not in the leaf node")
+		return errors.Errorf("key was not in the leaf node")
 	}
 	return n.doValueAt(bf, i, do)
 }
 
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	switch flag(n.valueFlags[i]) {
-	case 0: return Errorf("Unset value flag")
+	case 0: return errors.Errorf("Unset value flag")
 	case SMALL_VALUE: return do(n.vals[i])
 	case BIG_VALUE: return n.doBigValue(bf, i, do)
-	default: return Errorf("Unexpected value type")
+	default: return errors.Errorf("Unexpected value type")
 	}
 }
 
@@ -85,9 +86,9 @@ func (n *leaf) doBigValue(bf *fmap.BlockFile, i int, do func([]byte) error) erro
 	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
 	blks := blksNeeded(bf, int(bv.size))
 	if bv.offset == 0 {
-		return Errorf("the bv.offset, %d, was 0.", bv.offset)
+		return errors.Errorf("the bv.offset, %d, was 0.", bv.offset)
 	} else if bv.offset % 4096 != 0 {
-		return Errorf("the bv.offset, %d, was not block aligned", bv.offset)
+		return errors.Errorf("the bv.offset, %d, was not block aligned", bv.offset)
 	}
 	return bf.Do(bv.offset, uint64(blks), func(bytes []byte) error {
 		return do(bytes[:bv.size])
@@ -144,13 +145,13 @@ func (n *leaf) pure() bool {
 
 func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	if len(key) != int(n.meta.keySize) {
-		return Errorf("key was the wrong size")
+		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount + 1 >= n.meta.keyCap {
-		return Errorf("block is full")
+		return errors.Errorf("block is full")
 	}
 	if !n.fits(value) {
-		return Errorf("block is full (value doesn't fit)")
+		return errors.Errorf("block is full (value doesn't fit)")
 	}
 	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
 	key_offset := n.keyOffset(key_idx)
@@ -193,14 +194,14 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 
 func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
 	if len(key) != int(n.meta.keySize) {
-		return Errorf("key was the wrong size")
+		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount <= 0 {
-		return Errorf("block is empty")
+		return errors.Errorf("block is empty")
 	}
 	key_idx, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
-		return Errorf("that key was not in the block")
+		return errors.Errorf("that key was not in the block")
 	}
 	for ; key_idx < int(n.meta.keyCount); key_idx++ {
 		if !bytes.Equal(key, n.keys[key_idx]) {
@@ -255,7 +256,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 func loadLeaf(backing []byte) (*leaf, error) {
 	meta := loadLeafMeta(backing)
 	if meta.flags & LEAF == 0 {
-		return nil, Errorf("Was not a leaf node")
+		return nil, errors.Errorf("Was not a leaf node")
 	}
 	return attachLeaf(backing, meta)
 }
@@ -333,7 +334,7 @@ func (n *leaf) reattachLeaf() error {
 
 	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {
-			return Errorf("overran backing array on reattachLeaf()")
+			return errors.Errorf("overran backing array on reattachLeaf()")
 		}
 		vSize := n.valueSizes[i]
 		key_s := &slice.Slice{

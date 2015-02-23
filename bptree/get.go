@@ -4,6 +4,10 @@ import (
 	"bytes"
 )
 
+import (
+	"github.com/timtadh/fs2/errors"
+)
+
 type Iterator func() (item []byte, err error, i Iterator)
 type KVIterator func() (key, value []byte,  err error, kvi KVIterator)
 
@@ -170,14 +174,14 @@ func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
 		a,
 		func(n *internal) error {
 			if i >= int(n.meta.keyCount) {
-				return Errorf("out of range")
+				return errors.Errorf("out of range")
 			}
 			copy(key, n.keys[i])
 			return nil
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
-				return Errorf("out of range")
+				return errors.Errorf("out of range")
 			}
 			copy(key, n.keys[i])
 			return nil
@@ -210,7 +214,7 @@ func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error)
 	} else if flags & LEAF != 0 {
 		return self.leafGetStart(n, key)
 	} else {
-		return 0, 0, Errorf("Unknown block type")
+		return 0, 0, errors.Errorf("Unknown block type")
 	}
 }
 

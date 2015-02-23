@@ -5,6 +5,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
@@ -57,7 +58,7 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 	}
 	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
 	if meta.root == 0 || meta.keySize == 0 {
-		return nil, nil, Errorf("Meta was not properly initialized. Can't load tree")
+		return nil, nil, errors.Errorf("Meta was not properly initialized. Can't load tree")
 	}
 	return data, meta, nil
 }

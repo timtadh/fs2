@@ -5,12 +5,13 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 )
 
 func (a *internal) balance(b *internal) error {
 	if b.meta.keyCount != 0 {
-		return Errorf("b was not empty")
+		return errors.Errorf("b was not empty")
 	}
 	var m int = a.balancePoint()
 	var lim int = int(a.meta.keyCount) - m
@@ -28,7 +29,7 @@ func (a *internal) balance(b *internal) error {
 
 func (a *leaf) balance(b *leaf) error {
 	if b.meta.keyCount != 0 {
-		return Errorf("b was not empty")
+		return errors.Errorf("b was not empty")
 	}
 	var m int = a.balancePoint()
 	if m == 0 {

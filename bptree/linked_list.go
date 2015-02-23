@@ -4,12 +4,13 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 )
 
 func insertListNode(bf *fmap.BlockFile, node, prev, next uint64) error {
 	if node == 0 {
-		return Errorf("0 offset for n")
+		return errors.Errorf("0 offset for n")
 	}
 	return bf.Do(node, 1, func(bytes []byte) error {
 		n, err := loadLeaf(bytes)
@@ -66,7 +67,7 @@ func insertListNode(bf *fmap.BlockFile, node, prev, next uint64) error {
 
 func delListNode(bf *fmap.BlockFile, node uint64) error {
 	if node == 0 {
-		return Errorf("0 offset for n")
+		return errors.Errorf("0 offset for n")
 	}
 	return bf.Do(node, 1, func(bytes []byte) error {
 		n, err := loadLeaf(bytes)

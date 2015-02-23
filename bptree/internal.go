@@ -7,6 +7,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -64,17 +65,17 @@ func (n *internal) full() bool {
 func (n *internal) ptr(key []byte) (uint64, error) {
 	i, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
-		return 0, Errorf("key was not in the internal node")
+		return 0, errors.Errorf("key was not in the internal node")
 	}
 	return n.ptrs[i], nil
 }
 
 func (n *internal) putKP(key []byte, p uint64) error {
 	if len(key) != int(n.meta.keySize) {
-		return Errorf("key was the wrong size")
+		return errors.Errorf("key was the wrong size")
 	}
 	if n.full() {
-		return Errorf("block is full")
+		return errors.Errorf("block is full")
 	}
 	err := putKey(int(n.meta.keyCount), n.keys, key, func(i int) error {
 		chunk_size := int(n.meta.keyCount) - i
@@ -94,11 +95,11 @@ func (n *internal) putKP(key []byte, p uint64) error {
 func (n *internal) delKP(key []byte) error {
 	i, has := find(int(n.meta.keyCount), n.keys, key)
 	if !has {
-		return Errorf("key was not in the internal node")
+		return errors.Errorf("key was not in the internal node")
 	} else if i < 0 {
-		return Errorf("find returned a negative int")
+		return errors.Errorf("find returned a negative int")
 	} else if i >= int(n.meta.keyCount) {
-		return Errorf("find returned a int > than len(keys)")
+		return errors.Errorf("find returned a int > than len(keys)")
 	}
 	return n.delItemAt(i)
 }
@@ -122,15 +123,15 @@ func (n *internal) delItemAt(i int) error {
 
 func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
 	if keyCount + 1 >= len(keys) {
-		return Errorf("Block is full.")
+		return errors.Errorf("Block is full.")
 	}
 	i, has := find(keyCount, keys, key)
 	if i < 0 {
-		return Errorf("find returned a negative int")
+		return errors.Errorf("find returned a negative int")
 	} else if i >= len(keys) {
-		return Errorf("find returned a int > than len(keys)")
+		return errors.Errorf("find returned a int > than len(keys)")
 	} else if has {
-		return Errorf(fmt.Sprintf("would have inserted a duplicate key, %v", key))
+		return errors.Errorf(fmt.Sprintf("would have inserted a duplicate key, %v", key))
 	}
 	if err := putItemAt(keyCount, keys, key, i); err != nil {
 		return err
@@ -140,10 +141,10 @@ func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) erro
 
 func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
 	if itemCount + 1 >= len(items) {
-		return Errorf("The items slice is full")
+		return errors.Errorf("The items slice is full")
 	}
 	if i < 0 || i > itemCount {
-		return Errorf("i was not in range")
+		return errors.Errorf("i was not in range")
 	}
 	for j := itemCount + 1; j > i; j-- {
 		copy(items[j], items[j-1])
@@ -154,10 +155,10 @@ func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
 
 func delItemAt(itemCount int, items [][]byte, i int) error {
 	if itemCount == 0 {
-		return Errorf("The items slice is empty")
+		return errors.Errorf("The items slice is empty")
 	}
 	if i < 0 || i >= itemCount {
-		return Errorf("i was not in range")
+		return errors.Errorf("i was not in range")
 	}
 	for j := i; j + 1 < itemCount; j++ {
 		copy(items[j], items[j+1])
@@ -170,7 +171,7 @@ func delItemAt(itemCount int, items [][]byte, i int) error {
 func loadInternal(backing []byte) (*internal, error) {
 	meta := loadBaseMeta(backing)
 	if meta.flags & INTERNAL == 0 {
-		return nil, Errorf("Was not an internal node")
+		return nil, errors.Errorf("Was not an internal node")
 	}
 	return attachInternal(backing, meta)
 }

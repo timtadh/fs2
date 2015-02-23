@@ -4,6 +4,7 @@ import (
 	"bytes"
 )
 
+
 func (self *BpTree) Has(key []byte) (has bool, err error) {
 	a, i, err := self.getStart(key)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -36,7 +37,7 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 	} else if flags & LEAF != 0 {
 		return self.leafRemove(n, sibling, key, where)
 	} else {
-		return 0, Errorf("Unknown block type")
+		return 0, errors.Errorf("Unknown block type")
 	}
 }
 
@@ -108,7 +109,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		var has bool
 		i, has = find(int(n.meta.keyCount), n.keys, key)
 		if !has {
-			return Errorf("key was not in tree")
+			return errors.Errorf("key was not in tree")
 		}
 		return nil
 	})
