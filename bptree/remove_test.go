@@ -42,7 +42,7 @@ func TestLeafRemove(x *testing.T) {
 			}
 			kvs = append(kvs, kv)
 			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
@@ -98,7 +98,7 @@ func TestLeafBigRemove(x *testing.T) {
 				value: t.rand_bigValue(2048, 4096*5),
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
@@ -143,7 +143,7 @@ func TestLeafBigRemove(x *testing.T) {
 }
 
 
-func TestPutRemoveRand(x *testing.T) {
+func TestAddRemoveRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		bpt, clean := t.bpt()
@@ -151,7 +151,7 @@ func TestPutRemoveRand(x *testing.T) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
 			kvs = append(kvs, kv)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			t.assert_has(bpt)(kv.key)
 		}
 		/*
@@ -171,7 +171,7 @@ func TestPutRemoveRand(x *testing.T) {
 			t.assert_notHas(bpt)(kv.key)
 		}
 		for _, kv := range kvs {
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			t.assert_has(bpt)(kv.key)
 		}
 		/*
@@ -189,7 +189,7 @@ func TestPutRemoveRand(x *testing.T) {
 				}
 			}*/
 			t.assert_notHas(bpt)(kv.key)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 		}
 		for _, kv := range kvs {
 			t.assert_has(bpt)(kv.key)

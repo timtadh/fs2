@@ -86,7 +86,7 @@ func TestLeafInsert(x *testing.T) {
 			}
 			kvs = append(kvs, kv)
 			t.assert_nil(n.putKV(SMALL_VALUE, kv.key, kv.value))
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
@@ -113,7 +113,7 @@ func TestLeafBigInsert(x *testing.T) {
 				value: t.rand_bigValue(2048, 4096*5),
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
@@ -148,7 +148,7 @@ func TestLeafSplit(x *testing.T) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
 			kvs = append(kvs, kv)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
@@ -184,7 +184,7 @@ func TestInsert3Level(x *testing.T) {
 	// t.Log("starting insert")
 	for _, kv := range kvs {
 		// t.Log(i, len(kvs))
-		t.assert_nil(bpt.Put(kv.key, kv.value))
+		t.assert_nil(bpt.Add(kv.key, kv.value))
 	}
 	// t.Log("start existence check")
 	for _, kv := range kvs {
@@ -406,7 +406,7 @@ func TestInternalInsertSplit(x *testing.T) {
 				value: t.rand_key(),
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(bpt.Put(kv.key, kv.value))
+			t.assert_nil(bpt.Add(kv.key, kv.value))
 		}
 		for _, kv := range kvs {
 			a, i, err := bpt.getStart(kv.key)

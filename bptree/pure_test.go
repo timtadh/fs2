@@ -28,7 +28,7 @@ func (t *T) assert_notHasKV(bpt *BpTree) func(key, value []byte) {
 	}
 }
 
-func TestPutRemovePuresNoSplitRand(x *testing.T) {
+func TestAddRemovePuresNoSplitRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
 	keys := make([][]byte, 0, 500)
@@ -40,14 +40,14 @@ func TestPutRemovePuresNoSplitRand(x *testing.T) {
 		}
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
-		t.assert_nil(bpt.Put(kv.key, kv.value))
+		t.assert_nil(bpt.Add(kv.key, kv.value))
 		for i := 0; i < rand.Intn(50) + 1; i++ {
 			kv2 := &KV{
 				key: kv.key,
 				value: t.rand_value(24),
 			}
 			kvs = append(kvs, kv2)
-			t.assert_nil(bpt.Put(kv2.key, kv2.value))
+			t.assert_nil(bpt.Add(kv2.key, kv2.value))
 		}
 	}
 	for _, kv := range kvs {
@@ -64,7 +64,7 @@ func TestPutRemovePuresNoSplitRand(x *testing.T) {
 	clean()
 }
 
-func TestPutRemovePuresSplitRand(x *testing.T) {
+func TestAddRemovePuresSplitRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
 	keys := make([][]byte, 0, 500)
@@ -76,7 +76,7 @@ func TestPutRemovePuresSplitRand(x *testing.T) {
 		}
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
-		t.assert_nil(bpt.Put(kv.key, kv.value))
+		t.assert_nil(bpt.Add(kv.key, kv.value))
 		dups := rand.Intn(500) + 250
 		for i := 0; i < dups; i++ {
 			// t.Log(i+2)
@@ -85,7 +85,7 @@ func TestPutRemovePuresSplitRand(x *testing.T) {
 				value: t.rand_value(24),
 			}
 			kvs = append(kvs, kv2)
-			t.assert_nil(bpt.Put(kv2.key, kv2.value))
+			t.assert_nil(bpt.Add(kv2.key, kv2.value))
 		}
 	}
 	for _, kv := range kvs {

@@ -9,7 +9,7 @@ import (
 )
 
 
-func (self *BpTree) Put(key, value []byte) error {
+func (self *BpTree) Add(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
 		return Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
