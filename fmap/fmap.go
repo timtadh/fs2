@@ -101,6 +101,8 @@ func (cb *ctrlblk) updateChkSum() {
 	// cb.data.checksum = crc32.ChecksumIEEE(cb.back[4:])
 }
 
+// A BlockFile represents the memory mapped file. It has a blocksize all
+// operations are done as block aligned operations.
 type BlockFile struct {
 	path   string
 	opened bool
@@ -112,6 +114,12 @@ type BlockFile struct {
 	outstanding int "total outstanding pointers"
 }
 
+// Zero the bytes of the passed in slice. It uses the length not the
+// capacity of the slice. It uses the libc function memset under the
+// hood to do this. Go has an implementation of this function in
+// assembly in the runtime package but I could not find a nice way to
+// expose it. So here is the libc version exposed (via several method
+// calls and the cgo interface).
 func MemClr(bytes []byte) {
 	memClr(slice.AsSlice(&bytes).Array, uintptr(len(bytes)))
 }
@@ -120,10 +128,14 @@ func memClr(ptr unsafe.Pointer, size uintptr) {
 	C.memclr(ptr, C.size_t(size))
 }
 
+// Create a blockfile with the standard block size (4096 which is
+// normally the OS page size).
 func CreateBlockFile(path string) (*BlockFile, error) {
 	return CreateBlockFileCustomBlockSize(path, BLOCKSIZE)
 }
 
+// Create a blockfile with a custom blocksize. Note, the size must be a
+// multiple of 4096.
 func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error) {
 	if size % 4096 != 0 {
 		panic(errors.Errorf("blocksize must be divisible by 4096"))
@@ -150,6 +162,9 @@ func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error
 	return bf, nil
 }
 
+// Open a previously created BlockFile. This will fail if you didn't use
+// the creation functions to create the file (or at least have undefined
+// effects).
 func OpenBlockFile(path string) (*BlockFile, error) {
 	f, mmap, err := open(path)
 	if err != nil {
@@ -181,7 +196,9 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 	return bf, nil
 }
 
+// The flag used when creating the file
 var CREATEFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME | os.O_TRUNC
+
 func create(path string, blksize uint32) (*os.File, unsafe.Pointer, error) {
 	f, err := do_open(path, CREATEFLAG)
 	if err != nil {
@@ -198,7 +215,9 @@ func create(path string, blksize uint32) (*os.File, unsafe.Pointer, error) {
 	return f, ptr, nil
 }
 
+// The flag used when opening the file
 var OPENFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME
+
 func open(path string) (*os.File, unsafe.Pointer, error) {
 	f, err := do_open(path, OPENFLAG)
 	if err != nil {
@@ -231,6 +250,8 @@ func do_map(f *os.File) (unsafe.Pointer, error) {
 	return mmap, nil
 }
 
+// Close the file. Unmaps the region. There must be no outstanding
+// blocks.
 func (self *BlockFile) Close() error {
 	if self.outstanding > 0 {
 		return errors.Errorf("Tried to close file when there were outstanding pointers")
@@ -247,6 +268,7 @@ func (self *BlockFile) Close() error {
 	return nil
 }
 
+// Remove the underlying file. (must be already closed).
 func (self *BlockFile) Remove() error {
 	if self.opened {
 		return errors.Errorf("Expected file to be closed")
@@ -273,6 +295,8 @@ func (self *BlockFile) ctrl(do func(*ctrlblk) error) (error) {
 	})
 }
 
+// Get the "control data" this free form data which is stored in the
+// control block file. You can put whatever you want in here.
 func (self *BlockFile) ControlData() (data []byte, err error) {
 	err = self.ctrl(func(ctrl *ctrlblk) error {
 		data = make([]byte, len(ctrl.user))
@@ -285,6 +309,7 @@ func (self *BlockFile) ControlData() (data []byte, err error) {
 	return data, nil
 }
 
+// Put user data into the control block of the file.
 func (self *BlockFile) SetControlData(data []byte) (err error) {
 	err = self.SetControlDataNoSync(data)
 	if err != nil {
@@ -293,6 +318,7 @@ func (self *BlockFile) SetControlData(data []byte) (err error) {
 	return self.Sync()
 }
 
+// Same as SetControlData but does not call Sync() at the end.
 func (self *BlockFile) SetControlDataNoSync(data []byte) (err error) {
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		if len(data) > len(ctrl.user) {
@@ -303,14 +329,17 @@ func (self *BlockFile) SetControlDataNoSync(data []byte) (err error) {
 	})
 }
 
+// The file system path to this file.
 func (self *BlockFile) Path() string {
 	return self.path
-	}
+}
 
+// The blocksize for this file.
 func (self *BlockFile) BlockSize() int {
 	return self.blksize
 }
 
+// The size of this file in bytes.
 func (self *BlockFile) Size() (uint64, error) {
 	if !self.opened {
 		return 0, errors.Errorf("File is not open")
@@ -336,6 +365,8 @@ func (self *BlockFile) resize(size uint64) error {
 	return nil
 }
 
+// Free the block at the given offset. The offset is in bytes from the
+// start of the file.
 func (self *BlockFile) Free(offset uint64) error {
 	/*
 	errno := C.is_normal(self.mmap, C.size_t(offset), C.size_t(self.blksize))
@@ -417,14 +448,18 @@ func (self *BlockFile) allocOne() (offset uint64, err error) {
 	return start_size, nil
 }
 
+// What is the address of the file in the address space of the program.
+// Use this at your own risk!
 func (self *BlockFile) Address() uintptr {
 	return uintptr(self.mmap)
 }
 
+// Is the address given still the address of the memory map?
 func (self *BlockFile) Valid(address uintptr) bool {
 	return address == uintptr(self.mmap)
 }
 
+// Allocate 1 block and return its offset.
 func (self *BlockFile) Allocate() (offset uint64, err error) {
 	var resize bool = false
 	err = self.ctrl(func(ctrl *ctrlblk) error {
@@ -448,6 +483,9 @@ func (self *BlockFile) Allocate() (offset uint64, err error) {
 	return self.zero(offset, 1)
 }
 
+// Allocate n blocks. Return the offset of the first block. These are
+// guarranteed to be sequential. This always causes a file resize at the
+// moment.
 func (self *BlockFile) AllocateBlocks(n int) (offset uint64, err error) {
 	offset, err = self.alloc(n)
 	if err != nil {
@@ -461,6 +499,10 @@ func (self *BlockFile) AllocateBlocks(n int) (offset uint64, err error) {
 	return self.zero(offset, n)
 }
 
+// Load the blocks at the give offset then call the callback, `do`,
+// passing in the loaded bytes. This function releases those bytes after
+// your callback is done. This is the recommended interface to the
+// contents of the memory mapped region.
 func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 	bytes, err := self.Get(offset, blocks)
 	if err != nil {
@@ -470,6 +512,8 @@ func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 	return do(bytes)
 }
 
+// Get the bytes at the offset and block count. You probably want to use
+// Do instead. You must call Release() on the bytes when done.
 func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	length := blocks * uint64(self.blksize)
 	if (offset + length) > uint64(self.size) {
@@ -488,6 +532,9 @@ func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	return *slice.AsBytes(), nil
 }
 
+// Release() bytes aquired with Get(). Should error if the bytes where
+// not allocated from the mapping. But why take chances, you probably
+// want to use the Do interface instead.
 func (self *BlockFile) Release(bytes []byte) (error) {
 	slice := slice.AsSlice(&bytes)
 	length := uint64(slice.Len)
@@ -508,6 +555,9 @@ func (self *BlockFile) Release(bytes []byte) (error) {
 	return nil
 }
 
+// Sync the mmap'ed changes to disk. This uses the async interface (via
+// the MS_ASYNC flag) so the changes may not be written by the time this
+// method returns. However, they will be written soon.
 func (self *BlockFile) Sync() (error) {
 	errno := C.sync_mmap(self.mmap, C.int(self.file.Fd()))
 	if (errno != 0) {
