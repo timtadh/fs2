@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"os"
 	"runtime/debug"
-	"sort"
 )
 
 import (
@@ -108,7 +107,7 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
 				key: t.rand_key(),
-				value: t.rand_key(),
+				value: t.rand_value(32),
 			}
 			kvs = append(kvs, kv)
 		}
@@ -117,7 +116,6 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 			for _, kv := range kvs {
 				t.assert_nil(bpt.Add(kv.key, kv.value))
 			}
-			sort.Sort(kvs)
 			for _, kv := range kvs {
 				t.assert_has(bpt)(kv.key)
 			}
