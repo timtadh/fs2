@@ -27,7 +27,7 @@ func (t *T) Log(msgs ...interface{}) {
 func (t *T) assert(msg string, oks ...bool) {
 	for _, ok := range oks {
 		if !ok {
-			t.Log("\n"+string(debug.Stack()))
+			t.Log("\n" + string(debug.Stack()))
 			t.Error(msg)
 			t.Fatal("assert failed")
 		}
@@ -37,7 +37,7 @@ func (t *T) assert(msg string, oks ...bool) {
 func (t *T) assert_nil(errors ...error) {
 	for _, err := range errors {
 		if err != nil {
-			t.Log("\n"+string(debug.Stack()))
+			t.Log("\n" + string(debug.Stack()))
 			t.Fatal(err)
 		}
 	}
@@ -80,8 +80,8 @@ func (t *T) rand_bigValue(min, max int) []byte {
 func (t *T) bkey(key *uint64) []byte {
 	s := &slice.Slice{
 		Array: unsafe.Pointer(key),
-		Len: 8,
-		Cap: 8,
+		Len:   8,
+		Cap:   8,
 	}
 	return *s.AsBytes()
 }
@@ -195,15 +195,15 @@ func TestPutKV(x *testing.T) {
 	bf, bf_clean := t.blkfile()
 	n := t.newLeaf()
 	k1 := uint64(7)
-	v1 := []byte{7,7,7,7,7,7,7,7}
+	v1 := []byte{7, 7, 7, 7, 7, 7, 7, 7}
 	k2 := uint64(3)
-	v2 := []byte{3,3,3}
+	v2 := []byte{3, 3, 3}
 	k3 := uint64(12)
-	v3 := []byte{12,12,12,12,12,12,12,12}
+	v3 := []byte{12, 12, 12, 12, 12, 12, 12, 12}
 	k4 := uint64(8)
-	v4 := []byte{8,8}
+	v4 := []byte{8, 8}
 	k5 := uint64(5)
-	v5 := []byte{5,5,5,5,5,5,5,5,5,5,5}
+	v5 := []byte{5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
 	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
 	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
@@ -259,7 +259,7 @@ func TestNewLeaf(t *testing.T) {
 			t.Error("ptr was not zero")
 		}
 	}
-	
+
 	n.valueSizes[0] = 1
 	n.valueSizes[1] = 21
 	n.valueSizes[2] = 23
@@ -328,4 +328,3 @@ func TestLoadLeaf(t *testing.T) {
 		}
 	}
 }
-

@@ -35,15 +35,15 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 	kvs := make([]*KV, 0, 500)
 	for i := 0; i < 500; i++ {
 		kv := &KV{
-			key: t.rand_key(),
+			key:   t.rand_key(),
 			value: t.rand_value(24),
 		}
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
 		t.assert_nil(bpt.Add(kv.key, kv.value))
-		for i := 0; i < rand.Intn(50) + 1; i++ {
+		for i := 0; i < rand.Intn(50)+1; i++ {
 			kv2 := &KV{
-				key: kv.key,
+				key:   kv.key,
 				value: t.rand_value(24),
 			}
 			kvs = append(kvs, kv2)
@@ -79,7 +79,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 	kvs := make([]*KV, 0, 10000)
 	for i := 0; i < 10; i++ {
 		kv := &KV{
-			key: t.rand_key(),
+			key:   t.rand_key(),
 			value: t.rand_value(24),
 		}
 		keys = append(keys, kv.key)
@@ -89,7 +89,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 		for i := 0; i < dups; i++ {
 			// t.Log(i+2)
 			kv2 := &KV{
-				key: kv.key,
+				key:   kv.key,
 				value: t.rand_value(24),
 			}
 			kvs = append(kvs, kv2)
@@ -113,4 +113,3 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 	}
 	clean()
 }
-

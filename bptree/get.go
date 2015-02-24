@@ -12,10 +12,9 @@ import (
 type Iterator func() (item []byte, err error, i Iterator)
 
 // This type of iterator is used for iterating over keys AND values.
-type KVIterator func() (key, value []byte,  err error, kvi KVIterator)
+type KVIterator func() (key, value []byte, err error, kvi KVIterator)
 
 type bpt_iterator func() (a uint64, idx int, err error, bi bpt_iterator)
-
 
 func doIter(run func() (KVIterator, error), do func(key, value []byte) error) error {
 	kvi, err := run()
@@ -63,7 +62,7 @@ func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 // Iterate over each of the keys and values in the tree. I recommend
 // that you use the `DoIterate` method instead (it is easier to use). If
 // you do use the method always use it as follows:
-// 
+//
 // 	kvi, err := bpt.Iterate()
 // 	if err != nil {
 // 		// handle error
@@ -78,7 +77,7 @@ func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 // 	if err != nil {
 // 		// handle error
 // 	}
-// 
+//
 // Note, it is safe for the keys and values to escape the iterator
 // context.  They are copied into it so you cannot harm the tree. An
 // unsafe version of this is being considered.
@@ -195,7 +194,7 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	if err != nil {
 		return nil, err
 	}
-	kvi = func()(key, value []byte, e error, it KVIterator) {
+	kvi = func() (key, value []byte, e error, it KVIterator) {
 		var a uint64
 		var i int
 		a, i, err, bi = bi()
@@ -263,9 +262,9 @@ func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags & iNTERNAL != 0 {
+	if flags&iNTERNAL != 0 {
 		return self.internalGetStart(n, key)
-	} else if flags & lEAF != 0 {
+	} else if flags&lEAF != 0 {
 		return self.leafGetStart(n, key)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")
@@ -437,4 +436,3 @@ func (self *BpTree) prevLoc(a uint64, i int) (uint64, int, bool, error) {
 	}
 	return a, j, end, nil
 }
-

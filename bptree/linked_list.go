@@ -1,7 +1,6 @@
 package bptree
 
-import (
-)
+import ()
 
 import (
 	"github.com/timtadh/fs2/errors"
@@ -72,4 +71,3 @@ func (self *BpTree) delListNode(node uint64) (err error) {
 		return nil
 	})
 }
-

@@ -60,7 +60,7 @@ func (a *leaf) balance(b *leaf) error {
 }
 
 func (n *internal) balancePoint() int {
-	m := int(n.meta.keyCount)/2
+	m := int(n.meta.keyCount) / 2
 	return noSplitBalancePoint(n.keys, int(n.meta.keyCount), m)
 }
 
@@ -71,7 +71,7 @@ func (n *leaf) balancePoint() int {
 	length := n.next_kv_in_kvs()
 	guess := length / 2
 	m := 0
-	for m + 1 < int(n.meta.keyCount) {
+	for m+1 < int(n.meta.keyCount) {
 		if n.keyOffset(m+1) > guess {
 			break
 		}

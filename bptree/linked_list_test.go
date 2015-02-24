@@ -25,7 +25,7 @@ func (t *T) blkfile() (*fmap.BlockFile, func()) {
 	}
 }
 
-func (t *T) assert_alc(bf *fmap.BlockFile) (uint64) {
+func (t *T) assert_alc(bf *fmap.BlockFile) uint64 {
 	a, err := bf.Allocate()
 	t.assert_nil(err)
 	return a
@@ -96,7 +96,6 @@ func TestLinkedListPut(x *testing.T) {
 	}))
 }
 
-
 func TestLinkedListDel(x *testing.T) {
 	t := (*T)(x)
 	bpt, cleanup := t.bpt()
@@ -150,8 +149,3 @@ func TestLinkedListDel(x *testing.T) {
 		return nil
 	}))
 }
-
-
-
-
-

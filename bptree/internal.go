@@ -12,10 +12,10 @@ import (
 )
 
 type baseMeta struct {
-	flags flag
-	keySize uint16
+	flags    flag
+	keySize  uint16
 	keyCount uint16
-	keyCap uint16
+	keyCap   uint16
 }
 
 type internal struct {
@@ -44,13 +44,13 @@ func (m *baseMeta) Size() uintptr {
 func (m *baseMeta) String() string {
 	return fmt.Sprintf(
 		"flags: %v, keySize: %v, keyCount: %v, keyCap: %v",
-			m.flags, m.keySize, m.keyCount, m.keyCap)
+		m.flags, m.keySize, m.keyCount, m.keyCap)
 }
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
 		"meta: <%v>, keys: <%d, %v>, ptrs: <%d, %v>",
-			n.meta, len(n.keys), n.keys[:n.meta.keyCount], len(n.ptrs), n.ptrs[:n.meta.keyCount])
+		n.meta, len(n.keys), n.keys[:n.meta.keyCount], len(n.ptrs), n.ptrs[:n.meta.keyCount])
 }
 
 func (n *internal) Has(key []byte) bool {
@@ -59,7 +59,7 @@ func (n *internal) Has(key []byte) bool {
 }
 
 func (n *internal) full() bool {
-	return n.meta.keyCount + 1 >= n.meta.keyCap
+	return n.meta.keyCount+1 >= n.meta.keyCap
 }
 
 func (n *internal) ptr(key []byte) (uint64, error) {
@@ -79,8 +79,8 @@ func (n *internal) putKP(key []byte, p uint64) error {
 	}
 	err := putKey(int(n.meta.keyCount), n.keys, key, func(i int) error {
 		chunk_size := int(n.meta.keyCount) - i
-		from := n.ptrs[i:i+chunk_size]
-		to := n.ptrs[i+1:i+chunk_size+1]
+		from := n.ptrs[i : i+chunk_size]
+		to := n.ptrs[i+1 : i+chunk_size+1]
 		copy(to, from)
 		n.ptrs[i] = p
 		return nil
@@ -112,8 +112,8 @@ func (n *internal) delItemAt(i int) error {
 	}
 	// remove the ptr
 	size := int(n.meta.keyCount) - i - 1
-	from := n.ptrs[i+1:i+1+size]
-	to := n.ptrs[i:i+size]
+	from := n.ptrs[i+1 : i+1+size]
+	to := n.ptrs[i : i+size]
 	copy(to, from)
 	n.ptrs[n.meta.keyCount-1] = 0
 	// do the book keeping
@@ -122,7 +122,7 @@ func (n *internal) delItemAt(i int) error {
 }
 
 func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) error {
-	if keyCount + 1 >= len(keys) {
+	if keyCount+1 >= len(keys) {
 		return errors.Errorf("Block is full.")
 	}
 	i, has := find(keyCount, keys, key)
@@ -140,7 +140,7 @@ func putKey(keyCount int, keys [][]byte, key []byte, put func(i int) error) erro
 }
 
 func putItemAt(itemCount int, items [][]byte, item []byte, i int) error {
-	if itemCount + 1 >= len(items) {
+	if itemCount+1 >= len(items) {
 		return errors.Errorf("The items slice is full")
 	}
 	if i < 0 || i > itemCount {
@@ -160,7 +160,7 @@ func delItemAt(itemCount int, items [][]byte, i int) error {
 	if i < 0 || i >= itemCount {
 		return errors.Errorf("i was not in range")
 	}
-	for j := i; j + 1 < itemCount; j++ {
+	for j := i; j+1 < itemCount; j++ {
 		copy(items[j], items[j+1])
 	}
 	// zero the old
@@ -170,7 +170,7 @@ func delItemAt(itemCount int, items [][]byte, i int) error {
 
 func loadInternal(backing []byte) (*internal, error) {
 	meta := loadBaseMeta(backing)
-	if meta.flags & iNTERNAL == 0 {
+	if meta.flags&iNTERNAL == 0 {
 		return nil, errors.Errorf("Was not an internal node")
 	}
 	return attachInternal(backing, meta)
@@ -180,7 +180,7 @@ func keysPerInternal(blockSize int, keySize int) int {
 	available := blockSize - int((&baseMeta{}).Size())
 	ptrSize := 8
 	kvSize := keySize + ptrSize
-	keyCap := available/kvSize
+	keyCap := available / kvSize
 	return keyCap
 }
 
@@ -190,7 +190,7 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	available := uintptr(len(backing)) - meta.Size()
 	ptrSize := uintptr(8)
 	kvSize := uintptr(keySize) + ptrSize
-	keyCap := uint16(available/kvSize)
+	keyCap := uint16(available / kvSize)
 	meta.Init(iNTERNAL, keySize, keyCap)
 
 	return attachInternal(backing, meta)
@@ -206,8 +206,10 @@ func init() {
 // will fullfil it. The length will be set to zero
 func getInternSliceBytes(capacity int) [][]byte {
 	select {
-	case s := <-internSliceBuf: return s[:0]
-	default: return make([][]byte, 0, capacity)
+	case s := <-internSliceBuf:
+		return s[:0]
+	default:
+		return make([][]byte, 0, capacity)
 	}
 }
 
@@ -234,8 +236,8 @@ func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 	}
 	ptrs_s := &slice.Slice{
 		Array: unsafe.Pointer(base + uintptr(meta.keyCap)*uintptr(meta.keySize)),
-		Len: int(meta.keyCap),
-		Cap: int(meta.keyCap),
+		Len:   int(meta.keyCap),
+		Cap:   int(meta.keyCap),
 	}
 	ptrs := *ptrs_s.AsUint64s()
 	return &internal{
@@ -249,4 +251,3 @@ func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 func (n *internal) release() {
 	relInternSliceBytes(n.keys)
 }
-

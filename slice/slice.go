@@ -59,4 +59,3 @@ func (ss *Slice) AsFloat32s() *[]float32 {
 func (ss *Slice) AsFloat64s() *[]float64 {
 	return (*[]float64)(unsafe.Pointer(ss))
 }
-

@@ -20,14 +20,14 @@ type leafMeta struct {
 }
 
 type leaf struct {
-	back []byte
-	meta *leafMeta
+	back       []byte
+	meta       *leafMeta
 	valueSizes []uint16
 	valueFlags []uint8
-	end uintptr
-	kvs []byte
-	keys [][]byte
-	vals [][]byte
+	end        uintptr
+	kvs        []byte
+	keys       [][]byte
+	vals       [][]byte
 }
 
 func loadLeafMeta(backing []byte) *leafMeta {
@@ -49,13 +49,13 @@ func (m *leafMeta) Size() uintptr {
 func (m *leafMeta) String() string {
 	return fmt.Sprintf(
 		"%v, next: %v, prev: %v",
-			&m.baseMeta, m.next, m.prev)
+		&m.baseMeta, m.next, m.prev)
 }
 
 func (n *leaf) String() string {
 	return fmt.Sprintf(
 		"meta: <%v>, valueSizes: <%d, %v>, keys: <%d, %v>, vals: %v",
-			n.meta, len(n.valueSizes), n.valueSizes, len(n.keys), n.keys, n.vals)
+		n.meta, len(n.valueSizes), n.valueSizes, len(n.keys), n.keys, n.vals)
 }
 
 func (n *leaf) Has(key []byte) bool {
@@ -73,10 +73,14 @@ func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) er
 
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	switch flag(n.valueFlags[i]) {
-	case 0: return errors.Errorf("Unset value flag")
-	case sMALL_VALUE: return do(n.vals[i])
-	case bIG_VALUE: return n.doBigValue(bf, i, do)
-	default: return errors.Errorf("Unexpected value type")
+	case 0:
+		return errors.Errorf("Unset value flag")
+	case sMALL_VALUE:
+		return do(n.vals[i])
+	case bIG_VALUE:
+		return n.doBigValue(bf, i, do)
+	default:
+		return errors.Errorf("Unexpected value type")
 	}
 }
 
@@ -87,7 +91,7 @@ func (n *leaf) doBigValue(bf *fmap.BlockFile, i int, do func([]byte) error) erro
 	blks := blksNeeded(bf, int(bv.size))
 	if bv.offset == 0 {
 		return errors.Errorf("the bv.offset, %d, was 0.", bv.offset)
-	} else if bv.offset % 4096 != 0 {
+	} else if bv.offset%4096 != 0 {
 		return errors.Errorf("the bv.offset, %d, was not block aligned", bv.offset)
 	}
 	return bf.Do(bv.offset, uint64(blks), func(bytes []byte) error {
@@ -118,7 +122,7 @@ func (n *leaf) size(value []byte) int {
 func (n *leaf) fits(value []byte) bool {
 	size := n.size(value)
 	end := n.next_kv_in_kvs()
-	return (end + size < len(n.kvs)) && n.meta.keyCount + 1 < n.meta.keyCap 
+	return (end+size < len(n.kvs)) && n.meta.keyCount+1 < n.meta.keyCap
 }
 
 func (n *leaf) keyOffset(idx int) int {
@@ -147,7 +151,7 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
-	if n.meta.keyCount + 1 >= n.meta.keyCap {
+	if n.meta.keyCount+1 >= n.meta.keyCap {
 		return errors.Errorf("block is full")
 	}
 	if !n.fits(value) {
@@ -164,14 +168,14 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 		chunk_size := int(n.meta.keyCount) - key_idx
 		// we move the valueSizes around to expand
 		{
-			from := n.valueSizes[key_idx:key_idx+chunk_size]
-			to := n.valueSizes[key_idx+1:key_idx+chunk_size+1]
+			from := n.valueSizes[key_idx : key_idx+chunk_size]
+			to := n.valueSizes[key_idx+1 : key_idx+chunk_size+1]
 			copy(to, from)
 		}
 		// we move the valueFlags around to expand
 		{
-			from := n.valueFlags[key_idx:key_idx+chunk_size]
-			to := n.valueFlags[key_idx+1:key_idx+chunk_size+1]
+			from := n.valueFlags[key_idx : key_idx+chunk_size]
+			to := n.valueFlags[key_idx+1 : key_idx+chunk_size+1]
 			copy(to, from)
 		}
 		// then we make room for the kv
@@ -183,9 +187,9 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	n.meta.keyCount += 1
 	n.valueFlags[key_idx] = uint8(valFlags)
 	// copy in the new kv
-	key_end := key_offset+int(n.meta.keySize)
+	key_end := key_offset + int(n.meta.keySize)
 	key_slice := n.kvs[key_offset:key_end]
-	val_slice := n.kvs[key_end:key_end+len(value)]
+	val_slice := n.kvs[key_end : key_end+len(value)]
 	copy(key_slice, key)
 	copy(val_slice, value)
 	// reattach our byte slices
@@ -217,7 +221,7 @@ func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
 func (n *leaf) delItemAt(key_idx int) error {
 	// ok we have our key_idx
 	length := n.next_kv_in_kvs()
-	if key_idx + 1 == int(n.meta.keyCount) {
+	if key_idx+1 == int(n.meta.keyCount) {
 		// sweet we can just drop the last
 		// key value
 		n.valueSizes[key_idx] = 0
@@ -227,23 +231,23 @@ func (n *leaf) delItemAt(key_idx int) error {
 	// drop the k4
 	{
 		key_offset := n.keyOffset(key_idx)
-		i := n.keyOffset(key_idx+1)
+		i := n.keyOffset(key_idx + 1)
 		size := length - i
-		shift(n.kvs, i, size, i - key_offset, false)
+		shift(n.kvs, i, size, i-key_offset, false)
 	}
 	// drop the valueSize
 	{
 		size := int(n.meta.keyCount) - key_idx - 1
-		from := n.valueSizes[key_idx+1:key_idx+1+size]
-		to := n.valueSizes[key_idx:key_idx+size]
+		from := n.valueSizes[key_idx+1 : key_idx+1+size]
+		to := n.valueSizes[key_idx : key_idx+size]
 		copy(to, from)
 		n.valueSizes[n.meta.keyCount-1] = 0
 	}
 	// drop the valueFlag
 	{
 		size := int(n.meta.keyCount) - key_idx - 1
-		from := n.valueFlags[key_idx+1:key_idx+1+size]
-		to := n.valueFlags[key_idx:key_idx+size]
+		from := n.valueFlags[key_idx+1 : key_idx+1+size]
+		to := n.valueFlags[key_idx : key_idx+size]
 		copy(to, from)
 		n.valueFlags[n.meta.keyCount-1] = 0
 	}
@@ -255,7 +259,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 
 func loadLeaf(backing []byte) (*leaf, error) {
 	meta := loadLeafMeta(backing)
-	if meta.flags & lEAF == 0 {
+	if meta.flags&lEAF == 0 {
 		return nil, errors.Errorf("Was not a leaf node")
 	}
 	return attachLeaf(backing, meta)
@@ -271,7 +275,7 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 	//             size + 1 byte
 	valMin := uintptr(2 + 1 + 1)
 	kvSize := uintptr(keySize) + valMin
-	keyCap := available/kvSize
+	keyCap := available / kvSize
 
 	meta.Init(lEAF, keySize, uint16(keyCap))
 	return attachLeaf(backing, meta)
@@ -287,8 +291,10 @@ func init() {
 // will fullfil it. The length will be set to zero
 func getLeafSliceBytes(capacity int) [][]byte {
 	select {
-	case s := <-leafSliceBuf: return s[:0]
-	default: return make([][]byte, 0, capacity)
+	case s := <-leafSliceBuf:
+		return s[:0]
+	default:
+		return make([][]byte, 0, capacity)
 	}
 }
 
@@ -306,34 +312,34 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 
 	valueSizes_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
-		Len: int(meta.keyCap),
-		Cap: int(meta.keyCap),
+		Len:   int(meta.keyCap),
+		Cap:   int(meta.keyCap),
 	}
 	ptr = ptr + uintptr(meta.keyCap)*2
 	valueSizes := *valueSizes_s.AsUint16s()
 
 	valueFlags_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
-		Len: int(meta.keyCap),
-		Cap: int(meta.keyCap),
+		Len:   int(meta.keyCap),
+		Cap:   int(meta.keyCap),
 	}
 	ptr = ptr + uintptr(meta.keyCap)
 	valueFlags := *valueFlags_s.AsBytes()
 
 	kvs_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
-		Len: int(end - ptr),
-		Cap: int(end - ptr),
+		Len:   int(end - ptr),
+		Cap:   int(end - ptr),
 	}
 	kvs := *kvs_s.AsBytes()
 
 	node := &leaf{
-		back: backing,
-		meta: meta,
+		back:       backing,
+		meta:       meta,
 		valueSizes: valueSizes,
 		valueFlags: valueFlags,
-		end: end,
-		kvs: kvs,
+		end:        end,
+		kvs:        kvs,
 	}
 	node.keys = getLeafSliceBytes(int(node.meta.keyCap))
 	node.vals = getLeafSliceBytes(int(node.meta.keyCap))
@@ -344,7 +350,6 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 	}
 	return node, nil
 }
-
 
 func (n *leaf) reattachLeaf() error {
 	kvs_s := slice.AsSlice(&n.kvs)
@@ -393,4 +398,3 @@ func (n *leaf) release() {
 	relLeafSliceBytes(n.keys)
 	relLeafSliceBytes(n.vals)
 }
-

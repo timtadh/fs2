@@ -164,7 +164,7 @@ func TestNewInternal(t *testing.T) {
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
 	}
-	zero := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
+	zero := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	for i := 0; i < int(n.meta.keyCap); i++ {
 		if bytes.Compare(n.keys[i], zero) != 0 {
 			t.Error("key was not zero")
@@ -173,7 +173,7 @@ func TestNewInternal(t *testing.T) {
 			t.Error("ptr was not zero")
 		}
 	}
-	
+
 	n.keys[0][0] = 1
 	n.keys[n.meta.keyCap-1][15] = 0xf
 	n.ptrs[0] = 1
@@ -182,8 +182,8 @@ func TestNewInternal(t *testing.T) {
 	n.ptrs[3] = 125
 	n.ptrs[n.meta.keyCap-1] = 0xffffffffffffffff
 
-	one := []byte{1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
-	fifteen := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,15}
+	one := []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
 	if n.meta.flags != iNTERNAL {
@@ -233,8 +233,8 @@ func TestLoadInternal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	one := []byte{1,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0}
-	fifteen := []byte{0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,15}
+	one := []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
 	if n.meta.flags != iNTERNAL {
@@ -262,4 +262,3 @@ func TestLoadInternal(t *testing.T) {
 		}
 	}
 }
-

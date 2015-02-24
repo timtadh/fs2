@@ -12,16 +12,16 @@ import (
 
 // The Ubiquitous B+ Tree
 type BpTree struct {
-	bf *fmap.BlockFile
-	metaBack []byte
-	meta *bpTreeMeta
-	cacheCert uintptr
-	leafCache map[uint64]*leaf
+	bf            *fmap.BlockFile
+	metaBack      []byte
+	meta          *bpTreeMeta
+	cacheCert     uintptr
+	leafCache     map[uint64]*leaf
 	internalCache map[uint64]*internal
 }
 
 type bpTreeMeta struct {
-	root uint64
+	root    uint64
 	keySize uint16
 }
 
@@ -79,10 +79,10 @@ func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
 		return nil, err
 	}
 	bpt := &BpTree{
-		bf: bf,
-		metaBack: back,
-		meta: meta,
-		leafCache: make(map[uint64]*leaf),
+		bf:            bf,
+		metaBack:      back,
+		meta:          meta,
+		leafCache:     make(map[uint64]*leaf),
 		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
@@ -96,10 +96,10 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 		return nil, err
 	}
 	bpt := &BpTree{
-		bf: bf,
-		metaBack: back,
-		meta: meta,
-		leafCache: make(map[uint64]*leaf),
+		bf:            bf,
+		metaBack:      back,
+		meta:          meta,
+		leafCache:     make(map[uint64]*leaf),
 		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
@@ -113,4 +113,3 @@ func (b *BpTree) writeMeta() error {
 func (self *BpTree) KeySize() int {
 	return int(self.meta.keySize)
 }
-

@@ -29,7 +29,7 @@ func (t *T) assert_notHas(bpt *BpTree) func(key []byte) {
 func TestLeafRemove(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
-		SIZE := 1027+TEST*16
+		SIZE := 1027 + TEST*16
 		bpt, clean := t.bpt()
 		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
@@ -68,7 +68,7 @@ func TestLeafRemove(x *testing.T) {
 			t.assert_nil(bpt.Remove(kv.key, func(value []byte) bool {
 				return bytes.Equal(kv.value, value)
 			}))
-			if idx + 1 == len(kvs) {
+			if idx+1 == len(kvs) {
 				break
 			}
 			a, i, err := bpt.getStart(kv.key)
@@ -94,7 +94,7 @@ func TestLeafBigRemove(x *testing.T) {
 		kvs := make([]*KV, 0, LEAF_CAP)
 		for i := 0; i < LEAF_CAP; i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_bigValue(2048, 4096*5),
 			}
 			kvs = append(kvs, kv)
@@ -124,7 +124,7 @@ func TestLeafBigRemove(x *testing.T) {
 			t.assert_nil(bpt.Remove(kv.key, func(value []byte) bool {
 				return bytes.Equal(kv.value, value)
 			}))
-			if idx + 1 == len(kvs) {
+			if idx+1 == len(kvs) {
 				break
 			}
 			a, i, err := bpt.getStart(kv.key)
@@ -142,7 +142,6 @@ func TestLeafBigRemove(x *testing.T) {
 	}
 }
 
-
 func TestAddRemoveRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
@@ -155,17 +154,17 @@ func TestAddRemoveRand(x *testing.T) {
 			t.assert_has(bpt)(kv.key)
 		}
 		/*
-		for _, kv := range kvs {
-			t.assert_has(bpt)(kv.key)
-		}*/
+			for _, kv := range kvs {
+				t.assert_has(bpt)(kv.key)
+			}*/
 		for _, kv := range kvs {
 			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
 			}))
 			/*
-			for _, kv2 := range kvs[:i+1] {
-				t.assert_notHas(bpt)(kv2.key)
-			}*/
+				for _, kv2 := range kvs[:i+1] {
+					t.assert_notHas(bpt)(kv2.key)
+				}*/
 		}
 		for _, kv := range kvs {
 			t.assert_notHas(bpt)(kv.key)
@@ -175,19 +174,19 @@ func TestAddRemoveRand(x *testing.T) {
 			t.assert_has(bpt)(kv.key)
 		}
 		/*
-		for _, kv := range kvs {
-			t.assert_has(bpt)(kv.key)
-		}*/
+			for _, kv := range kvs {
+				t.assert_has(bpt)(kv.key)
+			}*/
 		for _, kv := range kvs {
 			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
 			}))
 			/*
-			for _, kv2 := range kvs {
-				if !bytes.Equal(kv.key, kv2.key) {
-					t.assert_has(bpt)(kv2.key)
-				}
-			}*/
+				for _, kv2 := range kvs {
+					if !bytes.Equal(kv.key, kv2.key) {
+						t.assert_has(bpt)(kv2.key)
+					}
+				}*/
 			t.assert_notHas(bpt)(kv.key)
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 		}
@@ -199,9 +198,9 @@ func TestAddRemoveRand(x *testing.T) {
 				return bytes.Equal(b, kv.value)
 			}))
 			/*
-			for _, kv2 := range kvs[:i+1] {
-				t.assert_notHas(bpt)(kv2.key)
-			}*/
+				for _, kv2 := range kvs[:i+1] {
+					t.assert_notHas(bpt)(kv2.key)
+				}*/
 		}
 		for _, kv := range kvs {
 			t.assert_notHas(bpt)(kv.key)
@@ -209,4 +208,3 @@ func TestAddRemoveRand(x *testing.T) {
 		clean()
 	}
 }
-

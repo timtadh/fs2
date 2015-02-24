@@ -6,13 +6,13 @@ import (
 )
 
 type Error struct {
-	Err error
+	Err   error
 	Stack []byte
 }
 
 func Errorf(format string, args ...interface{}) error {
 	return &Error{
-		Err: fmt.Errorf(format, args...),
+		Err:   fmt.Errorf(format, args...),
 		Stack: debug.Stack(),
 	}
 }
@@ -24,4 +24,3 @@ func (e *Error) Error() string {
 func (e *Error) String() string {
 	return e.Error()
 }
-

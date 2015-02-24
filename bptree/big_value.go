@@ -1,8 +1,8 @@
 package bptree
 
 import (
-	"unsafe"
 	"reflect"
+	"unsafe"
 )
 
 import (
@@ -10,7 +10,7 @@ import (
 )
 
 type bigValue struct {
-	size uint32
+	size   uint32
 	offset uint64
 }
 
@@ -23,8 +23,8 @@ func init() {
 func (bv *bigValue) BytesUnsafe() []byte {
 	ss := &slice.Slice{
 		Array: unsafe.Pointer(bv),
-		Len: int(bvSize),
-		Cap: int(bvSize),
+		Len:   int(bvSize),
+		Cap:   int(bvSize),
 	}
 	return *ss.AsBytes()
 }
@@ -35,4 +35,3 @@ func (bv *bigValue) Bytes() []byte {
 	copy(bytes, ubytes)
 	return bytes
 }
-

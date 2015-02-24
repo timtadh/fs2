@@ -43,7 +43,7 @@ func (cd *ctrldata) Size() uintptr {
 type ctrlblk struct {
 	back []byte
 	data *ctrldata
-	user  []byte
+	user []byte
 }
 
 func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
@@ -52,13 +52,13 @@ func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
 	ptr := uintptr(back.Array) + data.Size()
 	// new_chksum := crc32.ChecksumIEEE(bytes[4:])
 	// if new_chksum != data.checksum {
-		// return nil, errors.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
+	// return nil, errors.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
 	// }
 	user_len := len(bytes) - int(data.Size())
 	user_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
-		Len: user_len,
-		Cap: user_len,
+		Len:   user_len,
+		Cap:   user_len,
 	}
 	user := *user_s.AsBytes()
 	cb = &ctrlblk{
@@ -79,8 +79,8 @@ func new_ctrlblk(bytes []byte, blksize uint32) (cb *ctrlblk) {
 	user_len := len(bytes) - int(data.Size())
 	user_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
-		Len: user_len,
-		Cap: user_len,
+		Len:   user_len,
+		Cap:   user_len,
 	}
 	user := *user_s.AsBytes()
 	copy(user, make([]byte, len(user))) // zeros the user data
@@ -104,14 +104,14 @@ func (cb *ctrlblk) updateChkSum() {
 // A BlockFile represents the memory mapped file. It has a blocksize all
 // operations are done as block aligned operations.
 type BlockFile struct {
-	path   string
-	opened bool
-	size   uint64
-	blksize int
-	file   *os.File
-	mmap unsafe.Pointer
-	ptrs []int "outstanding pointers into mmap"
-	outstanding int "total outstanding pointers"
+	path        string
+	opened      bool
+	size        uint64
+	blksize     int
+	file        *os.File
+	mmap        unsafe.Pointer
+	ptrs        []int "outstanding pointers into mmap"
+	outstanding int   "total outstanding pointers"
 }
 
 // Zero the bytes of the passed in slice. It uses the length not the
@@ -137,13 +137,13 @@ func CreateBlockFile(path string) (*BlockFile, error) {
 // Create a blockfile with a custom blocksize. Note, the size must be a
 // multiple of 4096.
 func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error) {
-	if size % 4096 != 0 {
+	if size%4096 != 0 {
 		panic(errors.Errorf("blocksize must be divisible by 4096"))
 	}
 	bf := &BlockFile{
-		path: path,
+		path:    path,
 		blksize: int(size),
-		ptrs: make([]int, 1, size),
+		ptrs:    make([]int, 1, size),
 	}
 	var err error
 	bf.file, bf.mmap, err = create(path, size)
@@ -171,12 +171,12 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		return nil, err
 	}
 	bf := &BlockFile{
-		path: path,
-		file: f,
-		mmap: mmap,
-		opened: true,
-		blksize: BLOCKSIZE, // set the initial block size to a safe size
-		ptrs: make([]int, 1, BLOCKSIZE), // also setup the initial pointers
+		path:    path,
+		file:    f,
+		mmap:    mmap,
+		opened:  true,
+		blksize: BLOCKSIZE,                 // set the initial block size to a safe size
+		ptrs:    make([]int, 1, BLOCKSIZE), // also setup the initial pointers
 	}
 	bf.size, err = bf.Size()
 	if err != nil {
@@ -191,7 +191,7 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		return nil, err
 	}
 	bf.blksize = int(blksize)
-	blkcount := bf.size/blksize
+	blkcount := bf.size / blksize
 	bf.ptrs = make([]int, blkcount, blkcount*2)
 	return bf, nil
 }
@@ -283,7 +283,7 @@ func (self *BlockFile) init_ctrl(blksize uint32) error {
 	})
 }
 
-func (self *BlockFile) ctrl(do func(*ctrlblk) error) (error) {
+func (self *BlockFile) ctrl(do func(*ctrlblk) error) error {
 	return self.Do(0, 1, func(bytes []byte) error {
 		cb, err := load_ctrlblk(bytes)
 		if err != nil {
@@ -369,10 +369,10 @@ func (self *BlockFile) resize(size uint64) error {
 // start of the file.
 func (self *BlockFile) Free(offset uint64) error {
 	/*
-	errno := C.is_normal(self.mmap, C.size_t(offset), C.size_t(self.blksize))
-	if errno != 0 {
-		return errors.Errorf("is_normal failed, %d", errno)
-	}*/
+		errno := C.is_normal(self.mmap, C.size_t(offset), C.size_t(self.blksize))
+		if errno != 0 {
+			return errors.Errorf("is_normal failed, %d", errno)
+		}*/
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		head := ctrl.data.free_head
 		return self.Do(offset, 1, func(free_bytes []byte) error {
@@ -406,7 +406,7 @@ func (self *BlockFile) pop_free() (offset uint64, err error) {
 
 func (self *BlockFile) zero(offset uint64, n int) (uint64, error) {
 	for i := 0; i < n; i++ {
-		err := self.Do(offset + uint64(i*self.blksize), 1, func(block []byte) error {
+		err := self.Do(offset+uint64(i*self.blksize), 1, func(block []byte) error {
 			ptr := slice.AsSlice(&block).Array
 			memClr(ptr, uintptr(len(block)))
 			return nil
@@ -517,17 +517,17 @@ func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	length := blocks * uint64(self.blksize)
 	if (offset + length) > uint64(self.size) {
-		return nil, errors.Errorf("Get outside of the file, (%d) %d + %d > %d", offset + length, offset, length, self.size)
+		return nil, errors.Errorf("Get outside of the file, (%d) %d + %d > %d", offset+length, offset, length, self.size)
 	}
-	blk := (offset/uint64(self.blksize))
+	blk := (offset / uint64(self.blksize))
 	for i := uint64(0); i < blocks; i++ {
-		self.ptrs[blk + i] += 1
+		self.ptrs[blk+i] += 1
 		self.outstanding += 1
 	}
 	slice := &slice.Slice{
 		Array: unsafe.Pointer(uintptr(self.mmap) + uintptr(offset)),
-		Len: int(length),
-		Cap: int(length),
+		Len:   int(length),
+		Cap:   int(length),
 	}
 	return *slice.AsBytes(), nil
 }
@@ -535,12 +535,12 @@ func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 // Release() bytes aquired with Get(). Should error if the bytes where
 // not allocated from the mapping. But why take chances, you probably
 // want to use the Do interface instead.
-func (self *BlockFile) Release(bytes []byte) (error) {
+func (self *BlockFile) Release(bytes []byte) error {
 	slice := slice.AsSlice(&bytes)
 	length := uint64(slice.Len)
-	blocks := length/uint64(self.blksize)
+	blocks := length / uint64(self.blksize)
 	offset := uint64(uintptr(slice.Array) - uintptr(self.mmap))
-	blk := offset/uint64(self.blksize)
+	blk := offset / uint64(self.blksize)
 	for i := uint64(0); i < blocks; i++ {
 		cblk := blk + i
 		if cblk < 0 || cblk >= uint64(len(self.ptrs)) {
@@ -558,11 +558,10 @@ func (self *BlockFile) Release(bytes []byte) (error) {
 // Sync the mmap'ed changes to disk. This uses the async interface (via
 // the MS_ASYNC flag) so the changes may not be written by the time this
 // method returns. However, they will be written soon.
-func (self *BlockFile) Sync() (error) {
+func (self *BlockFile) Sync() error {
 	errno := C.sync_mmap(self.mmap, C.int(self.file.Fd()))
-	if (errno != 0) {
+	if errno != 0 {
 		return errors.Errorf("sync_mmap failed, %d", errno)
 	}
 	return nil
 }
-

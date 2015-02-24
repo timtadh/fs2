@@ -15,7 +15,7 @@ func TestIterate(x *testing.T) {
 		kvs := make(KVS, 0, LEAF_CAP*2)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_key(),
 			}
 			kvs = append(kvs, kv)
@@ -32,7 +32,7 @@ func TestIterate(x *testing.T) {
 					t.assert("values should equals kvs[i].value", bytes.Equal(value, kvs[i].value))
 					i++
 					return nil
-			}))
+				}))
 			t.assert("i == len(kvs)", i == len(kvs))
 		}
 		keys := make([][]byte, 0, LEAF_CAP*2)
@@ -63,11 +63,9 @@ func TestIterate(x *testing.T) {
 					t.assert("values should equals kvs[i].value", bytes.Equal(value, kvs[i].value))
 					i++
 					return nil
-			}))
+				}))
 			t.assert("i == len(kvs)", i == len(kvs))
 		}
 		clean()
 	}
 }
-
-

@@ -96,14 +96,14 @@ func (self *BpTree) do(
 	if err != nil {
 		return err
 	}
-	if flags & iNTERNAL != 0 {
+	if flags&iNTERNAL != 0 {
 		n, cleanup, err := self.getInternal(a)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 		return internalDo(n)
-	} else if flags & lEAF != 0 {
+	} else if flags&lEAF != 0 {
 		n, cleanup, err := self.getLeaf(a)
 		if err != nil {
 			return err
@@ -169,4 +169,3 @@ func (self *BpTree) checkCache() {
 	self.internalCache = make(map[uint64]*internal)
 	self.cacheCert = self.bf.Address()
 }
-

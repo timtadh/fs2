@@ -47,5 +47,3 @@ with every error.
 
 */
 package fs2
-
-

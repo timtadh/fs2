@@ -44,7 +44,7 @@ func (t *B) bpt() (*BpTree, func()) {
 func (t *B) assert(msg string, oks ...bool) {
 	for _, ok := range oks {
 		if !ok {
-			t.Log("\n"+string(debug.Stack()))
+			t.Log("\n" + string(debug.Stack()))
 			t.Error(msg)
 			t.Fatal("assert failed")
 		}
@@ -54,7 +54,7 @@ func (t *B) assert(msg string, oks ...bool) {
 func (t *B) assert_nil(errors ...error) {
 	for _, err := range errors {
 		if err != nil {
-			t.Log("\n"+string(debug.Stack()))
+			t.Log("\n" + string(debug.Stack()))
 			t.Fatal(err)
 		}
 	}
@@ -106,7 +106,7 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 		kvs := make(KVS, 0, LEAF_CAP*2)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_value(32),
 			}
 			kvs = append(kvs, kv)
@@ -140,7 +140,7 @@ func BenchmarkBpTreeAddHas(x *testing.B) {
 		kvs := make(KVS, 0, LEAF_CAP*2)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_value(32),
 			}
 			kvs = append(kvs, kv)
@@ -159,7 +159,6 @@ func BenchmarkBpTreeAddHas(x *testing.B) {
 	}
 }
 
-
 func BenchmarkBpTreeAdd(x *testing.B) {
 	LEAF_CAP := 190
 	t := (*B)(x)
@@ -170,7 +169,7 @@ func BenchmarkBpTreeAdd(x *testing.B) {
 		kvs := make(KVS, 0, LEAF_CAP*2)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_value(32),
 			}
 			kvs = append(kvs, kv)
@@ -185,4 +184,3 @@ func BenchmarkBpTreeAdd(x *testing.B) {
 		clean()
 	}
 }
-

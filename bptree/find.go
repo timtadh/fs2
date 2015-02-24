@@ -27,13 +27,12 @@ func find(keyCount int, keys [][]byte, key []byte) (int, bool) {
 }
 
 func shift(bytes []byte, idx, length, amt int, left bool) {
-	moving := bytes[idx:idx+length]
+	moving := bytes[idx : idx+length]
 	var to []byte
 	if left {
-		to = bytes[idx+amt:idx+length+amt]
+		to = bytes[idx+amt : idx+length+amt]
 	} else {
-		to = bytes[idx-amt:idx+length-amt]
+		to = bytes[idx-amt : idx+length-amt]
 	}
 	copy(to, moving)
 }
-

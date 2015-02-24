@@ -1,7 +1,6 @@
 package bptree
 
-import (
-)
+import ()
 
 import (
 	"github.com/timtadh/fs2/errors"
@@ -43,9 +42,9 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 	if err != nil {
 		return 0, err
 	}
-	if flags & iNTERNAL != 0 {
+	if flags&iNTERNAL != 0 {
 		return self.internalRemove(n, sibling, key, where)
-	} else if flags & lEAF != 0 {
+	} else if flags&lEAF != 0 {
 		return self.leafRemove(n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")
@@ -64,7 +63,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 			i--
 		}
 		kid = n.ptrs[i]
-		if i + 1 < int(n.meta.keyCount) {
+		if i+1 < int(n.meta.keyCount) {
 			sibling = n.ptrs[i+1]
 		} else if sibling != 0 {
 			return self.doInternal(sibling, func(m *internal) error {
@@ -138,12 +137,12 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 	}
 	locs := make([]*loc, 0, 10)
 	for a, i, err, next = next(); next != nil; a, i, err, next = next() {
-		locs = append(locs, &loc{a,i})
+		locs = append(locs, &loc{a, i})
 	}
 	if err != nil {
 		return 0, err
 	}
-	for x := len(locs)-1; x >= 0; x-- {
+	for x := len(locs) - 1; x >= 0; x-- {
 		a := locs[x].a
 		i := locs[x].i
 		err = self.doLeaf(a, func(n *leaf) error {
@@ -156,7 +155,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if flag(n.valueFlags[i]) & bIG_VALUE != 0 {
+				if flag(n.valueFlags[i])&bIG_VALUE != 0 {
 					bv := (*bigValue)(slice.AsSlice(&n.vals[i]).Array)
 					err = self.removeBigValue(bv.offset, bv.size)
 					if err != nil {
@@ -203,4 +202,3 @@ func (self *BpTree) removeBigValue(a uint64, size uint32) (err error) {
 	}
 	return nil
 }
-

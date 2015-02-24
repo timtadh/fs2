@@ -9,7 +9,6 @@ import (
 	"github.com/timtadh/fs2/fmap"
 )
 
-
 // Add a key/value pair to the tree. There is a reason this isn't called
 // `Put`, this operation does not replace or modify any data in the
 // tree. It only adds this key. The B+ Tree supports duplicate keys and
@@ -47,8 +46,7 @@ func (self *BpTree) Add(key, value []byte) error {
 	return self.writeMeta()
 }
 
-
-/* right is only set on split left is always set. 
+/* right is only set on split left is always set.
  * - When split is false left is the pointer to block
  * - When split is true left is the pointer to the new left block
  */
@@ -61,9 +59,9 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags & iNTERNAL != 0 {
+	if flags&iNTERNAL != 0 {
 		return self.internalInsert(n, key, value)
-	} else if flags & lEAF != 0 {
+	} else if flags&lEAF != 0 {
 		return self.leafInsert(n, key, value)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")
@@ -128,7 +126,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 }
 
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
-	if len(value) > int(self.bf.BlockSize()) / 4 {
+	if len(value) > int(self.bf.BlockSize())/4 {
 		return self.leafBigInsert(n, key, value)
 	}
 	return self.leafDoInsert(n, sMALL_VALUE, key, value)
@@ -177,7 +175,7 @@ func (self *BpTree) makeBigValue(value []byte) (bigVal []byte, err error) {
 		return nil, err
 	}
 	var bv *bigValue = &bigValue{
-		size: uint32(len(value)),
+		size:   uint32(len(value)),
 		offset: a,
 	}
 	bv_bytes := bv.Bytes()
@@ -190,7 +188,7 @@ func blksNeeded(bf *fmap.BlockFile, size int) int {
 	if m == 0 {
 		return size / blk
 	}
-	return (size + (blk - m))/blk
+	return (size + (blk - m)) / blk
 }
 
 /* On split
@@ -383,5 +381,3 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 	}
 	return a, nil
 }
-
-
