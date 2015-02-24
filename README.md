@@ -75,7 +75,7 @@ a great place to start to learn more about the ubiquitous B+ Tree.
 
 ### Quick Start
 
-[usage docs on godoc](https://godoc.org/github.com/timtadh/fs2)
+[usage docs on godoc](https://godoc.org/github.com/timtadh/fs2/bptree#BpTree)
 
 Importing
 
