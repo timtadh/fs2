@@ -176,6 +176,14 @@ func loadInternal(backing []byte) (*internal, error) {
 	return attachInternal(backing, meta)
 }
 
+func keysPerInternal(blockSize int, keySize int) int {
+	available := blockSize - int((&baseMeta{}).Size())
+	ptrSize := 8
+	kvSize := keySize + ptrSize
+	keyCap := available/kvSize
+	return keyCap
+}
+
 func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	meta := loadBaseMeta(backing)
 

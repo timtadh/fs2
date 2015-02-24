@@ -67,6 +67,9 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 }
 
 func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
+	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
+		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
+	}
 	back, meta, err := newBpTreeMeta(bf, uint16(keySize))
 	if err != nil {
 		return nil, err
