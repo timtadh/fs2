@@ -158,7 +158,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				}
 			}
 			if int(n.meta.keyCount) <= 0 {
-				err = delListNode(self.bf, a)
+				err = self.delListNode(a)
 				if err != nil {
 					return err
 				}

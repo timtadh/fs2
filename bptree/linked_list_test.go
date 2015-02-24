@@ -40,89 +40,57 @@ func (t *T) newLeafIn(bf *fmap.BlockFile, a uint64) {
 
 func TestLinkedListPut(x *testing.T) {
 	t := (*T)(x)
-	bf, cleanup := t.blkfile()
+	bpt, cleanup := t.bpt()
 	defer cleanup()
-	a := t.assert_alc(bf)
-	t.newLeafIn(bf, a)
-	b := t.assert_alc(bf)
-	t.newLeafIn(bf, b)
-	c := t.assert_alc(bf)
-	t.newLeafIn(bf, c)
+	a := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, a)
+	b := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, b)
+	c := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, c)
 
-	t.assert_nil(insertListNode(bf, b, 0, 0))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, 0, 0))
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = a", n.meta.prev == 0)
 		t.assert("b.next = c", n.meta.next == 0)
 		return nil
 	}))
 
-	t.assert_nil(insertListNode(bf, b, a, 0))
-	t.assert_nil(bf.Do(a, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, a, 0))
+	t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 		t.assert("a.next = b", n.meta.next == b)
 		n.meta.next = 0
 		return nil
 	}))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = a", n.meta.prev == a)
 		t.assert("b.next = c", n.meta.next == 0)
 		return nil
 	}))
 
-	t.assert_nil(insertListNode(bf, b, 0, c))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, 0, c))
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = a", n.meta.prev == 0)
 		t.assert("b.next = c", n.meta.next == c)
 		return nil
 	}))
-	t.assert_nil(bf.Do(c, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(c, func(n *leaf) error {
 		t.assert("c.prev = b", n.meta.prev == b)
 		n.meta.next = 0
 		return nil
 	}))
 
-	t.assert_nil(insertListNode(bf, b, a, c))
-	t.assert_nil(bf.Do(a, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, a, c))
+	t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 		t.assert("a.next = b", n.meta.next == b)
 		return nil
 	}))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = a", n.meta.prev == a)
 		t.assert("b.next = c", n.meta.next == c)
 		return nil
 	}))
-	t.assert_nil(bf.Do(c, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(c, func(n *leaf) error {
 		t.assert("c.prev = b", n.meta.prev == b)
 		return nil
 	}))
@@ -131,81 +99,53 @@ func TestLinkedListPut(x *testing.T) {
 
 func TestLinkedListDel(x *testing.T) {
 	t := (*T)(x)
-	bf, cleanup := t.blkfile()
+	bpt, cleanup := t.bpt()
 	defer cleanup()
-	a := t.assert_alc(bf)
-	t.newLeafIn(bf, a)
-	b := t.assert_alc(bf)
-	t.newLeafIn(bf, b)
-	c := t.assert_alc(bf)
-	t.newLeafIn(bf, c)
+	a := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, a)
+	b := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, b)
+	c := t.assert_alc(bpt.bf)
+	t.newLeafIn(bpt.bf, c)
 
-	t.assert_nil(insertListNode(bf, b, a, 0))
-	t.assert_nil(delListNode(bf, b))
-	t.assert_nil(bf.Do(a, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, a, 0))
+	t.assert_nil(bpt.delListNode(b))
+	t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 		t.assert("a.next = 0", n.meta.next == 0)
 		n.meta.next = 0
 		return nil
 	}))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = 0", n.meta.prev == 0)
 		t.assert("b.next = 0", n.meta.next == 0)
 		return nil
 	}))
 
-	t.assert_nil(insertListNode(bf, b, 0, c))
-	t.assert_nil(delListNode(bf, b))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, 0, c))
+	t.assert_nil(bpt.delListNode(b))
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = 0", n.meta.prev == 0)
 		t.assert("b.next = 0", n.meta.next == 0)
 		return nil
 	}))
-	t.assert_nil(bf.Do(c, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(c, func(n *leaf) error {
 		t.assert("b.prev = 0", n.meta.prev == 0)
 		n.meta.next = 0
 		return nil
 	}))
 
-	t.assert_nil(insertListNode(bf, b, a, c))
-	t.assert_nil(delListNode(bf, b))
-	t.assert_nil(bf.Do(a, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.insertListNode(b, a, c))
+	t.assert_nil(bpt.delListNode(b))
+	t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 		t.assert("a.next = 0", n.meta.next == c)
 		return nil
 	}))
-	t.assert_nil(bf.Do(b, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(b, func(n *leaf) error {
 		t.assert("b.prev = 0", n.meta.prev == 0)
 		t.assert("b.next = 0", n.meta.next == 0)
 		return nil
 	}))
-	t.assert_nil(bf.Do(c, 1, func(bytes []byte) error {
-		n, err := loadLeaf(bytes)
-		if err != nil {
-			return err
-		}
+	t.assert_nil(bpt.doLeaf(c, func(n *leaf) error {
 		t.assert("c.prev = 0", n.meta.prev == a)
 		return nil
 	}))

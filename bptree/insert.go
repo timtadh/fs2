@@ -244,7 +244,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 		return 0, 0, err
 	}
 	err = self.doLeaf(a, func(n *leaf) (err error) {
-		err = insertListNode(self.bf, b, a, n.meta.next)
+		err = self.insertListNode(b, a, n.meta.next)
 		if err != nil {
 			return err
 		}
@@ -288,7 +288,7 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 		if bytes.Compare(key, node.keys[0]) < 0 {
 			a = new_off
 			b = n
-			err = insertListNode(self.bf, a, node.meta.prev, b)
+			err = self.insertListNode(a, node.meta.prev, b)
 			if err != nil {
 				return err
 			}
@@ -312,9 +312,9 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 							return err
 						}
 						if bytes.Compare(key, m.keys[0]) >= 0 {
-							err = insertListNode(self.bf, new_off, e, m.meta.next)
+							err = self.insertListNode(new_off, e, m.meta.next)
 						} else {
-							err = insertListNode(self.bf, new_off, m.meta.prev, e)
+							err = self.insertListNode(new_off, m.meta.prev, e)
 						}
 						if err != nil {
 							return err

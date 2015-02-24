@@ -226,7 +226,7 @@ func TestEndOfPureRun(x *testing.T) {
 			if !fits {
 				next, err := bpt.newLeaf()
 				t.assert_nil(err)
-				t.assert_nil(insertListNode(bpt.bf, next, cur, 0))
+				t.assert_nil(bpt.insertListNode(next, cur, 0))
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
