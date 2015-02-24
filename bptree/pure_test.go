@@ -54,8 +54,16 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 		t.assert_hasKV(bpt)(kv.key, kv.value)
 	}
 	for _, kv := range kvs {
+		found := false
 		t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
-			return bytes.Equal(kv.value, v)
+			if found {
+				return false
+			}
+			if bytes.Equal(kv.value, v) {
+				found = true
+				return true
+			}
+			return false
 		}))
 	}
 	for _, key := range keys {

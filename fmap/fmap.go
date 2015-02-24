@@ -417,6 +417,14 @@ func (self *BlockFile) allocOne() (offset uint64, err error) {
 	return start_size, nil
 }
 
+func (self *BlockFile) Address() uintptr {
+	return uintptr(self.mmap)
+}
+
+func (self *BlockFile) Valid(address uintptr) bool {
+	return address == uintptr(self.mmap)
+}
+
 func (self *BlockFile) Allocate() (offset uint64, err error) {
 	var resize bool = false
 	err = self.ctrl(func(ctrl *ctrlblk) error {
