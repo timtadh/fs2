@@ -130,3 +130,59 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 	}
 }
 
+func BenchmarkBpTreeAddHas(x *testing.B) {
+	LEAF_CAP := 190
+	t := (*B)(x)
+	x.StopTimer()
+	x.ResetTimer()
+	for TEST := 0; TEST < t.N; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make(KVS, 0, LEAF_CAP*2)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key: t.rand_key(),
+				value: t.rand_value(32),
+			}
+			kvs = append(kvs, kv)
+		}
+		{
+			x.StartTimer()
+			for _, kv := range kvs {
+				t.assert_nil(bpt.Add(kv.key, kv.value))
+			}
+			for _, kv := range kvs {
+				t.assert_has(bpt)(kv.key)
+			}
+			x.StopTimer()
+		}
+		clean()
+	}
+}
+
+
+func BenchmarkBpTreeAdd(x *testing.B) {
+	LEAF_CAP := 190
+	t := (*B)(x)
+	x.StopTimer()
+	x.ResetTimer()
+	for TEST := 0; TEST < t.N; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make(KVS, 0, LEAF_CAP*2)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key: t.rand_key(),
+				value: t.rand_value(32),
+			}
+			kvs = append(kvs, kv)
+		}
+		{
+			x.StartTimer()
+			for _, kv := range kvs {
+				t.assert_nil(bpt.Add(kv.key, kv.value))
+			}
+			x.StopTimer()
+		}
+		clean()
+	}
+}
+
