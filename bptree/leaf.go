@@ -118,7 +118,7 @@ func (n *leaf) size(value []byte) int {
 func (n *leaf) fits(value []byte) bool {
 	size := n.size(value)
 	end := n.next_kv_in_kvs()
-	return end + size < len(n.kvs)
+	return (end + size < len(n.kvs)) && n.meta.keyCount + 1 < n.meta.keyCap 
 }
 
 func (n *leaf) keyOffset(idx int) int {
@@ -277,6 +277,28 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 	return attachLeaf(backing, meta)
 }
 
+var leafSliceBuf chan [][]byte
+
+func init() {
+	leafSliceBuf = make(chan [][]byte, 100)
+}
+
+// note capacity is a *request* there is no guarrantee this function
+// will fullfil it. The length will be set to zero
+func getLeafSliceBytes(capacity int) [][]byte {
+	select {
+	case s := <-leafSliceBuf: return s[:0]
+	default: return make([][]byte, 0, capacity)
+	}
+}
+
+func relLeafSliceBytes(s [][]byte) {
+	select {
+	case leafSliceBuf <- s:
+	default:
+	}
+}
+
 func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 	back := slice.AsSlice(&backing)
 	ptr := uintptr(back.Array) + meta.Size()
@@ -313,8 +335,8 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 		end: end,
 		kvs: kvs,
 	}
-	node.keys = make([][]byte, 0, node.meta.keyCap)
-	node.vals = make([][]byte, 0, node.meta.keyCap)
+	node.keys = getLeafSliceBytes(int(node.meta.keyCap))
+	node.vals = getLeafSliceBytes(int(node.meta.keyCap))
 
 	err := node.reattachLeaf()
 	if err != nil {
@@ -329,29 +351,26 @@ func (n *leaf) reattachLeaf() error {
 	ptr := uintptr(kvs_s.Array)
 	end := ptr + uintptr(kvs_s.Len)
 
-	keys := n.keys[:0]
-	vals := n.vals[:0]
+	keys := n.keys[:n.meta.keyCount]
+	vals := n.vals[:n.meta.keyCount]
 
 	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {
 			return errors.Errorf("overran backing array on reattachLeaf()")
 		}
 		vSize := n.valueSizes[i]
-		key_s := &slice.Slice{
-			Array: unsafe.Pointer(ptr),
-			Len: int(n.meta.keySize),
-			Cap: int(n.meta.keySize),
-		}
-		ptr += uintptr(n.meta.keySize)
-		value_s := &slice.Slice{
-			Array: unsafe.Pointer(ptr),
-			Len: int(vSize),
-			Cap: int(vSize),
-		}
-		ptr += uintptr(vSize)
 
-		keys = append(keys, *key_s.AsBytes())
-		vals = append(vals, *value_s.AsBytes())
+		key_s := slice.AsSlice(&keys[i])
+		key_s.Array = unsafe.Pointer(ptr)
+		key_s.Len = int(n.meta.keySize)
+		key_s.Cap = int(n.meta.keySize)
+		ptr += uintptr(n.meta.keySize)
+
+		val_s := slice.AsSlice(&vals[i])
+		val_s.Array = unsafe.Pointer(ptr)
+		val_s.Len = int(vSize)
+		val_s.Cap = int(vSize)
+		ptr += uintptr(vSize)
 	}
 
 	n.keys = keys
@@ -360,4 +379,8 @@ func (n *leaf) reattachLeaf() error {
 	return nil
 }
 
+func (n *leaf) release() {
+	relLeafSliceBytes(n.keys)
+	relLeafSliceBytes(n.vals)
+}
 

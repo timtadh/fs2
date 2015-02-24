@@ -95,12 +95,14 @@ func (self *BpTree) do(
 			if err != nil {
 				return err
 			}
+			defer n.release()
 			return internalDo(n)
 		} else if flags & lEAF != 0 {
 			n, err := loadLeaf(bytes)
 			if err != nil {
 				return err
 			}
+			defer n.release()
 			return leafDo(n)
 		} else {
 			return errors.Errorf("Unknown block type")

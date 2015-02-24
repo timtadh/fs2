@@ -188,17 +188,41 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	return attachInternal(backing, meta)
 }
 
+var internSliceBuf chan [][]byte
+
+func init() {
+	internSliceBuf = make(chan [][]byte, 100)
+}
+
+// note capacity is a *request* there is no guarrantee this function
+// will fullfil it. The length will be set to zero
+func getInternSliceBytes(capacity int) [][]byte {
+	select {
+	case s := <-internSliceBuf: return s[:0]
+	default: return make([][]byte, 0, capacity)
+	}
+}
+
+func relInternSliceBytes(s [][]byte) {
+	select {
+	case internSliceBuf <- s:
+	default:
+	}
+}
+
 func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 	back := slice.AsSlice(&backing)
 	base := uintptr(back.Array) + meta.Size()
-	keys := make([][]byte, meta.keyCap)
+	keys := getInternSliceBytes(int(meta.keyCap))
+	if cap(keys) < int(meta.keyCap) {
+		keys = make([][]byte, 0, meta.keyCap)
+	}
+	keys = keys[:meta.keyCap]
 	for i := uintptr(0); i < uintptr(meta.keyCap); i++ {
-		s := &slice.Slice{
-			Array: unsafe.Pointer(base + i*uintptr(meta.keySize)),
-			Len: int(meta.keySize),
-			Cap: int(meta.keySize),
-		}
-		keys[i] = *s.AsBytes()
+		key_s := slice.AsSlice(&keys[i])
+		key_s.Array = unsafe.Pointer(base + i*uintptr(meta.keySize))
+		key_s.Len = int(meta.keySize)
+		key_s.Cap = int(meta.keySize)
 	}
 	ptrs_s := &slice.Slice{
 		Array: unsafe.Pointer(base + uintptr(meta.keyCap)*uintptr(meta.keySize)),
@@ -212,5 +236,9 @@ func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 		keys: keys,
 		ptrs: ptrs,
 	}, nil
+}
+
+func (n *internal) release() {
+	relInternSliceBytes(n.keys)
 }
 

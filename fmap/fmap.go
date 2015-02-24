@@ -6,7 +6,7 @@ package fmap
 import "C"
 
 import (
-	"hash/crc32"
+	// "hash/crc32"
 	"os"
 	"reflect"
 	"syscall"
@@ -30,7 +30,7 @@ func loadFreeBlk(bytes []byte) *freeblk {
 }
 
 type ctrldata struct {
-	checksum  uint32
+	// checksum  uint32
 	blksize   uint32
 	free_head uint64
 	free_len  uint32
@@ -50,10 +50,10 @@ func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
 	back := slice.AsSlice(&bytes)
 	data := (*ctrldata)(back.Array)
 	ptr := uintptr(back.Array) + data.Size()
-	new_chksum := crc32.ChecksumIEEE(bytes[4:])
-	if new_chksum != data.checksum {
-		return nil, errors.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
-	}
+	// new_chksum := crc32.ChecksumIEEE(bytes[4:])
+	// if new_chksum != data.checksum {
+		// return nil, errors.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
+	// }
 	user_len := len(bytes) - int(data.Size())
 	user_s := &slice.Slice{
 		Array: unsafe.Pointer(ptr),
@@ -84,7 +84,7 @@ func new_ctrlblk(bytes []byte, blksize uint32) (cb *ctrlblk) {
 	}
 	user := *user_s.AsBytes()
 	copy(user, make([]byte, len(user))) // zeros the user data
-	data.checksum = crc32.ChecksumIEEE(bytes[4:])
+	// data.checksum = crc32.ChecksumIEEE(bytes[4:])
 	cb = &ctrlblk{
 		back: bytes,
 		data: data,
@@ -98,7 +98,7 @@ func (cb *ctrlblk) Block() []byte {
 }
 
 func (cb *ctrlblk) updateChkSum() {
-	cb.data.checksum = crc32.ChecksumIEEE(cb.back[4:])
+	// cb.data.checksum = crc32.ChecksumIEEE(cb.back[4:])
 }
 
 type BlockFile struct {
