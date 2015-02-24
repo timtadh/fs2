@@ -351,8 +351,18 @@ func (n *leaf) reattachLeaf() error {
 	ptr := uintptr(kvs_s.Array)
 	end := ptr + uintptr(kvs_s.Len)
 
-	keys := n.keys[:n.meta.keyCount]
-	vals := n.vals[:n.meta.keyCount]
+	keys := n.keys
+	vals := n.vals
+
+	if cap(keys) < int(n.meta.keyCap) {
+		keys = make([][]byte, 0, n.meta.keyCap)
+	}
+	keys = keys[:n.meta.keyCount]
+
+	if cap(vals) < int(n.meta.keyCap) {
+		vals = make([][]byte, 0, n.meta.keyCap)
+	}
+	vals = vals[:n.meta.keyCount]
 
 	for i := uint16(0); i < n.meta.keyCount; i++ {
 		if ptr >= end {
