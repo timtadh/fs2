@@ -8,6 +8,17 @@ import (
 	"github.com/timtadh/fs2/slice"
 )
 
+// Remove one or more key/value pairs at the given key. The callback
+// `where` will be called for each pair encountered and the value will
+// be passed into the callback. If `where` returns true the item is
+// removed otherwise it is left unchanged. To remove all items with a
+// particular key simply:
+//
+// 	err = bpt.Remove(key, func(value []byte) bool { return true })
+// 	if err != nil {
+// 		panic(err)
+// 	}
+//
 func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 	a, err := self.remove(self.meta.root, 0, key, where)
 	if err != nil {

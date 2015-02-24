@@ -5,6 +5,8 @@ import (
 )
 
 
+// Check for the existence of a given key. An error will be returned if
+// there was some problem reading the underlying file.
 func (self *BpTree) Has(key []byte) (has bool, err error) {
 	a, i, err := self.getStart(key)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/timtadh/fs2/slice"
 )
 
+// The Ubiquitous B+ Tree
 type BpTree struct {
 	bf *fmap.BlockFile
 	metaBack []byte
@@ -66,6 +67,9 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 	return data, meta, nil
 }
 
+// Create a new B+ Tree in the given BlockFile with the given key size
+// (in bytes).  The size of the key cannot change after creation. The
+// maximum size is about ~1350 bytes.
 func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
 	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
@@ -84,6 +88,8 @@ func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
 	return bpt, nil
 }
 
+// Open an existing B+Tree (it knows its key size so you do not have to
+// supply that).
 func Open(bf *fmap.BlockFile) (*BpTree, error) {
 	back, meta, err := loadBpTreeMeta(bf)
 	if err != nil {
@@ -103,6 +109,7 @@ func (b *BpTree) writeMeta() error {
 	return b.bf.SetControlDataNoSync(b.metaBack)
 }
 
+// What is the key size of this tree?
 func (self *BpTree) KeySize() int {
 	return int(self.meta.keySize)
 }

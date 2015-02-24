@@ -8,7 +8,10 @@ import (
 	"github.com/timtadh/fs2/errors"
 )
 
+// This type of iterator is used for iterating over keys OR values.
 type Iterator func() (item []byte, err error, i Iterator)
+
+// This type of iterator is used for iterating over keys AND values.
 type KVIterator func() (key, value []byte,  err error, kvi KVIterator)
 
 type bpt_iterator func() (a uint64, idx int, err error, bi bpt_iterator)
@@ -38,6 +41,18 @@ func doItemIter(run func() (Iterator, error), do func([]byte) error) error {
 	return err
 }
 
+// Iterate over all of the key/value pairs in the tree
+//
+// 	err = bpt.DoIterate(func(key, value []byte) error {
+// 		// do something with each key and value in the tree
+// 	})
+// 	if err != nil {
+// 		// handle error
+// 	}
+//
+// Note, it is safe for the keys and values to escape the `do` context.
+// They are copied into it so you cannot harm the tree. An unsafe
+// version of this is being considered.
 func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 	return doIter(
 		func() (KVIterator, error) { return self.Iterate() },
@@ -45,10 +60,34 @@ func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 	)
 }
 
+// Iterate over each of the keys and values in the tree. I recommend
+// that you use the `DoIterate` method instead (it is easier to use). If
+// you do use the method always use it as follows:
+// 
+// 	kvi, err := bpt.Iterate()
+// 	if err != nil {
+// 		// handle error
+// 	}
+// 	var key, value []byte // must be declared here
+// 	// do not use a := assign here only a =
+// 	for key, value, err, kvi = kvi(); kvi != nil; key, value, err, kvi = kvi() {
+// 		// do something with each key and value
+// 	}
+// 	// now the iterator could have exited with an error so check the
+// 	// error before continuing
+// 	if err != nil {
+// 		// handle error
+// 	}
+// 
+// Note, it is safe for the keys and values to escape the iterator
+// context.  They are copied into it so you cannot harm the tree. An
+// unsafe version of this is being considered.
 func (self *BpTree) Iterate() (kvi KVIterator, err error) {
 	return self.Range(nil, nil)
 }
 
+// Iterate over all of the keys in the tree. See DoIterate() for usage
+// details
 func (self *BpTree) DoKeys(do func([]byte) error) error {
 	return doItemIter(
 		func() (Iterator, error) { return self.Keys() },
@@ -56,6 +95,8 @@ func (self *BpTree) DoKeys(do func([]byte) error) error {
 	)
 }
 
+// Iterate over all of the keys in the tree. See Iterate() for usage
+// details
 func (self *BpTree) Keys() (it Iterator, err error) {
 	kvi, err := self.Iterate()
 	if err != nil {
@@ -77,6 +118,8 @@ func (self *BpTree) Keys() (it Iterator, err error) {
 	return it, nil
 }
 
+// Iterate over all of the values in the tree. See DoIterate() for usage
+// details
 func (self *BpTree) DoValues(do func([]byte) error) error {
 	return doItemIter(
 		func() (Iterator, error) { return self.Values() },
@@ -84,6 +127,8 @@ func (self *BpTree) DoValues(do func([]byte) error) error {
 	)
 }
 
+// Iterate over all of the values in the tree. See Iterate() for usage
+// details
 func (self *BpTree) Values() (it Iterator, err error) {
 	kvi, err := self.Iterate()
 	if err != nil {
@@ -102,6 +147,8 @@ func (self *BpTree) Values() (it Iterator, err error) {
 	return it, nil
 }
 
+// Iterate over all of the key/values pairs with the given key. See
+// DoIterate() for usage details.
 func (self *BpTree) DoFind(key []byte, do func(key, value []byte) error) error {
 	return doIter(
 		func() (KVIterator, error) { return self.Find(key) },
@@ -109,10 +156,13 @@ func (self *BpTree) DoFind(key []byte, do func(key, value []byte) error) error {
 	)
 }
 
+// Iterate over all of the key/values pairs with the given key. See
+// Iterate() for usage details.
 func (self *BpTree) Find(key []byte) (kvi KVIterator, err error) {
 	return self.Range(key, key)
 }
 
+// How many key/value pairs are there with the given key.
 func (self *BpTree) Count(key []byte) (count int, err error) {
 	err = self.DoFind(key, func(k, v []byte) error {
 		count++
@@ -124,6 +174,8 @@ func (self *BpTree) Count(key []byte) (count int, err error) {
 	return count, nil
 }
 
+// Iterate over all of the key/values pairs between [from, to]
+// inclusive. See DoIterate() for usage details.
 func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) error {
 	return doIter(
 		func() (KVIterator, error) { return self.Range(from, to) },
@@ -131,6 +183,8 @@ func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) e
 	)
 }
 
+// Iterate over all of the key/values pairs between [from, to]
+// inclusive. See Iterate() for usage details.
 func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	var bi bpt_iterator
 	if bytes.Compare(from, to) <= 0 {

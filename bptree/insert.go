@@ -10,6 +10,10 @@ import (
 )
 
 
+// Add a key/value pair to the tree. There is a reason this isn't called
+// `Put`, this operation does not replace or modify any data in the
+// tree. It only adds this key. The B+ Tree supports duplicate keys and
+// even duplicate keys with the same value!
 func (self *BpTree) Add(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
