@@ -21,6 +21,7 @@ func (self *BpTree) Add(key, value []byte) error {
 	if err != nil {
 		return err
 	} else if b == 0 {
+		self.meta.itemCount += 1
 		self.meta.root = a
 		return self.writeMeta()
 	}
@@ -42,6 +43,7 @@ func (self *BpTree) Add(key, value []byte) error {
 	if err != nil {
 		return err
 	}
+	self.meta.itemCount += 1
 	self.meta.root = root
 	return self.writeMeta()
 }

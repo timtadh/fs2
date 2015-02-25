@@ -23,6 +23,7 @@ type BpTree struct {
 type bpTreeMeta struct {
 	root    uint64
 	keySize uint16
+	itemCount uint64
 }
 
 var bpTreeMetaSize uintptr
@@ -48,6 +49,7 @@ func newBpTreeMeta(bf *fmap.BlockFile, keySize uint16) ([]byte, *bpTreeMeta, err
 	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
 	meta.root = a
 	meta.keySize = keySize
+	meta.itemCount = 0
 	err = bf.SetControlData(data)
 	if err != nil {
 		return nil, nil, err
@@ -113,3 +115,9 @@ func (b *BpTree) writeMeta() error {
 func (self *BpTree) KeySize() int {
 	return int(self.meta.keySize)
 }
+
+// How many items are in the tree?
+func (self *BpTree) Size() int {
+	return int(self.meta.itemCount)
+}
+

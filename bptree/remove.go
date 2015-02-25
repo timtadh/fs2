@@ -29,6 +29,7 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 			return err
 		}
 	}
+	self.meta.itemCount -= 1
 	self.meta.root = a
 	return self.writeMeta()
 }

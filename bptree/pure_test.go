@@ -53,7 +53,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 	for _, kv := range kvs {
 		t.assert_hasKV(bpt)(kv.key, kv.value)
 	}
-	for _, kv := range kvs {
+	for i, kv := range kvs {
 		found := false
 		t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
 			if found {
@@ -65,6 +65,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 			}
 			return false
 		}))
+		t.assert("bpt.Size() == len(kvs) - (i + 1)", bpt.Size() == len(kvs) - (i + 1))
 	}
 	for _, key := range keys {
 		t.assert_notHas(bpt)(key)
@@ -99,6 +100,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 	for _, kv := range kvs {
 		t.assert_hasKV(bpt)(kv.key, kv.value)
 	}
+	t.assert("bpt.Size() == len(kvs)", bpt.Size() == len(kvs))
 	// note, there is a good chance for inserting dups values for a key
 	// therefore, while it would better to check that there is no bugs
 	// in individually removing each value. I am going to instead just
