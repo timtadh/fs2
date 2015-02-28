@@ -115,3 +115,205 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 	}
 	clean()
 }
+
+func (t *T) setupAlmostPureSplit(small_key []byte) (*BpTree, func(), []byte) {
+	bpt, clean := t.bpt()
+	small := &KV{
+		key: small_key,
+		value: t.rand_bytes(4),
+	}
+	t.assert_nil(bpt.Add(small.key, small.value))
+	big_key := t.rand_key()
+	a := bpt.meta.root
+	t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
+		for {
+			kv := &KV{
+				key: big_key,
+				value: t.rand_bytes(120),
+			}
+			if !n.fits(kv.value) {
+				break
+			}
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+			t.assert("a == root", a == bpt.meta.root)
+		}
+		t.assert("a == root", a == bpt.meta.root)
+		return nil
+	}))
+	return bpt, clean, big_key
+}
+
+func TestAlmostPureSplit(x *testing.T) {
+	t := (*T)(x)
+	// small before, insert < small < big
+	{
+		small := []byte{0, 0, 0, 0, 0, 0, 0, 1}
+		insert := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small before, small = insert < big
+	{
+		small := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		insert := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small before, small < insert < big
+	{
+		small := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		insert := []byte{0, 0, 0, 0, 0, 0, 0, 1}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small before, small < insert == big
+	{
+		small := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: big_key,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small before, small < big < insert
+	{
+		small := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		insert := make([]byte, len(big_key))
+		copy(insert, big_key)
+		insert[0] = big_key[0]+1
+		insert[2] = big_key[2]+1
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small after, insert == big < small
+	{
+		small := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: big_key,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small after, insert < big < small
+	{
+		small := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		insert := []byte{0, 0, 0, 0, 0, 0, 0, 0}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small after, big < insert < small
+	{
+		small := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		insert := make([]byte, len(big_key))
+		copy(insert, big_key)
+		insert[0] = big_key[0]+1
+		insert[2] = big_key[2]+1
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small after, big < small == insert
+	{
+		small := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: small,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+	// small after, big < small < insert
+	{
+		small := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xfe}
+		insert := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}
+		bpt, clean, big_key := t.setupAlmostPureSplit(small)
+		kv := &KV{
+			key: insert,
+			value: t.rand_bytes(120),
+		}
+		a := bpt.meta.root
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert("a != root", a != bpt.meta.root)
+		t.assert_has(bpt)(small)
+		t.assert_has(bpt)(insert)
+		t.assert_has(bpt)(big_key)
+		clean()
+	}
+}
+
