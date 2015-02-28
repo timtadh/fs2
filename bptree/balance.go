@@ -92,3 +92,51 @@ func noSplitBalancePoint(keys [][]byte, keyCount, m int) int {
 	}
 	return m
 }
+
+// merges b into a. after this method returns b will be empty
+func (a *leaf) merge(b *leaf) error {
+	if b.meta.keyCount == 0 {
+		return errors.Errorf("b was empty")
+	}
+	swapped := false
+	if bytes.Compare(a.keys[0], b.keys[0]) > 0 {
+		a, b = b, a
+		swapped = true
+	}
+	total := int(a.meta.keyCount) + int(b.meta.keyCount)
+	if total > int(a.meta.keyCap) {
+		return errors.Errorf("merge impossible")
+	}
+	for i := 0; i < int(b.meta.keyCount); i++ {
+		j := int(a.meta.keyCount) + i
+		a.valueSizes[j] = b.valueSizes[i]
+		b.valueSizes[i] = 0
+		a.valueFlags[j] = b.valueFlags[i]
+		b.valueFlags[i] = 0
+	}
+	m_offset := a.keyOffset(int(a.meta.keyCount))
+	to := a.kvs[m_offset:]
+	copy(to, b.kvs)
+	fmap.MemClr(b.kvs)
+	b.meta.keyCount = 0
+	a.meta.keyCount = uint16(total)
+	if swapped {
+		for i := 0; i < int(a.meta.keyCount); i++ {
+			b.valueSizes[i] = a.valueSizes[i]
+			a.valueSizes[i] = 0
+			b.valueFlags[i] = a.valueFlags[i]
+			a.valueFlags[i] = 0
+		}
+		copy(b.kvs, a.kvs)
+		fmap.MemClr(a.kvs)
+		b.meta.keyCount = a.meta.keyCount
+		a.meta.keyCount = 0
+	}
+	if err := a.reattachLeaf(); err != nil {
+		return err
+	}
+	if err := b.reattachLeaf(); err != nil {
+		return err
+	}
+	return nil
+}

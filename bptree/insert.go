@@ -94,6 +94,9 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 		return 0, 0, err
 	}
 	p, q, err := self.insert(ptr, key, value)
+	if err != nil {
+		return 0, 0, err
+	}
 	var must_split bool = false
 	var split_key []byte = nil
 	err = self.doInternal(n, func(m *internal) error {
@@ -247,6 +250,11 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 	if err != nil {
 		return 0, 0, err
 	}
+	c_unneeded := true
+	c, err := self.newLeaf()
+	if err != nil {
+		return 0, 0, err
+	}
 	err = self.doLeaf(a, func(n *leaf) (err error) {
 		err = self.insertListNode(b, a, n.meta.next)
 		if err != nil {
@@ -258,14 +266,71 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 				return err
 			}
 			if bytes.Compare(key, m.keys[0]) < 0 {
-				return n.putKV(valFlags, key, value)
+				if n.fits(value) {
+					return n.putKV(valFlags, key, value)
+				} else {
+					if bytes.Equal(key, n.keys[0]) {
+						// this is the same key as in n which is a pure block
+						// therefore, what we should is use the c block to chain
+						// onto n.
+						c_unneeded = false
+						err = self.insertListNode(c, a, n.meta.next)
+						if err != nil {
+							return err
+						}
+						return self.doLeaf(c, func(o *leaf) (err error) {
+							return o.putKV(valFlags, key, value)
+						})
+					}
+					// shit has hit the fan
+					// we went ahead and split a into b. but now we need to merge
+					// all of a into b.
+					err := m.merge(n)
+					if err != nil {
+						return err
+					}
+					// n is now empty
+					return n.putKV(valFlags, key, value)
+				}
 			} else {
-				return m.putKV(valFlags, key, value)
+				if m.fits(value) {
+					return m.putKV(valFlags, key, value)
+				} else {
+					if bytes.Equal(key, m.keys[0]) {
+						// this is the same key as in m which is a pure block
+						// therefore, what we should is use the c block to chain
+						// onto m.
+						c_unneeded = false
+						err = self.insertListNode(c, b, m.meta.next)
+						if err != nil {
+							return err
+						}
+						return self.doLeaf(c, func(o *leaf) (err error) {
+							return o.putKV(valFlags, key, value)
+						})
+					}
+					// shit has hit the fan
+					// we went ahead and split a into b. but now we need to merge them
+					// back because b turned out to be a pure block and the new
+					// value does not fit into it.
+					err := n.merge(m)
+					if err != nil {
+						return err
+					}
+					// b is now empty
+					return m.putKV(valFlags, key, value)
+				}
 			}
 		})
 	})
 	if err != nil {
 		return 0, 0, err
+	}
+	if c_unneeded {
+		err = self.bf.Free(c)
+		if err != nil {
+			return 0, 0, err
+		}
 	}
 	return a, b, nil
 }
