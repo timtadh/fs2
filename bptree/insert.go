@@ -282,15 +282,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 							return o.putKV(valFlags, key, value)
 						})
 					}
-					// shit has hit the fan
-					// we went ahead and split a into b. but now we need to merge
-					// all of a into b.
-					err := m.merge(n)
-					if err != nil {
-						return err
-					}
-					// n is now empty
-					return n.putKV(valFlags, key, value)
+					return m.putKV(valFlags, key, value)
 				}
 			} else {
 				if m.fits(value) {
