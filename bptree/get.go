@@ -229,14 +229,14 @@ func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("out of range")
 			}
-			copy(key, n.keys[i])
+			copy(key, n.key(i))
 			return nil
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("out of range")
 			}
-			copy(key, n.keys[i])
+			copy(key, n.key(i))
 			return nil
 		},
 	)
@@ -278,7 +278,7 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 			kid = n.ptrs[0]
 			return nil
 		}
-		i, has := find(int(n.meta.keyCount), n.keys, key)
+		i, has := find(n, key)
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -300,11 +300,11 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 	var next uint64 = 0
 	err = self.doLeaf(n, func(n *leaf) error {
 		var has bool
-		i, has = find(int(n.meta.keyCount), n.keys, key)
+		i, has = find(n, key)
 		if i >= int(n.meta.keyCount) && i > 0 {
 			i = int(n.meta.keyCount) - 1
 		}
-		if !has && n.meta.next != 0 && bytes.Compare(n.keys[i], key) < 0 {
+		if !has && n.meta.next != 0 && bytes.Compare(n.key(i), key) < 0 {
 			next = n.meta.next
 			return nil
 		}
@@ -344,7 +344,7 @@ func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, er
 		}
 		var less bool = false
 		err = self.doLeaf(a, func(n *leaf) error {
-			less = bytes.Compare(to, n.keys[i]) < 0
+			less = bytes.Compare(to, n.key(i)) < 0
 			return nil
 		})
 		if err != nil {

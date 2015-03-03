@@ -17,8 +17,8 @@ func (a *internal) balance(b *internal) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
-		copy(b.keys[i], a.keys[j])
-		fmap.MemClr(a.keys[j])
+		copy(b.key(i), a.key(j))
+		fmap.MemClr(a.key(j))
 		b.ptrs[i] = a.ptrs[j]
 		a.ptrs[j] = 0
 	}
@@ -34,7 +34,7 @@ func (a *leaf) balance(b *leaf) error {
 	var m int = a.balancePoint()
 	if m == 0 {
 		// we had a pure balance
-		return b.reattachLeaf()
+		return nil
 	}
 	return a.balanceAt(b, m)
 }
@@ -54,18 +54,12 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 	fmap.MemClr(from)
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
-	if err := a.reattachLeaf(); err != nil {
-		return err
-	}
-	if err := b.reattachLeaf(); err != nil {
-		return err
-	}
 	return nil
 }
 
 func (n *internal) balancePoint() int {
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(n.keys, int(n.meta.keyCount), m)
+	return noSplitBalancePoint(n, m)
 }
 
 func (n *leaf) balancePoint() int {
@@ -81,16 +75,16 @@ func (n *leaf) balancePoint() int {
 		}
 		m++
 	}
-	return noSplitBalancePoint(n.keys, int(n.meta.keyCount), m)
+	return noSplitBalancePoint(n, m)
 }
 
-func noSplitBalancePoint(keys [][]byte, keyCount, m int) int {
-	for m < keyCount && bytes.Equal(keys[m-1], keys[m]) {
+func noSplitBalancePoint(keys keyed, m int) int {
+	for m < keys.keyCount() && bytes.Equal(keys.key(m-1), keys.key(m)) {
 		m++
 	}
-	if m >= keyCount && m > 0 {
+	if m >= keys.keyCount() && m > 0 {
 		m--
-		for m > 0 && bytes.Equal(keys[m-1], keys[m]) {
+		for m > 0 && bytes.Equal(keys.key(m-1), keys.key(m)) {
 			m--
 		}
 	}
@@ -103,7 +97,7 @@ func (a *leaf) merge(b *leaf) error {
 		return errors.Errorf("b was empty")
 	}
 	swapped := false
-	if bytes.Compare(a.keys[0], b.keys[0]) > 0 {
+	if bytes.Compare(a.key(0), b.key(0)) > 0 {
 		a, b = b, a
 		swapped = true
 	}
@@ -135,12 +129,6 @@ func (a *leaf) merge(b *leaf) error {
 		fmap.MemClr(a.kvs)
 		b.meta.keyCount = a.meta.keyCount
 		a.meta.keyCount = 0
-	}
-	if err := a.reattachLeaf(); err != nil {
-		return err
-	}
-	if err := b.reattachLeaf(); err != nil {
-		return err
 	}
 	return nil
 }

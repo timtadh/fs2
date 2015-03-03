@@ -60,8 +60,8 @@ func TestBalanceInternal(x *testing.T) {
 				t.assert_ptr(kp.ptr)(b.ptr(kp.key))
 			}
 		}
-		for _, key := range n.keys {
-			t.assert("key >= to start key in b", bytes.Compare(key, b.keys[0]) < 0)
+		for _, key := range n._keys {
+			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 		}
 	}
 }
@@ -110,8 +110,9 @@ func TestBalanceLeaf(x *testing.T) {
 				t.assert_value(kv.value)(b.first_value(bf, kv.key))
 			}
 		}
-		for _, key := range n.keys {
-			t.assert("key >= to start key in b", bytes.Compare(key, b.keys[0]) < 0)
+		for i := 0; i < n.keyCount(); i++ {
+			key := n.key(i)
+			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 		}
 	}
 	bf_clean()
@@ -154,9 +155,10 @@ func TestBalancePureLeaf(x *testing.T) {
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
 		}
-		for _, key := range n.keys {
-			if len(b.keys) > 0 {
-				t.assert("key >= to start key in b", bytes.Compare(key, b.keys[0]) < 0)
+		for i := 0; i < n.keyCount(); i++ {
+			key := n.key(i)
+			if b.meta.keyCount > 0 {
+				t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 			}
 		}
 	}

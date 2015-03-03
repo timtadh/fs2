@@ -60,7 +60,7 @@ func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err
 			return errors.Errorf("Index out of range")
 		}
 		return n.doValueAt(self.bf, i, func(value []byte) error {
-			return do(n.keys[i], value)
+			return do(n.key(i), value)
 		})
 	})
 }
@@ -72,13 +72,13 @@ func (self *BpTree) doKey(a uint64, i int, do func(key []byte) error) (err error
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("Index out of range")
 			}
-			return do(n.keys[i])
+			return do(n.key(i))
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("Index out of range")
 			}
-			return do(n.keys[i])
+			return do(n.key(i))
 		},
 	)
 }
@@ -116,10 +116,10 @@ func (self *BpTree) do(
 }
 
 func (self *BpTree) getLeaf(a uint64) (*leaf, func(), error) {
-	self.checkCache()
+	/*self.checkCache()
 	if n, has := self.leafCache[a]; has {
 		return n, func() {}, nil
-	}
+	}*/
 	bytes, err := self.bf.Get(a, 1)
 	if err != nil {
 		return nil, nil, err
@@ -151,7 +151,7 @@ func (self *BpTree) getInternal(a uint64) (*internal, func(), error) {
 	cleanup := func() {
 		self.bf.Release(bytes)
 	}
-	// self.internalCache[a] = n
+	self.internalCache[a] = n
 	return n, cleanup, nil
 }
 

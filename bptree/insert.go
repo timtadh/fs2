@@ -90,7 +90,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64,
 	var ptr uint64
 	err = self.doInternal(n, func(n *internal) error {
 		var has bool
-		i, has = find(int(n.meta.keyCount), n.keys, key)
+		i, has = find(n, key)
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -111,7 +111,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64,
 	err = self.doInternal(n, func(m *internal) error {
 		m.ptrs[i] = p
 		err := self.firstKey(p, func(key []byte) error {
-			copy(m.keys[i], key)
+			copy(m.key(i), key)
 			return nil
 		})
 		if err != nil {
@@ -149,7 +149,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64,
 			if b != 0 {
 				return self.doInternal(b, func(m *internal) error {
 					return self.firstKey(r, func(rkey []byte) error {
-						if bytes.Compare(rkey, m.keys[0]) < 0 {
+						if bytes.Compare(rkey, m.key(0)) < 0 {
 							// goes into a
 							return n.putKP(rkey, r)
 						} else {
@@ -266,7 +266,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 			if err != nil {
 				return err
 			}
-			if bytes.Compare(key, m.keys[0]) < 0 {
+			if bytes.Compare(key, m.key(0)) < 0 {
 				return n.putKP(key, ptr)
 			} else {
 				return m.putKP(key, ptr)
@@ -324,11 +324,11 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 			if err != nil {
 				return err
 			}
-			if bytes.Compare(key, m.keys[0]) < 0 {
+			if bytes.Compare(key, m.key(0)) < 0 {
 				if n.fits(value) {
 					return n.putKV(valFlags, key, value)
 				} else if n.pure() {
-					if bytes.Equal(key, n.keys[0]) {
+					if bytes.Equal(key, n.key(0)) {
 						// this is the same key as in n which is a pure block
 						// therefore, what we should is use the c block to chain
 						// onto n.
@@ -350,7 +350,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				if m.fits(value) {
 					return m.putKV(valFlags, key, value)
 				} else if m.pure() {
-					if bytes.Equal(key, m.keys[0]) {
+					if bytes.Equal(key, m.key(0)) {
 						// this is the same key as in m which is a pure block
 						// therefore, what we should is use the c block to chain
 						// onto m.
@@ -373,7 +373,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 					}
 					// b is now empty
 					return m.putKV(valFlags, key, value)
-				} else if bytes.Compare(key, m.keys[m.meta.keyCount-1]) > 0 {
+				} else if bytes.Compare(key, m.key(int(m.meta.keyCount-1))) > 0 {
 					err := n.merge(m)
 					if err != nil {
 						return err
@@ -387,7 +387,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 			if err != nil {
 				return err
 			}
-			i, has := find(int(n.meta.keyCount), n.keys, key)
+			i, has := find(n, key)
 			err = n.balanceAt(m, i)
 			if err != nil {
 				return err
@@ -397,7 +397,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				// we are going to have get all of duplicates out
 				// and chain them... (which will need a d?)
 				for ; j < int(m.meta.keyCount); j++ {
-					if !bytes.Equal(m.keys[j], key) {
+					if !bytes.Equal(m.key(j), key) {
 						break
 					}
 				}
@@ -415,12 +415,12 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				}
 				for x := j-1; x >= 0; x-- {
 					var err error
-					if o.fits(m.vals[x]) {
-						err = o.putKV(flag(m.valueFlags[x]), m.keys[x], m.vals[x])
+					if o.fits(m.val(x)) {
+						err = o.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
 					} else {
 						err = self.doLeaf(d, func(p *leaf) error {
 							d_unneeded = false
-							return p.putKV(flag(m.valueFlags[x]), m.keys[x], m.vals[x])
+							return p.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
 						})
 					}
 					if err != nil {
@@ -481,7 +481,7 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 		return 0, 0, err
 	}
 	err = self.doLeaf(n, func(node *leaf) (err error) {
-		if bytes.Compare(key, node.keys[0]) < 0 {
+		if bytes.Compare(key, node.key(0)) < 0 {
 			a = new_off
 			b = n
 			err = self.insertListNode(a, node.meta.prev, b)
@@ -498,7 +498,7 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 				return err
 			}
 			return self.doLeaf(e, func(m *leaf) (err error) {
-				if m.fits(value) && bytes.Equal(key, m.keys[0]) {
+				if m.fits(value) && bytes.Equal(key, m.key(0)) {
 					unneeded = true
 					return m.putKV(valFlags, key, value)
 				} else {
@@ -507,7 +507,7 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 						if err != nil {
 							return err
 						}
-						if bytes.Compare(key, m.keys[0]) >= 0 {
+						if bytes.Compare(key, m.key(0)) >= 0 {
 							err = self.insertListNode(new_off, e, m.meta.next)
 						} else {
 							err = self.insertListNode(new_off, m.meta.prev, e)
@@ -516,7 +516,7 @@ func (self *BpTree) pureLeafSplit(n uint64, valFlags flag, key, value []byte) (a
 							return err
 						}
 						b = 0
-						if !bytes.Equal(key, node.keys[0]) {
+						if !bytes.Equal(key, node.key(0)) {
 							b = new_off
 						}
 						return nil
@@ -549,11 +549,11 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 		if n.meta.keyCount < 0 {
 			return errors.Errorf("block was empty")
 		}
-		key := n.keys[0]
+		key := n.key(0)
 		prev := start
 		next := n.meta.next
 		notDone := func(next uint64, node *leaf) bool {
-			return next != 0 && node.pure() && bytes.Equal(key, node.keys[0])
+			return next != 0 && node.pure() && bytes.Equal(key, node.key(0))
 		}
 		not_done := notDone(next, n)
 		for not_done {

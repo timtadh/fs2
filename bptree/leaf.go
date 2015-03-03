@@ -26,8 +26,6 @@ type leaf struct {
 	valueFlags []uint8
 	end        uintptr
 	kvs        []byte
-	keys       [][]byte
-	vals       [][]byte
 }
 
 func loadLeafMeta(backing []byte) *leafMeta {
@@ -54,17 +52,34 @@ func (m *leafMeta) String() string {
 
 func (n *leaf) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, valueSizes: <%d, %v>, keys: <%d, %v>, vals: %v",
-		n.meta, len(n.valueSizes), n.valueSizes, len(n.keys), n.keys, n.vals)
+		"meta: <%v>, valueSizes: <%d, %v>",
+		n.meta, len(n.valueSizes), n.valueSizes)
 }
 
 func (n *leaf) Has(key []byte) bool {
-	_, has := find(int(n.meta.keyCount), n.keys, key)
+	_, has := find(n, key)
 	return has
 }
 
+func (n *leaf) key(i int) []byte {
+	s := n.keyOffset(i)
+	e := s + int(n.meta.keySize)
+	return n.kvs[s:e]
+}
+
+func (n *leaf) keyCount() int {
+	return int(n.meta.keyCount)
+}
+
+func (n *leaf) val(i int) []byte {
+	size := int(n.valueSizes[i])
+	s := n.keyOffset(i) + int(n.meta.keySize)
+	e := s + size
+	return n.kvs[s:e]
+}
+
 func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) error {
-	i, has := find(int(n.meta.keyCount), n.keys, key)
+	i, has := find(n, key)
 	if !has {
 		return errors.Errorf("key was not in the leaf node")
 	}
@@ -76,7 +91,7 @@ func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error
 	case 0:
 		return errors.Errorf("Unset value flag")
 	case sMALL_VALUE:
-		return do(n.vals[i])
+		return do(n.val(i))
 	case bIG_VALUE:
 		return n.doBigValue(bf, i, do)
 	default:
@@ -86,7 +101,7 @@ func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error
 
 func (n *leaf) doBigValue(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	bv_bytes := make([]byte, bvSize)
-	copy(bv_bytes, n.vals[i])
+	copy(bv_bytes, n.val(i))
 	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
 	blks := blksNeeded(bf, int(bv.size))
 	if bv.offset == 0 {
@@ -138,9 +153,9 @@ func (n *leaf) pure() bool {
 	if n.meta.keyCount == 0 {
 		return true
 	}
-	key := n.keys[0]
+	key := n.key(0)
 	for i := 1; i < int(n.meta.keyCount); i++ {
-		if !bytes.Equal(key, n.keys[i]) {
+		if !bytes.Equal(key, n.key(i)) {
 			return false
 		}
 	}
@@ -157,7 +172,7 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	if !n.fits(value) {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
-	key_idx, _ := find(int(n.meta.keyCount), n.keys, key)
+	key_idx, _ := find(n, key)
 	key_offset := n.keyOffset(key_idx)
 	kv_size := n.size(value)
 	length := n.next_kv_in_kvs()
@@ -193,7 +208,7 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 	copy(key_slice, key)
 	copy(val_slice, value)
 	// reattach our byte slices
-	return n.reattachLeaf()
+	return nil
 }
 
 func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
@@ -203,15 +218,15 @@ func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
 	if n.meta.keyCount <= 0 {
 		return errors.Errorf("block is empty")
 	}
-	key_idx, has := find(int(n.meta.keyCount), n.keys, key)
+	key_idx, has := find(n, key)
 	if !has {
 		return errors.Errorf("that key was not in the block")
 	}
 	for ; key_idx < int(n.meta.keyCount); key_idx++ {
-		if !bytes.Equal(key, n.keys[key_idx]) {
+		if !bytes.Equal(key, n.key(key_idx)) {
 			return nil
 		}
-		if which(n.vals[key_idx]) {
+		if which(n.val(key_idx)) {
 			break
 		}
 	}
@@ -226,7 +241,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 		// key value
 		n.valueSizes[key_idx] = 0
 		n.meta.keyCount--
-		return n.reattachLeaf()
+		return nil
 	}
 	// drop the k4
 	{
@@ -253,8 +268,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 	}
 	// do the book keeping
 	n.meta.keyCount--
-	// retattach the leaf
-	return n.reattachLeaf()
+	return nil
 }
 
 func loadLeaf(backing []byte) (*leaf, error) {
@@ -279,30 +293,6 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 
 	meta.Init(lEAF, keySize, uint16(keyCap))
 	return attachLeaf(backing, meta)
-}
-
-var leafSliceBuf chan [][]byte
-
-func init() {
-	leafSliceBuf = make(chan [][]byte, 100)
-}
-
-// note capacity is a *request* there is no guarrantee this function
-// will fullfil it. The length will be set to zero
-func getLeafSliceBytes(capacity int) [][]byte {
-	select {
-	case s := <-leafSliceBuf:
-		return s[:0]
-	default:
-		return make([][]byte, 0, capacity)
-	}
-}
-
-func relLeafSliceBytes(s [][]byte) {
-	select {
-	case leafSliceBuf <- s:
-	default:
-	}
 }
 
 func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
@@ -341,60 +331,10 @@ func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
 		end:        end,
 		kvs:        kvs,
 	}
-	node.keys = getLeafSliceBytes(int(node.meta.keyCap))
-	node.vals = getLeafSliceBytes(int(node.meta.keyCap))
 
-	err := node.reattachLeaf()
-	if err != nil {
-		return nil, err
-	}
 	return node, nil
 }
 
-func (n *leaf) reattachLeaf() error {
-	kvs_s := slice.AsSlice(&n.kvs)
-	ptr := uintptr(kvs_s.Array)
-	end := ptr + uintptr(kvs_s.Len)
-
-	keys := n.keys
-	vals := n.vals
-
-	if cap(keys) < int(n.meta.keyCap) {
-		keys = make([][]byte, 0, n.meta.keyCap)
-	}
-	keys = keys[:n.meta.keyCount]
-
-	if cap(vals) < int(n.meta.keyCap) {
-		vals = make([][]byte, 0, n.meta.keyCap)
-	}
-	vals = vals[:n.meta.keyCount]
-
-	for i := uint16(0); i < n.meta.keyCount; i++ {
-		if ptr >= end {
-			return errors.Errorf("overran backing array on reattachLeaf()")
-		}
-		vSize := n.valueSizes[i]
-
-		key_s := slice.AsSlice(&keys[i])
-		key_s.Array = unsafe.Pointer(ptr)
-		key_s.Len = int(n.meta.keySize)
-		key_s.Cap = int(n.meta.keySize)
-		ptr += uintptr(n.meta.keySize)
-
-		val_s := slice.AsSlice(&vals[i])
-		val_s.Array = unsafe.Pointer(ptr)
-		val_s.Len = int(vSize)
-		val_s.Cap = int(vSize)
-		ptr += uintptr(vSize)
-	}
-
-	n.keys = keys
-	n.vals = vals
-
-	return nil
-}
-
 func (n *leaf) release() {
-	relLeafSliceBytes(n.keys)
-	relLeafSliceBytes(n.vals)
 }
+

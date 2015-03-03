@@ -265,18 +265,18 @@ func TestInternalSplit(x *testing.T) {
 		t.assert_nil(bpt.doInternal(p, func(p *internal) error {
 			for ; i < len(kps); i++ {
 				kp := kps[i]
-				j, has := find(int(p.meta.keyCount), p.keys, kp.key)
+				j, has := find(p, kp.key)
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(p.keys[j]) == t.key(kp.key))
+				t.assert("keys should equal", t.key(p.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", p.ptrs[j] == kp.ptr)
 			}
-			j, has := find(int(p.meta.keyCount), p.keys, split_kp.key)
+			j, has := find(p, split_kp.key)
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(p.keys[j]) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(p.key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", p.ptrs[j] == split_kp.ptr)
 			found_split = true
 			return nil
@@ -284,18 +284,18 @@ func TestInternalSplit(x *testing.T) {
 		t.assert_nil(bpt.doInternal(q, func(q *internal) error {
 			for ; i < len(kps); i++ {
 				kp := kps[i]
-				j, has := find(int(q.meta.keyCount), q.keys, kp.key)
+				j, has := find(q, kp.key)
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(q.keys[j]) == t.key(kp.key))
+				t.assert("keys should equal", t.key(q.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", q.ptrs[j] == kp.ptr)
 			}
-			j, has := find(int(q.meta.keyCount), q.keys, split_kp.key)
+			j, has := find(q, split_kp.key)
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(q.keys[j]) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(q.key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", q.ptrs[j] == split_kp.ptr)
 			found_split = true
 			return nil
