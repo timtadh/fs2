@@ -402,6 +402,37 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 					}
 				}
 			}
+			if n.meta.keyCount == 0 {
+				err = n.putKV(valFlags, key, value)
+				if err != nil {
+					return err
+				}
+				for x := j-1; x >= 0; x-- {
+					var err error
+					if n.fits(m.val(x)) {
+						err = n.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+					} else {
+						err = self.doLeaf(c, func(o *leaf) error {
+							c_unneeded = false
+							return o.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+						})
+					}
+					if err != nil {
+						return err
+					}
+					err = m.delItemAt(x)
+					if err != nil {
+						return err
+					}
+				}
+				if !c_unneeded {
+					err = self.insertListNode(c, a, b)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			}
 			err = self.insertListNode(c, a, b)
 			if err != nil {
 				return err
@@ -410,6 +441,9 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 			c_unneeded = false
 			return self.doLeaf(c, func(o *leaf) error {
 				err = o.putKV(valFlags, key, value)
+				if err != nil {
+					return err
+				}
 				if j == int(m.meta.keyCount) {
 					return nil
 				}
