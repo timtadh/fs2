@@ -131,7 +131,7 @@ func (self *BpTree) getLeaf(a uint64) (*leaf, func(), error) {
 	cleanup := func() {
 		self.bf.Release(bytes)
 	}
-	self.leafCache[a] = n
+	// self.leafCache[a] = n
 	return n, cleanup, nil
 }
 
@@ -151,7 +151,7 @@ func (self *BpTree) getInternal(a uint64) (*internal, func(), error) {
 	cleanup := func() {
 		self.bf.Release(bytes)
 	}
-	self.internalCache[a] = n
+	// self.internalCache[a] = n
 	return n, cleanup, nil
 }
 
