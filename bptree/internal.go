@@ -8,6 +8,7 @@ import (
 
 import (
 	"github.com/timtadh/fs2/errors"
+	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -18,10 +19,16 @@ type baseMeta struct {
 	keyCap   uint16
 }
 
+var baseMetaSize int
+
+func init() {
+	m := &baseMeta{}
+	baseMetaSize = int(m.Size())
+}
+
 type internal struct {
 	back []byte
 	meta *baseMeta
-	_keys [][]byte
 	ptrs []uint64
 }
 
@@ -49,8 +56,8 @@ func (m *baseMeta) String() string {
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, keys: <%d, %v>, ptrs: <%d, %v>",
-		n.meta, len(n._keys), n._keys[:n.meta.keyCount], len(n.ptrs), n.ptrs[:n.meta.keyCount])
+		"meta: <%v>, ptrs: <%d, %v>",
+		n.meta, len(n.ptrs), n.ptrs[:n.meta.keyCount])
 }
 
 func (n *internal) Has(key []byte) bool {
@@ -59,7 +66,11 @@ func (n *internal) Has(key []byte) bool {
 }
 
 func (n *internal) key(i int) []byte {
-	return n._keys[i]
+
+	keySize := int(n.meta.keySize)
+	s := baseMetaSize + i*keySize
+	e := s + keySize
+	return n.back[s:e]
 }
 
 func (n *internal) keyCount() int {
@@ -114,7 +125,7 @@ func (n *internal) delKP(key []byte) error {
 
 func (n *internal) delItemAt(i int) error {
 	// remove the key
-	err := delItemAt(int(n.meta.keyCount), n._keys, i)
+	err := n.delKeyAt(i)
 	if err != nil {
 		return err
 	}
@@ -130,13 +141,13 @@ func (n *internal) delItemAt(i int) error {
 }
 
 func (n *internal) putKey(key []byte, put func(i int) error) error {
-	if n.keyCount()+1 >= len(n._keys) {
+	if n.keyCount()+1 >= int(n.meta.keyCap) {
 		return errors.Errorf("Block is full.")
 	}
 	i, has := find(n, key)
 	if i < 0 {
 		return errors.Errorf("find returned a negative int")
-	} else if i >= len(n._keys) {
+	} else if i >= int(n.meta.keyCap) {
 		return errors.Errorf("find returned a int > than len(keys)")
 	} else if has {
 		return errors.Errorf(fmt.Sprintf("would have inserted a duplicate key, %v", key))
@@ -158,18 +169,18 @@ func (n *internal) putKeyAt(key []byte, i int) error {
 	return nil
 }
 
-func delItemAt(itemCount int, items [][]byte, i int) error {
-	if itemCount == 0 {
+func (n *internal) delKeyAt(i int) error {
+	if n.meta.keyCount == 0 {
 		return errors.Errorf("The items slice is empty")
 	}
-	if i < 0 || i >= itemCount {
+	if i < 0 || i >= int(n.meta.keyCount) {
 		return errors.Errorf("i was not in range")
 	}
-	for j := i; j+1 < itemCount; j++ {
-		copy(items[j], items[j+1])
+	for j := i; j+1 < int(n.meta.keyCount); j++ {
+		copy(n.key(j), n.key(j+1))
 	}
 	// zero the old
-	copy(items[itemCount-1], make([]byte, len(items[itemCount-1])))
+	fmap.MemClr(n.key(int(n.meta.keyCount-1)))
 	return nil
 }
 
@@ -228,17 +239,6 @@ func relInternSliceBytes(s [][]byte) {
 func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 	back := slice.AsSlice(&backing)
 	base := uintptr(back.Array) + meta.Size()
-	keys := getInternSliceBytes(int(meta.keyCap))
-	if cap(keys) < int(meta.keyCap) {
-		keys = make([][]byte, 0, meta.keyCap)
-	}
-	keys = keys[:meta.keyCap]
-	for i := uintptr(0); i < uintptr(meta.keyCap); i++ {
-		key_s := slice.AsSlice(&keys[i])
-		key_s.Array = unsafe.Pointer(base + i*uintptr(meta.keySize))
-		key_s.Len = int(meta.keySize)
-		key_s.Cap = int(meta.keySize)
-	}
 	ptrs_s := &slice.Slice{
 		Array: unsafe.Pointer(base + uintptr(meta.keyCap)*uintptr(meta.keySize)),
 		Len:   int(meta.keyCap),
@@ -248,11 +248,9 @@ func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
 	return &internal{
 		back: backing,
 		meta: meta,
-		_keys: keys,
 		ptrs: ptrs,
 	}, nil
 }
 
 func (n *internal) release() {
-	relInternSliceBytes(n._keys)
 }

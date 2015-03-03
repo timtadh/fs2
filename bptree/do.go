@@ -136,10 +136,11 @@ func (self *BpTree) getLeaf(a uint64) (*leaf, func(), error) {
 }
 
 func (self *BpTree) getInternal(a uint64) (*internal, func(), error) {
+	/*
 	self.checkCache()
 	if n, has := self.internalCache[a]; has {
 		return n, func() {}, nil
-	}
+	}*/
 	bytes, err := self.bf.Get(a, 1)
 	if err != nil {
 		return nil, nil, err
@@ -151,7 +152,7 @@ func (self *BpTree) getInternal(a uint64) (*internal, func(), error) {
 	cleanup := func() {
 		self.bf.Release(bytes)
 	}
-	self.internalCache[a] = n
+	// self.internalCache[a] = n
 	return n, cleanup, nil
 }
 

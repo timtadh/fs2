@@ -60,7 +60,8 @@ func TestBalanceInternal(x *testing.T) {
 				t.assert_ptr(kp.ptr)(b.ptr(kp.key))
 			}
 		}
-		for _, key := range n._keys {
+		for i := 0; i < n.keyCount(); i++ {
+			key := n.key(i)
 			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 		}
 	}
