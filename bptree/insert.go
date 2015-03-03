@@ -17,7 +17,7 @@ func (self *BpTree) Add(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
-	a, b, err := self.insert(self.meta.root, key, value)
+	a, b, c, err := self.insert(self.meta.root, key, value)
 	if err != nil {
 		return err
 	} else if b == 0 {
@@ -36,9 +36,18 @@ func (self *BpTree) Add(key, value []byte) error {
 		if err != nil {
 			return err
 		}
-		return self.firstKey(b, func(bkey []byte) error {
+		err = self.firstKey(b, func(bkey []byte) error {
 			return n.putKP(bkey, b)
 		})
+		if err != nil {
+			return err
+		}
+		if c != 0 {
+			return self.firstKey(c, func(ckey []byte) error {
+				return n.putKP(ckey, c)
+			})
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -52,21 +61,21 @@ func (self *BpTree) Add(key, value []byte) error {
  * - When split is false left is the pointer to block
  * - When split is true left is the pointer to the new left block
  */
-func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) insert(n uint64, key, value []byte) (a, b, c uint64, err error) {
 	var flags flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
 		flags = flag(bytes[0])
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if flags&iNTERNAL != 0 {
 		return self.internalInsert(n, key, value)
 	} else if flags&lEAF != 0 {
 		return self.leafInsert(n, key, value)
 	} else {
-		return 0, 0, errors.Errorf("Unknown block type")
+		return 0, 0, 0, errors.Errorf("Unknown block type")
 	}
 }
 
@@ -76,7 +85,7 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
  *    - if the block is full, split this block
  *    - else insert the new key/pointer into this block
  */
-func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64, err error) {
 	var i int
 	var ptr uint64
 	err = self.doInternal(n, func(n *internal) error {
@@ -91,11 +100,11 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
-	p, q, err := self.insert(ptr, key, value)
+	p, q, r, err := self.insert(ptr, key, value)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	var must_split bool = false
 	var split_key []byte = nil
@@ -122,30 +131,73 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if must_split {
-		return self.internalSplit(n, split_key, q)
+		a, b, err = self.internalSplit(n, split_key, q)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+	} else {
+		a = n
+		b = 0
 	}
-	return n, 0, nil
+	if r != 0 {
+		var must_split bool = false
+		var split_key []byte = nil
+		err = self.doInternal(a, func(n *internal) error {
+			if b != 0 {
+				return self.doInternal(b, func(m *internal) error {
+					return self.firstKey(r, func(rkey []byte) error {
+						if bytes.Compare(rkey, m.keys[0]) < 0 {
+							// goes into a
+							return n.putKP(rkey, r)
+						} else {
+							// goes into b
+							return m.putKP(rkey, r)
+						}
+					})
+				})
+			}
+			return self.firstKey(r, func(rkey []byte) error {
+				if n.full() {
+					must_split = true
+					split_key = make([]byte, len(rkey))
+					copy(split_key, rkey)
+					return nil
+				}
+				return n.putKP(rkey, r)
+			})
+		})
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		if must_split {
+			a, b, err = self.internalSplit(a, split_key, r)
+			if err != nil {
+				return 0, 0, 0, err
+			}
+		}
+	}
+	return a, b, 0, nil
 }
 
-func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b, c uint64, err error) {
 	if len(value) > int(self.bf.BlockSize())/4 {
 		return self.leafBigInsert(n, key, value)
 	}
 	return self.leafDoInsert(n, sMALL_VALUE, key, value)
 }
 
-func (self *BpTree) leafBigInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafBigInsert(n uint64, key, value []byte) (a, b, c uint64, err error) {
 	value, err = self.makeBigValue(value)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	return self.leafDoInsert(n, bIG_VALUE, key, value)
 }
 
-func (self *BpTree) leafDoInsert(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafDoInsert(n uint64, valFlags flag, key, value []byte) (a, b, c uint64, err error) {
 	var mustSplit bool = false
 	err = self.doLeaf(n, func(n *leaf) error {
 		if !n.fits(value) {
@@ -155,12 +207,12 @@ func (self *BpTree) leafDoInsert(n uint64, valFlags flag, key, value []byte) (a,
 		return n.putKV(valFlags, key, value)
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if mustSplit {
 		return self.leafSplit(n, valFlags, key, value)
 	}
-	return n, 0, nil
+	return n, 0, 0, nil
 }
 
 func (self *BpTree) makeBigValue(value []byte) (bigVal []byte, err error) {
@@ -233,7 +285,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
  * - the two blocks will be balanced with balanced_nodes
  * - if the key is less than b.keys[0] it will go in a else b
  */
-func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b, c uint64, err error) {
 	var isPure bool = false
 	a = n
 	err = self.doLeaf(a, func(n *leaf) (err error) {
@@ -241,19 +293,26 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 		return nil
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if isPure {
-		return self.pureLeafSplit(n, valFlags, key, value)
+		a, b, err = self.pureLeafSplit(n, valFlags, key, value)
+		return a, b, 0, err
 	}
 	b, err = self.newLeaf()
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	c_unneeded := true
-	c, err := self.newLeaf()
+	ret_c := false
+	c, err = self.newLeaf()
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
+	}
+	d_unneeded := true
+	d, err := self.newLeaf()
+	if err != nil {
+		return 0, 0, 0, err
 	}
 	err = self.doLeaf(a, func(n *leaf) (err error) {
 		err = self.insertListNode(b, a, n.meta.next)
@@ -268,7 +327,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 			if bytes.Compare(key, m.keys[0]) < 0 {
 				if n.fits(value) {
 					return n.putKV(valFlags, key, value)
-				} else {
+				} else if n.pure() {
 					if bytes.Equal(key, n.keys[0]) {
 						// this is the same key as in n which is a pure block
 						// therefore, what we should is use the c block to chain
@@ -282,12 +341,15 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 							return o.putKV(valFlags, key, value)
 						})
 					}
-					return m.putKV(valFlags, key, value)
+					if m.fits(value) {
+						return m.putKV(valFlags, key, value)
+					}
 				}
+				// fallthrough to remerge
 			} else {
 				if m.fits(value) {
 					return m.putKV(valFlags, key, value)
-				} else {
+				} else if m.pure() {
 					if bytes.Equal(key, m.keys[0]) {
 						// this is the same key as in m which is a pure block
 						// therefore, what we should is use the c block to chain
@@ -311,20 +373,92 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b 
 					}
 					// b is now empty
 					return m.putKV(valFlags, key, value)
+				} else if bytes.Compare(key, m.keys[m.meta.keyCount-1]) > 0 {
+					err := n.merge(m)
+					if err != nil {
+						return err
+					}
+					return m.putKV(valFlags, key, value)
+				}
+				// fallthrough to remerge
+			}
+			// remerge
+			err = n.merge(m)
+			if err != nil {
+				return err
+			}
+			i, has := find(int(n.meta.keyCount), n.keys, key)
+			err = n.balanceAt(m, i)
+			if err != nil {
+				return err
+			}
+			j := 0
+			if has {
+				// we are going to have get all of duplicates out
+				// and chain them... (which will need a d?)
+				for ; j < int(m.meta.keyCount); j++ {
+					if !bytes.Equal(m.keys[j], key) {
+						break
+					}
 				}
 			}
+			err = self.insertListNode(c, a, b)
+			if err != nil {
+				return err
+			}
+			ret_c = true
+			return self.doLeaf(c, func(o *leaf) error {
+				err = o.putKV(valFlags, key, value)
+				if j == int(m.meta.keyCount) {
+					return nil
+				}
+				for x := j-1; x >= 0; x-- {
+					var err error
+					if o.fits(m.vals[x]) {
+						err = o.putKV(flag(m.valueFlags[x]), m.keys[x], m.vals[x])
+					} else {
+						err = self.doLeaf(d, func(p *leaf) error {
+							d_unneeded = false
+							return p.putKV(flag(m.valueFlags[x]), m.keys[x], m.vals[x])
+						})
+					}
+					if err != nil {
+						return err
+					}
+					err = m.delItemAt(x)
+					if err != nil {
+						return err
+					}
+				}
+				if !d_unneeded {
+					err = self.insertListNode(d, c, b)
+					if err != nil {
+						return err
+					}
+				}
+				return nil
+			})
 		})
 	})
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, 0, err
 	}
 	if c_unneeded {
 		err = self.bf.Free(c)
 		if err != nil {
-			return 0, 0, err
+			return 0, 0, 0, err
 		}
 	}
-	return a, b, nil
+	if d_unneeded {
+		err = self.bf.Free(d)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+	}
+	if ret_c && !c_unneeded {
+		return a, b, c, nil
+	}
+	return a, b, 0, nil
 }
 
 /* a pure leaf split has two cases:

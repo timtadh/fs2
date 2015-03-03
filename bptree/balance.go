@@ -36,6 +36,10 @@ func (a *leaf) balance(b *leaf) error {
 		// we had a pure balance
 		return b.reattachLeaf()
 	}
+	return a.balanceAt(b, m)
+}
+
+func (a *leaf) balanceAt(b *leaf, m int) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i

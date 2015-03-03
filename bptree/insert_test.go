@@ -345,26 +345,29 @@ func TestInternalInsertSplit(x *testing.T) {
 		}))
 		for i := 1; i < LEAF_CAP; i++ {
 			kv := kvs[i]
-			p, q, err := bpt.leafInsert(a, kv.key, kv.value)
+			p, q, r, err := bpt.leafInsert(a, kv.key, kv.value)
 			t.assert_nil(err)
 			t.assert("p should be a", p == a)
 			t.assert("q should be 0", q == 0)
+			t.assert("r should be 0", r == 0)
 		}
 		for i := LEAF_CAP + 1; i < len(kvs); i++ {
 			kv := kvs[i]
-			p, q, err := bpt.leafInsert(b, kv.key, kv.value)
+			p, q, r, err := bpt.leafInsert(b, kv.key, kv.value)
 			t.assert_nil(err)
 			t.assert("p should be b", p == b)
 			t.assert("q should be 0", q == 0)
+			t.assert("r should be 0", r == 0)
 		}
 		split_kv := &KV{
 			key:   t.rand_key(),
 			value: t.rand_key(),
 		}
-		p, q, err := bpt.internalInsert(I, split_kv.key, split_kv.value)
+		p, q, r, err := bpt.internalInsert(I, split_kv.key, split_kv.value)
 		t.assert_nil(err)
 		t.assert("p should be I", p == I)
 		t.assert("q should not be 0", q != 0)
+		t.assert("r should be 0", r == 0)
 		root, err := bpt.newInternal()
 		t.assert_nil(err)
 		t.assert_nil(bpt.doInternal(root, func(n *internal) error {
