@@ -407,6 +407,7 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				return err
 			}
 			ret_c = true
+			c_unneeded = false
 			return self.doLeaf(c, func(o *leaf) error {
 				err = o.putKV(valFlags, key, value)
 				if j == int(m.meta.keyCount) {
