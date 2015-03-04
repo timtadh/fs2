@@ -499,8 +499,9 @@ func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 	if err != nil {
 		return err
 	}
-	defer self.Release(bytes)
-	return do(bytes)
+	err = do(bytes)
+	self.Release(bytes)
+	return err
 }
 
 // Get the bytes at the offset and block count. You probably want to use
