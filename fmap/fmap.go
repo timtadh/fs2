@@ -110,7 +110,6 @@ type BlockFile struct {
 	blksize     int
 	file        *os.File
 	mmap        unsafe.Pointer
-	ptrs        []int "outstanding pointers into mmap"
 	outstanding int   "total outstanding pointers"
 }
 
@@ -143,7 +142,6 @@ func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error
 	bf := &BlockFile{
 		path:    path,
 		blksize: int(size),
-		ptrs:    make([]int, 1, size),
 	}
 	var err error
 	bf.file, bf.mmap, err = create(path, size)
@@ -176,7 +174,6 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		mmap:    mmap,
 		opened:  true,
 		blksize: BLOCKSIZE,                 // set the initial block size to a safe size
-		ptrs:    make([]int, 1, BLOCKSIZE), // also setup the initial pointers
 	}
 	bf.size, err = bf.Size()
 	if err != nil {
@@ -191,8 +188,6 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		return nil, err
 	}
 	bf.blksize = int(blksize)
-	blkcount := bf.size / blksize
-	bf.ptrs = make([]int, blkcount, blkcount*2)
 	return bf, nil
 }
 
@@ -424,8 +419,6 @@ func (self *BlockFile) alloc(n int) (offset uint64, err error) {
 	if err := self.resize(self.size + amt); err != nil {
 		return 0, err
 	}
-	extra := make([]int, n)
-	self.ptrs = append(self.ptrs, extra...)
 	return start_size, nil
 }
 
@@ -436,8 +429,6 @@ func (self *BlockFile) allocOne() (offset uint64, err error) {
 	if err := self.resize(self.size + amt); err != nil {
 		return 0, err
 	}
-	extra := make([]int, n)
-	self.ptrs = append(self.ptrs, extra...)
 	for i := uint64(1); i < n; i++ {
 		o := i * uint64(self.blksize)
 		err := self.Free(start_size + o)
@@ -519,11 +510,7 @@ func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	if (offset + length) > uint64(self.size) {
 		return nil, errors.Errorf("Get outside of the file, (%d) %d + %d > %d", offset+length, offset, length, self.size)
 	}
-	blk := (offset / uint64(self.blksize))
-	for i := uint64(0); i < blocks; i++ {
-		self.ptrs[blk+i] += 1
-		self.outstanding += 1
-	}
+	self.outstanding += int(blocks)
 	slice := &slice.Slice{
 		Array: unsafe.Pointer(uintptr(self.mmap) + uintptr(offset)),
 		Len:   int(length),
@@ -539,19 +526,7 @@ func (self *BlockFile) Release(bytes []byte) error {
 	slice := slice.AsSlice(&bytes)
 	length := uint64(slice.Len)
 	blocks := length / uint64(self.blksize)
-	offset := uint64(uintptr(slice.Array) - uintptr(self.mmap))
-	blk := offset / uint64(self.blksize)
-	for i := uint64(0); i < blocks; i++ {
-		cblk := blk + i
-		if cblk < 0 || cblk >= uint64(len(self.ptrs)) {
-			return errors.Errorf("Tried to release a block that was not in this mapping")
-		}
-		if self.ptrs[cblk] <= 0 {
-			return errors.Errorf("Tried to release block with no outstanding pointers (double free?)")
-		}
-		self.ptrs[cblk] -= 1
-		self.outstanding -= 1
-	}
+	self.outstanding -= int(blocks)
 	return nil
 }
 
