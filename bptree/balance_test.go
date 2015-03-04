@@ -25,6 +25,9 @@ func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*10; TEST++ {
 		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
 		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KP struct {
@@ -43,11 +46,11 @@ func TestBalanceInternal(x *testing.T) {
 			kps = append(kps, kp)
 			t.assert_nil(n.putKP(kp.key, kp.ptr))
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for _, kp := range kps {
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		b, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
@@ -55,9 +58,9 @@ func TestBalanceInternal(x *testing.T) {
 		for _, kp := range kps {
 			t.assert("could not find key in internal", n.Has(kp.key) || b.Has(kp.key))
 			if n.Has(kp.key) {
-				t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+				t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 			} else {
-				t.assert_ptr(kp.ptr)(b.ptr(kp.key))
+				t.assert_ptr(kp.ptr)(b.findPtr(kp.key))
 			}
 		}
 		for i := 0; i < n.keyCount(); i++ {
@@ -72,6 +75,9 @@ func TestBalanceLeaf(x *testing.T) {
 	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
+		if SIZE >= BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
 		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KV struct {
@@ -123,6 +129,9 @@ func TestBalancePureLeaf(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
 		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KV struct {

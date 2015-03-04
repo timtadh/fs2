@@ -63,12 +63,12 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 			// next block so we have to subtract one from the index.
 			i--
 		}
-		kid = n.ptrs[i]
+		kid = *n.ptr(i)
 		if i+1 < int(n.meta.keyCount) {
-			sibling = n.ptrs[i+1]
+			sibling = *n.ptr(i+1)
 		} else if sibling != 0 {
 			return self.doInternal(sibling, func(m *internal) error {
-				sibling = m.ptrs[0]
+				sibling = *m.ptr(0)
 				return nil
 			})
 		}
@@ -90,7 +90,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		}
 	} else {
 		err = self.doInternal(n, func(n *internal) error {
-			n.ptrs[i] = kid
+			*n.ptr(i) = kid
 			return self.firstKey(kid, func(kid_key []byte) error {
 				copy(n.key(i), kid_key)
 				return nil
@@ -156,7 +156,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if flag(n.valueFlags[i])&bIG_VALUE != 0 {
+				if (*n.valueFlag(i))&bIG_VALUE != 0 {
 					val := n.val(i)
 					bv := (*bigValue)(slice.AsSlice(&val).Array)
 					err = self.removeBigValue(bv.offset, bv.size)

@@ -20,12 +20,21 @@ type leafMeta struct {
 }
 
 type leaf struct {
-	back       []byte
-	meta       *leafMeta
-	valueSizes []uint16
-	valueFlags []uint8
-	end        uintptr
-	kvs        []byte
+	meta       leafMeta
+	bytes      [BLOCKSIZE-leafMetaSize]byte
+}
+
+
+const minValSize = 1
+const leafMetaSize = 24
+var leafMetaSizeActual int
+
+func init() {
+	m := &leafMeta{}
+	leafMetaSizeActual = int(m.Size())
+	if leafMetaSizeActual != leafMetaSize {
+		panic("the leafMeta was an unexpected size")
+	}
 }
 
 func loadLeafMeta(backing []byte) *leafMeta {
@@ -52,8 +61,8 @@ func (m *leafMeta) String() string {
 
 func (n *leaf) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, valueSizes: <%d, %v>",
-		n.meta, len(n.valueSizes), n.valueSizes)
+		"meta: <%v>",
+		n.meta)
 }
 
 func (n *leaf) Has(key []byte) bool {
@@ -64,7 +73,8 @@ func (n *leaf) Has(key []byte) bool {
 func (n *leaf) key(i int) []byte {
 	s := n.keyOffset(i)
 	e := s + int(n.meta.keySize)
-	return n.kvs[s:e]
+	kvs := n.kvs()
+	return kvs[s:e]
 }
 
 func (n *leaf) keyCount() int {
@@ -72,10 +82,46 @@ func (n *leaf) keyCount() int {
 }
 
 func (n *leaf) val(i int) []byte {
-	size := int(n.valueSizes[i])
+	size := int(*n.valueSize(i))
 	s := n.keyOffset(i) + int(n.meta.keySize)
 	e := s + size
-	return n.kvs[s:e]
+	return n.kvs()[s:e]
+}
+
+func (n *leaf) valueSize(i int) *uint16 {
+	ptr := uintptr(unsafe.Pointer(n))
+	s := leafMetaSize + i*2
+	p := ptr + uintptr(s)
+	return (*uint16)(unsafe.Pointer(p))
+}
+
+func (n *leaf) valueFlag(i int) *flag {
+	keyCap := int(n.meta.keyCap)
+	s := keyCap*2 + i
+	vf := &n.bytes[s]
+	return (*flag)(vf)
+}
+
+func (n *leaf) valueSizes() []byte {
+	keyCap := int(n.meta.keyCap)
+	s := 0
+	e := s + keyCap*2
+	return n.bytes[s:e]
+}
+
+func (n *leaf) valueFlags() []byte {
+	keyCap := int(n.meta.keyCap)
+	s := keyCap*2
+	e := s + keyCap*1
+	return n.bytes[s:e]
+}
+
+func (n *leaf) kvs() []byte {
+	keySize := int(n.meta.keySize)
+	keyCap := int(n.meta.keyCap)
+	s := keyCap*2 + keyCap*1
+	e := s + keyCap*keySize + keyCap*minValSize
+	return n.bytes[s:e]
 }
 
 func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) error {
@@ -87,7 +133,7 @@ func (n *leaf) doValue(bf *fmap.BlockFile, key []byte, do func([]byte) error) er
 }
 
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
-	switch flag(n.valueFlags[i]) {
+	switch *n.valueFlag(i) {
 	case 0:
 		return errors.Errorf("Unset value flag")
 	case sMALL_VALUE:
@@ -137,14 +183,20 @@ func (n *leaf) size(value []byte) int {
 func (n *leaf) fits(value []byte) bool {
 	size := n.size(value)
 	end := n.next_kv_in_kvs()
-	return (end+size < len(n.kvs)) && n.meta.keyCount+1 < n.meta.keyCap
+	return (end+size < len(n.kvs())) && n.meta.keyCount+1 < n.meta.keyCap
 }
 
 func (n *leaf) keyOffset(idx int) int {
-	offset := 0
+	keyCap := int(n.meta.keyCap)
+	e := keyCap*2
+	b := n.bytes[:e]
+	v := slice.AsSlice(&b)
+	v.Cap = keyCap
+	v.Len = keyCap
+	valueSizes := *v.AsUint16s()
+	offset := int(n.meta.keySize)*idx
 	for i := 0; i < idx; i++ {
-		offset += int(n.meta.keySize)
-		offset += int(n.valueSizes[i])
+		offset += int(valueSizes[i])
 	}
 	return offset
 }
@@ -183,28 +235,33 @@ func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
 		chunk_size := int(n.meta.keyCount) - key_idx
 		// we move the valueSizes around to expand
 		{
-			from := n.valueSizes[key_idx : key_idx+chunk_size]
-			to := n.valueSizes[key_idx+1 : key_idx+chunk_size+1]
+			valueSizes := n.valueSizes()
+			s := key_idx*2
+			size := chunk_size*2
+			from := valueSizes[s : s+size]
+			to := valueSizes[s+2 : s+size+2]
 			copy(to, from)
 		}
 		// we move the valueFlags around to expand
 		{
-			from := n.valueFlags[key_idx : key_idx+chunk_size]
-			to := n.valueFlags[key_idx+1 : key_idx+chunk_size+1]
+			valueFlags := n.valueFlags()
+			from := valueFlags[key_idx : key_idx+chunk_size]
+			to := valueFlags[key_idx+1 : key_idx+chunk_size+1]
 			copy(to, from)
 		}
 		// then we make room for the kv
 		to_shift := length - key_offset
-		shift(n.kvs, key_offset, to_shift, kv_size, true)
+		shift(n.kvs(), key_offset, to_shift, kv_size, true)
 	}
 	// do the book keeping
-	n.valueSizes[key_idx] = uint16(len(value))
+	*n.valueSize(key_idx) = uint16(len(value))
 	n.meta.keyCount += 1
-	n.valueFlags[key_idx] = uint8(valFlags)
+	*n.valueFlag(key_idx) = valFlags
 	// copy in the new kv
+	kvs := n.kvs()
 	key_end := key_offset + int(n.meta.keySize)
-	key_slice := n.kvs[key_offset:key_end]
-	val_slice := n.kvs[key_end : key_end+len(value)]
+	key_slice := kvs[key_offset:key_end]
+	val_slice := kvs[key_end : key_end+len(value)]
 	copy(key_slice, key)
 	copy(val_slice, value)
 	// reattach our byte slices
@@ -239,7 +296,7 @@ func (n *leaf) delItemAt(key_idx int) error {
 	if key_idx+1 == int(n.meta.keyCount) {
 		// sweet we can just drop the last
 		// key value
-		n.valueSizes[key_idx] = 0
+		*n.valueSize(key_idx) = 0
 		n.meta.keyCount--
 		return nil
 	}
@@ -248,23 +305,26 @@ func (n *leaf) delItemAt(key_idx int) error {
 		key_offset := n.keyOffset(key_idx)
 		i := n.keyOffset(key_idx + 1)
 		size := length - i
-		shift(n.kvs, i, size, i-key_offset, false)
+		shift(n.kvs(), i, size, i-key_offset, false)
 	}
 	// drop the valueSize
 	{
-		size := int(n.meta.keyCount) - key_idx - 1
-		from := n.valueSizes[key_idx+1 : key_idx+1+size]
-		to := n.valueSizes[key_idx : key_idx+size]
+		valueSizes := n.valueSizes()
+		size := (int(n.meta.keyCount) - key_idx - 1)*2
+		s := key_idx*2
+		from := valueSizes[s+2 : s+2+size]
+		to := valueSizes[s : s+size]
 		copy(to, from)
-		n.valueSizes[n.meta.keyCount-1] = 0
+		*n.valueSize(int(n.meta.keyCount-1)) = 0
 	}
 	// drop the valueFlag
 	{
+		valueFlags := n.valueFlags()
 		size := int(n.meta.keyCount) - key_idx - 1
-		from := n.valueFlags[key_idx+1 : key_idx+1+size]
-		to := n.valueFlags[key_idx : key_idx+size]
+		from := valueFlags[key_idx+1 : key_idx+1+size]
+		to := valueFlags[key_idx : key_idx+size]
 		copy(to, from)
-		n.valueFlags[n.meta.keyCount-1] = 0
+		*n.valueFlag(int(n.meta.keyCount-1)) = 0
 	}
 	// do the book keeping
 	n.meta.keyCount--
@@ -272,69 +332,30 @@ func (n *leaf) delItemAt(key_idx int) error {
 }
 
 func loadLeaf(backing []byte) (*leaf, error) {
-	meta := loadLeafMeta(backing)
-	if meta.flags&lEAF == 0 {
+	n := asLeaf(backing)
+	if n.meta.flags&lEAF == 0 {
 		return nil, errors.Errorf("Was not a leaf node")
 	}
-	return attachLeaf(backing, meta)
+	return n, nil
+}
+
+func asLeaf(backing []byte) *leaf {
+	back := slice.AsSlice(&backing)
+	return (*leaf)(back.Array)
 }
 
 func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
-	meta := loadLeafMeta(backing)
+	n := asLeaf(backing)
 
-	available := uintptr(len(backing)) - meta.Size()
+	available := uintptr(len(backing)) - leafMetaSize
 
 	// best case: values are all 1 byte
 	// the size value is the size of the valueLength
 	//             size + 1 byte
-	valMin := uintptr(2 + 1 + 1)
+	valMin := uintptr(2 + 1 + minValSize)
 	kvSize := uintptr(keySize) + valMin
 	keyCap := available / kvSize
 
-	meta.Init(lEAF, keySize, uint16(keyCap))
-	return attachLeaf(backing, meta)
+	n.meta.Init(lEAF, keySize, uint16(keyCap))
+	return n, nil
 }
-
-func attachLeaf(backing []byte, meta *leafMeta) (*leaf, error) {
-	back := slice.AsSlice(&backing)
-	ptr := uintptr(back.Array) + meta.Size()
-	end := uintptr(back.Array) + uintptr(back.Cap)
-
-	valueSizes_s := &slice.Slice{
-		Array: unsafe.Pointer(ptr),
-		Len:   int(meta.keyCap),
-		Cap:   int(meta.keyCap),
-	}
-	ptr = ptr + uintptr(meta.keyCap)*2
-	valueSizes := *valueSizes_s.AsUint16s()
-
-	valueFlags_s := &slice.Slice{
-		Array: unsafe.Pointer(ptr),
-		Len:   int(meta.keyCap),
-		Cap:   int(meta.keyCap),
-	}
-	ptr = ptr + uintptr(meta.keyCap)
-	valueFlags := *valueFlags_s.AsBytes()
-
-	kvs_s := &slice.Slice{
-		Array: unsafe.Pointer(ptr),
-		Len:   int(end - ptr),
-		Cap:   int(end - ptr),
-	}
-	kvs := *kvs_s.AsBytes()
-
-	node := &leaf{
-		back:       backing,
-		meta:       meta,
-		valueSizes: valueSizes,
-		valueFlags: valueFlags,
-		end:        end,
-		kvs:        kvs,
-	}
-
-	return node, nil
-}
-
-func (n *leaf) release() {
-}
-

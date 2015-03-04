@@ -15,9 +15,6 @@ type BpTree struct {
 	bf            *fmap.BlockFile
 	metaBack      []byte
 	meta          *bpTreeMeta
-	cacheCert     uintptr
-	leafCache     map[uint64]*leaf
-	internalCache map[uint64]*internal
 }
 
 type bpTreeMeta struct {
@@ -73,6 +70,9 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 // (in bytes).  The size of the key cannot change after creation. The
 // maximum size is about ~1350 bytes.
 func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
+	if bf.BlockSize() != BLOCKSIZE {
+		return nil, errors.Errorf("The block size must be %v, got %v", BLOCKSIZE, bf.BlockSize())
+	}
 	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}
@@ -84,8 +84,6 @@ func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
 		bf:            bf,
 		metaBack:      back,
 		meta:          meta,
-		leafCache:     make(map[uint64]*leaf),
-		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
 }
@@ -101,8 +99,6 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 		bf:            bf,
 		metaBack:      back,
 		meta:          meta,
-		leafCache:     make(map[uint64]*leaf),
-		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
 }

@@ -102,7 +102,11 @@ func TestPutKVRand(x *testing.T) {
 	t := (*T)(x)
 	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
-		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
+		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
+		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		do_put := func(kv *KV) {
 			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
@@ -132,7 +136,11 @@ func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
 	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS*2; TEST++ {
-		n, err := newLeaf(make([]byte, 1027+TEST*16), 8)
+		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
+		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
@@ -193,7 +201,8 @@ func TestPutDelKVRand(x *testing.T) {
 func TestPutKV(x *testing.T) {
 	t := (*T)(x)
 	bf, bf_clean := t.blkfile()
-	n := t.newLeaf()
+	n, err := newLeaf(make([]byte, 256), 8)
+	t.assert_nil(err)
 	k1 := uint64(7)
 	v1 := []byte{7, 7, 7, 7, 7, 7, 7, 7}
 	k2 := uint64(3)
@@ -255,16 +264,16 @@ func TestNewLeaf(t *testing.T) {
 		t.Error("keyCount was not 0")
 	}
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if n.valueSizes[i] != 0 {
+		if *n.valueSize(i) != 0 {
 			t.Error("ptr was not zero")
 		}
 	}
 
-	n.valueSizes[0] = 1
-	n.valueSizes[1] = 21
-	n.valueSizes[2] = 23
-	n.valueSizes[3] = 125
-	n.valueSizes[n.meta.keyCap-1] = 0xffff
+	*n.valueSize(0) = 1
+	*n.valueSize(1) = 21
+	*n.valueSize(2) = 23
+	*n.valueSize(3) = 125
+	*n.valueSize(int(n.meta.keyCap-1)) = 0xffff
 
 	valueSizes := []uint16{1, 21, 23, 125, 0xffff}
 
@@ -282,7 +291,7 @@ func TestNewLeaf(t *testing.T) {
 	}
 
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if n.valueSizes[i] != valueSizes[i] {
+		if *n.valueSize(i) != valueSizes[i] {
 			t.Error("valueSize was not the correct value")
 		}
 	}
@@ -294,12 +303,17 @@ func TestLoadLeaf(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		n.valueSizes[0] = 1
-		n.valueSizes[1] = 21
-		n.valueSizes[2] = 23
-		n.valueSizes[3] = 125
-		n.valueSizes[n.meta.keyCap-1] = 0xffff
-		return n.back
+		*n.valueSize(0) = 1
+		*n.valueSize(1) = 21
+		*n.valueSize(2) = 23
+		*n.valueSize(3) = 125
+		*n.valueSize(int(n.meta.keyCap-1)) = 0xffff
+		s := &slice.Slice{
+			Array: unsafe.Pointer(n),
+			Len: BLOCKSIZE,
+			Cap: BLOCKSIZE,
+		}
+		return *s.AsBytes()
 	}()
 
 	n, err := loadLeaf(back)
@@ -323,7 +337,7 @@ func TestLoadLeaf(t *testing.T) {
 	}
 
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if n.valueSizes[i] != valueSizes[i] {
+		if *n.valueSize(i) != valueSizes[i] {
 			t.Error("ptr was not the correct value")
 		}
 	}

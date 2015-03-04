@@ -5,6 +5,11 @@ import "testing"
 import (
 	"bytes"
 	"fmt"
+	"unsafe"
+)
+
+import (
+	"github.com/timtadh/fs2/slice"
 )
 
 func testAlloc() []byte {
@@ -35,11 +40,11 @@ func TestPutDelKPRand(x *testing.T) {
 			kps = append(kps, kp)
 			t.assert_nil(n.putKP(kp.key, kp.ptr))
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for _, kp := range kps {
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for i, kp := range kps {
 			t.assert_nil(n.delKP(kp.key))
@@ -50,7 +55,7 @@ func TestPutDelKPRand(x *testing.T) {
 		for _, kp := range kps {
 			t.assert_nil(n.putKP(kp.key, kp.ptr))
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for i, kp := range kps {
 			t.assert_nil(n.delKP(kp.key))
@@ -62,11 +67,11 @@ func TestPutDelKPRand(x *testing.T) {
 			}
 			t.assert_nil(n.putKP(kp.key, kp.ptr))
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for _, kp := range kps {
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for _, kp := range kps {
 			t.assert_nil(n.delKP(kp.key))
@@ -80,7 +85,11 @@ func TestPutDelKPRand(x *testing.T) {
 func TestPutKPRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*5; TEST++ {
-		n, err := newInternal(make([]byte, 1027+TEST*16), 8)
+		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
+		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KP struct {
 			key []byte
@@ -98,11 +107,11 @@ func TestPutKPRand(x *testing.T) {
 			kps = append(kps, kp)
 			t.assert_nil(n.putKP(kp.key, kp.ptr))
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 		for _, kp := range kps {
 			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.ptr(kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
 		}
 	}
 }
@@ -117,34 +126,34 @@ func TestPutKP(x *testing.T) {
 	k5 := uint64(5)
 	t.assert_nil(n.putKP(t.bkey(&k1), k1))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
-	t.assert_ptr(k1)(n.ptr(t.bkey(&k1)))
+	t.assert_ptr(k1)(n.findPtr(t.bkey(&k1)))
 
 	t.assert_nil(n.putKP(t.bkey(&k2), k2))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
-	t.assert_ptr(k2)(n.ptr(t.bkey(&k2)))
+	t.assert_ptr(k2)(n.findPtr(t.bkey(&k2)))
 
 	t.assert_nil(n.putKP(t.bkey(&k3), k3))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
-	t.assert_ptr(k3)(n.ptr(t.bkey(&k3)))
+	t.assert_ptr(k3)(n.findPtr(t.bkey(&k3)))
 
 	t.assert_nil(n.putKP(t.bkey(&k4), k4))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
-	t.assert_ptr(k4)(n.ptr(t.bkey(&k4)))
+	t.assert_ptr(k4)(n.findPtr(t.bkey(&k4)))
 
 	t.assert_nil(n.putKP(t.bkey(&k5), k5))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
-	t.assert_ptr(k5)(n.ptr(t.bkey(&k5)))
+	t.assert_ptr(k5)(n.findPtr(t.bkey(&k5)))
 
 	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
 	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
-	t.assert_ptr(k1)(n.ptr(t.bkey(&k1)))
-	t.assert_ptr(k2)(n.ptr(t.bkey(&k2)))
-	t.assert_ptr(k3)(n.ptr(t.bkey(&k3)))
-	t.assert_ptr(k4)(n.ptr(t.bkey(&k4)))
-	t.assert_ptr(k5)(n.ptr(t.bkey(&k5)))
+	t.assert_ptr(k1)(n.findPtr(t.bkey(&k1)))
+	t.assert_ptr(k2)(n.findPtr(t.bkey(&k2)))
+	t.assert_ptr(k3)(n.findPtr(t.bkey(&k3)))
+	t.assert_ptr(k4)(n.findPtr(t.bkey(&k4)))
+	t.assert_ptr(k5)(n.findPtr(t.bkey(&k5)))
 }
 
 func TestNewInternal(t *testing.T) {
@@ -169,18 +178,18 @@ func TestNewInternal(t *testing.T) {
 		if bytes.Compare(n.key(i), zero) != 0 {
 			t.Error("key was not zero")
 		}
-		if n.ptrs[i] != 0 {
+		if *n.ptr(i) != 0 {
 			t.Error("ptr was not zero")
 		}
 	}
 
 	n.key(0)[0] = 1
 	n.key(int(n.meta.keyCap-1))[15] = 0xf
-	n.ptrs[0] = 1
-	n.ptrs[1] = 21
-	n.ptrs[2] = 23
-	n.ptrs[3] = 125
-	n.ptrs[n.meta.keyCap-1] = 0xffffffffffffffff
+	*n.ptr(0) = 1
+	*n.ptr(1) = 21
+	*n.ptr(2) = 23
+	*n.ptr(3) = 125
+	*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
 
 	one := []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
@@ -206,7 +215,7 @@ func TestNewInternal(t *testing.T) {
 	}
 
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if n.ptrs[i] != ptrs[i] {
+		if *n.ptr(i) != ptrs[i] {
 			t.Error("ptr was not the correct value")
 		}
 	}
@@ -220,12 +229,17 @@ func TestLoadInternal(t *testing.T) {
 		}
 		n.key(0)[0] = 1
 		n.key(int(n.meta.keyCap-1))[15] = 0xf
-		n.ptrs[0] = 1
-		n.ptrs[1] = 21
-		n.ptrs[2] = 23
-		n.ptrs[3] = 125
-		n.ptrs[n.meta.keyCap-1] = 0xffffffffffffffff
-		return n.back
+		*n.ptr(0) = 1
+		*n.ptr(1) = 21
+		*n.ptr(2) = 23
+		*n.ptr(3) = 125
+		*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
+		s := &slice.Slice{
+			Array: unsafe.Pointer(n),
+			Len: BLOCKSIZE,
+			Cap: BLOCKSIZE,
+		}
+		return *s.AsBytes()
 	}()
 
 	n, err := loadInternal(back)
@@ -257,7 +271,7 @@ func TestLoadInternal(t *testing.T) {
 	}
 
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if n.ptrs[i] != ptrs[i] {
+		if *n.ptr(i) != ptrs[i] {
 			t.Error("ptr was not the correct value")
 		}
 	}
