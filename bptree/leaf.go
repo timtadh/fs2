@@ -194,9 +194,8 @@ func (n *leaf) keyOffset(idx int) int {
 	v.Cap = keyCap
 	v.Len = keyCap
 	valueSizes := *v.AsUint16s()
-	offset := 0
+	offset := int(n.meta.keySize)*idx
 	for i := 0; i < idx; i++ {
-		offset += int(n.meta.keySize)
 		offset += int(valueSizes[i])
 	}
 	return offset
