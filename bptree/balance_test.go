@@ -75,6 +75,9 @@ func TestBalanceLeaf(x *testing.T) {
 	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
+		if SIZE >= BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
 		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KV struct {
@@ -126,6 +129,9 @@ func TestBalancePureLeaf(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
+		if SIZE > BLOCKSIZE {
+			SIZE = BLOCKSIZE
+		}
 		n, err := newLeaf(make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KV struct {

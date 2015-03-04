@@ -156,7 +156,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if flag(n.valueFlags[i])&bIG_VALUE != 0 {
+				if (*n.valueFlag(i))&bIG_VALUE != 0 {
 					val := n.val(i)
 					bv := (*bigValue)(slice.AsSlice(&val).Array)
 					err = self.removeBigValue(bv.offset, bv.size)

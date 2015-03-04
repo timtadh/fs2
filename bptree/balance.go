@@ -43,14 +43,16 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
-		b.valueSizes[i] = a.valueSizes[j]
-		a.valueSizes[j] = 0
-		b.valueFlags[i] = a.valueFlags[j]
-		a.valueFlags[j] = 0
+		*b.valueSize(i) = *a.valueSize(j) 
+		*a.valueSize(j) = 0
+		*b.valueFlag(i) = *a.valueFlag(j)
+		*a.valueFlag(j) = 0
 	}
 	m_offset := a.keyOffset(m)
-	from := a.kvs[m_offset:]
-	copy(b.kvs, from)
+	a_kvs := a.kvs()
+	b_kvs := b.kvs()
+	from := a_kvs[m_offset:]
+	copy(b_kvs, from)
 	fmap.MemClr(from)
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
@@ -107,26 +109,28 @@ func (a *leaf) merge(b *leaf) error {
 	}
 	for i := 0; i < int(b.meta.keyCount); i++ {
 		j := int(a.meta.keyCount) + i
-		a.valueSizes[j] = b.valueSizes[i]
-		b.valueSizes[i] = 0
-		a.valueFlags[j] = b.valueFlags[i]
-		b.valueFlags[i] = 0
+		*a.valueSize(j) = *b.valueSize(i) 
+		*b.valueSize(i) = 0
+		*a.valueFlag(j) = *b.valueFlag(i)
+		*b.valueFlag(i) = 0
 	}
 	m_offset := a.keyOffset(int(a.meta.keyCount))
-	to := a.kvs[m_offset:]
-	copy(to, b.kvs)
-	fmap.MemClr(b.kvs)
+	a_kvs := a.kvs()
+	b_kvs := b.kvs()
+	to := a_kvs[m_offset:]
+	copy(to, b_kvs)
+	fmap.MemClr(b_kvs)
 	b.meta.keyCount = 0
 	a.meta.keyCount = uint16(total)
 	if swapped {
 		for i := 0; i < int(a.meta.keyCount); i++ {
-			b.valueSizes[i] = a.valueSizes[i]
-			a.valueSizes[i] = 0
-			b.valueFlags[i] = a.valueFlags[i]
-			a.valueFlags[i] = 0
+			*b.valueSize(i) = *a.valueSize(i) 
+			*a.valueSize(i) = 0
+			*b.valueFlag(i) = *a.valueFlag(i)
+			*a.valueFlag(i) = 0
 		}
-		copy(b.kvs, a.kvs)
-		fmap.MemClr(a.kvs)
+		copy(b_kvs, a_kvs)
+		fmap.MemClr(a_kvs)
 		b.meta.keyCount = a.meta.keyCount
 		a.meta.keyCount = 0
 	}

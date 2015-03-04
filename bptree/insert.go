@@ -410,11 +410,11 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				for x := j-1; x >= 0; x-- {
 					var err error
 					if n.fits(m.val(x)) {
-						err = n.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+						err = n.putKV(*m.valueFlag(x), m.key(x), m.val(x))
 					} else {
 						err = self.doLeaf(c, func(o *leaf) error {
 							c_unneeded = false
-							return o.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+							return o.putKV(*m.valueFlag(x), m.key(x), m.val(x))
 						})
 					}
 					if err != nil {
@@ -450,11 +450,11 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 				for x := j-1; x >= 0; x-- {
 					var err error
 					if o.fits(m.val(x)) {
-						err = o.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+						err = o.putKV(*m.valueFlag(x), m.key(x), m.val(x))
 					} else {
 						err = self.doLeaf(d, func(p *leaf) error {
 							d_unneeded = false
-							return p.putKV(flag(m.valueFlags[x]), m.key(x), m.val(x))
+							return p.putKV(*m.valueFlag(x), m.key(x), m.val(x))
 						})
 					}
 					if err != nil {
