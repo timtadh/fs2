@@ -360,7 +360,3 @@ func newLeaf(backing []byte, keySize uint16) (*leaf, error) {
 	n.meta.Init(lEAF, keySize, uint16(keyCap))
 	return n, nil
 }
-
-func (n *leaf) release() {
-}
-

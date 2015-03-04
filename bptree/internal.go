@@ -239,5 +239,3 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	return n, nil
 }
 
-func (n *internal) release() {
-}

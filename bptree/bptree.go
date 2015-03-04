@@ -15,9 +15,6 @@ type BpTree struct {
 	bf            *fmap.BlockFile
 	metaBack      []byte
 	meta          *bpTreeMeta
-	cacheCert     uintptr
-	leafCache     map[uint64]*leaf
-	internalCache map[uint64]*internal
 }
 
 type bpTreeMeta struct {
@@ -87,8 +84,6 @@ func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
 		bf:            bf,
 		metaBack:      back,
 		meta:          meta,
-		leafCache:     make(map[uint64]*leaf),
-		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
 }
@@ -104,8 +99,6 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 		bf:            bf,
 		metaBack:      back,
 		meta:          meta,
-		leafCache:     make(map[uint64]*leaf),
-		internalCache: make(map[uint64]*internal),
 	}
 	return bpt, nil
 }
