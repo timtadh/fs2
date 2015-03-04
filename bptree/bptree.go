@@ -73,6 +73,9 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 // (in bytes).  The size of the key cannot change after creation. The
 // maximum size is about ~1350 bytes.
 func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
+	if bf.BlockSize() != BLOCKSIZE {
+		return nil, errors.Errorf("The block size must be %v, got %v", BLOCKSIZE, bf.BlockSize())
+	}
 	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}

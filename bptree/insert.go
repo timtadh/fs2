@@ -96,7 +96,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64,
 			// next block so we have to subtract one from the index.
 			i--
 		}
-		ptr = n.ptrs[i]
+		ptr = *n.ptr(i)
 		return nil
 	})
 	if err != nil {
@@ -109,7 +109,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b, c uint64,
 	var must_split bool = false
 	var split_key []byte = nil
 	err = self.doInternal(n, func(m *internal) error {
-		m.ptrs[i] = p
+		*m.ptr(i) = p
 		err := self.firstKey(p, func(key []byte) error {
 			copy(m.key(i), key)
 			return nil

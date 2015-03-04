@@ -275,7 +275,7 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 	var kid uint64
 	err = self.doInternal(n, func(n *internal) error {
 		if key == nil {
-			kid = n.ptrs[0]
+			kid = *n.ptr(0)
 			return nil
 		}
 		i, has := find(n, key)
@@ -284,7 +284,7 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 			// next block so we have to subtract one from the index.
 			i--
 		}
-		kid = n.ptrs[i]
+		kid = *n.ptr(i)
 		return nil
 	})
 	if err != nil {

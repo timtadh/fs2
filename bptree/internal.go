@@ -19,17 +19,22 @@ type baseMeta struct {
 	keyCap   uint16
 }
 
-var baseMetaSize int
+const ptrSize = 8
+
+const baseMetaSize = 8
+var baseMetaSizeActual int
 
 func init() {
 	m := &baseMeta{}
-	baseMetaSize = int(m.Size())
+	baseMetaSizeActual = int(m.Size())
+	if baseMetaSizeActual != baseMetaSize {
+		panic("the baseMeta was an unexpected size")
+	}
 }
 
 type internal struct {
-	back []byte
-	meta *baseMeta
-	ptrs []uint64
+	meta baseMeta
+	bytes [BLOCKSIZE-baseMetaSize]byte
 }
 
 func loadBaseMeta(backing []byte) *baseMeta {
@@ -56,8 +61,8 @@ func (m *baseMeta) String() string {
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, ptrs: <%d, %v>",
-		n.meta, len(n.ptrs), n.ptrs[:n.meta.keyCount])
+		"meta: <%v>",
+		n.meta)
 }
 
 func (n *internal) Has(key []byte) bool {
@@ -66,11 +71,27 @@ func (n *internal) Has(key []byte) bool {
 }
 
 func (n *internal) key(i int) []byte {
-
 	keySize := int(n.meta.keySize)
-	s := baseMetaSize + i*keySize
+	s := i*keySize
 	e := s + keySize
-	return n.back[s:e]
+	return n.bytes[s:e]
+}
+
+func (n *internal) ptr(i int) *uint64 {
+	ptr := uintptr(unsafe.Pointer(n))
+	keySize := int(n.meta.keySize)
+	keyCap := int(n.meta.keyCap)
+	s := baseMetaSize + keyCap*keySize + i*ptrSize
+	p := ptr + uintptr(s)
+	return (*uint64)(unsafe.Pointer(p))
+}
+
+func (n *internal) ptrs() []byte {
+	keySize := int(n.meta.keySize)
+	keyCap := int(n.meta.keyCap)
+	s := keyCap*keySize
+	e := s + keyCap*ptrSize
+	return n.bytes[s:e]
 }
 
 func (n *internal) keyCount() int {
@@ -81,12 +102,12 @@ func (n *internal) full() bool {
 	return n.meta.keyCount+1 >= n.meta.keyCap
 }
 
-func (n *internal) ptr(key []byte) (uint64, error) {
+func (n *internal) findPtr(key []byte) (uint64, error) {
 	i, has := find(n, key)
 	if !has {
 		return 0, errors.Errorf("key was not in the internal node")
 	}
-	return n.ptrs[i], nil
+	return *n.ptr(i), nil
 }
 
 func (n *internal) putKP(key []byte, p uint64) error {
@@ -97,11 +118,13 @@ func (n *internal) putKP(key []byte, p uint64) error {
 		return errors.Errorf("block is full")
 	}
 	err := n.putKey(key, func(i int) error {
-		chunk_size := int(n.meta.keyCount) - i
-		from := n.ptrs[i : i+chunk_size]
-		to := n.ptrs[i+1 : i+chunk_size+1]
+		ptrs := n.ptrs()
+		chunkSize := (int(n.meta.keyCount) - i)*ptrSize
+		s := i * ptrSize
+		from := ptrs[s : s+chunkSize]
+		to := ptrs[s+ptrSize : s+chunkSize+ptrSize]
 		copy(to, from)
-		n.ptrs[i] = p
+		*n.ptr(i) = p
 		return nil
 	})
 	if err != nil {
@@ -130,11 +153,13 @@ func (n *internal) delItemAt(i int) error {
 		return err
 	}
 	// remove the ptr
-	size := int(n.meta.keyCount) - i - 1
-	from := n.ptrs[i+1 : i+1+size]
-	to := n.ptrs[i : i+size]
+	ptrs := n.ptrs()
+	chunkSize := (int(n.meta.keyCount) - i - 1)*ptrSize
+	s := i * ptrSize
+	from := ptrs[s+ptrSize : s+ptrSize+chunkSize]
+	to := ptrs[s : s+chunkSize]
 	copy(to, from)
-	n.ptrs[n.meta.keyCount-1] = 0
+	*n.ptr(int(n.meta.keyCount-1)) = 0
 	// do the book keeping
 	n.meta.keyCount--
 	return nil
@@ -185,11 +210,11 @@ func (n *internal) delKeyAt(i int) error {
 }
 
 func loadInternal(backing []byte) (*internal, error) {
-	meta := loadBaseMeta(backing)
-	if meta.flags&iNTERNAL == 0 {
+	n := asInternal(backing)
+	if n.meta.flags&iNTERNAL == 0 {
 		return nil, errors.Errorf("Was not an internal node")
 	}
-	return attachInternal(backing, meta)
+	return n, nil
 }
 
 func keysPerInternal(blockSize int, keySize int) int {
@@ -200,56 +225,18 @@ func keysPerInternal(blockSize int, keySize int) int {
 	return keyCap
 }
 
-func newInternal(backing []byte, keySize uint16) (*internal, error) {
-	meta := loadBaseMeta(backing)
-
-	available := uintptr(len(backing)) - meta.Size()
-	ptrSize := uintptr(8)
-	kvSize := uintptr(keySize) + ptrSize
-	keyCap := uint16(available / kvSize)
-	meta.Init(iNTERNAL, keySize, keyCap)
-
-	return attachInternal(backing, meta)
-}
-
-var internSliceBuf chan [][]byte
-
-func init() {
-	internSliceBuf = make(chan [][]byte, 100)
-}
-
-// note capacity is a *request* there is no guarrantee this function
-// will fullfil it. The length will be set to zero
-func getInternSliceBytes(capacity int) [][]byte {
-	select {
-	case s := <-internSliceBuf:
-		return s[:0]
-	default:
-		return make([][]byte, 0, capacity)
-	}
-}
-
-func relInternSliceBytes(s [][]byte) {
-	select {
-	case internSliceBuf <- s:
-	default:
-	}
-}
-
-func attachInternal(backing []byte, meta *baseMeta) (*internal, error) {
+func asInternal(backing []byte) *internal {
 	back := slice.AsSlice(&backing)
-	base := uintptr(back.Array) + meta.Size()
-	ptrs_s := &slice.Slice{
-		Array: unsafe.Pointer(base + uintptr(meta.keyCap)*uintptr(meta.keySize)),
-		Len:   int(meta.keyCap),
-		Cap:   int(meta.keyCap),
-	}
-	ptrs := *ptrs_s.AsUint64s()
-	return &internal{
-		back: backing,
-		meta: meta,
-		ptrs: ptrs,
-	}, nil
+	return (*internal)(back.Array)
+}
+
+func newInternal(backing []byte, keySize uint16) (*internal, error) {
+	n := asInternal(backing)
+
+	keyCap := uint16(keysPerInternal(len(backing), int(keySize)))
+	n.meta.Init(iNTERNAL, keySize, keyCap)
+
+	return n, nil
 }
 
 func (n *internal) release() {

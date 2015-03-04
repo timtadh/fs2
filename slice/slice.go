@@ -10,6 +10,36 @@ type Slice struct {
 	Cap   int
 }
 
+func AsInt16(bytes *[]byte) *int16 {
+	s := AsSlice(bytes)
+	return (*int16)(s.Array)
+}
+
+func AsInt32(bytes *[]byte) *int32 {
+	s := AsSlice(bytes)
+	return (*int32)(s.Array)
+}
+
+func AsInt64(bytes *[]byte) *int64 {
+	s := AsSlice(bytes)
+	return (*int64)(s.Array)
+}
+
+func AsUint16(bytes *[]byte) *uint16 {
+	s := AsSlice(bytes)
+	return (*uint16)(s.Array)
+}
+
+func AsUint32(bytes *[]byte) *uint32 {
+	s := AsSlice(bytes)
+	return (*uint32)(s.Array)
+}
+
+func AsUint64(bytes *[]byte) *uint64 {
+	s := AsSlice(bytes)
+	return (*uint64)(s.Array)
+}
+
 func AsSlice(bytes *[]byte) *Slice {
 	return (*Slice)(unsafe.Pointer(bytes))
 }

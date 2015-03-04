@@ -19,8 +19,8 @@ func (a *internal) balance(b *internal) error {
 		j := m + i
 		copy(b.key(i), a.key(j))
 		fmap.MemClr(a.key(j))
-		b.ptrs[i] = a.ptrs[j]
-		a.ptrs[j] = 0
+		*b.ptr(i) = *a.ptr(j)
+		*a.ptr(j) = 0
 	}
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
