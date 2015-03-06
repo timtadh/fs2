@@ -29,15 +29,27 @@ create_mmap(void **addr, int fd) {
 	if (err != 0) {
 		return err;
 	}
-	void * mapped = mmap(
-		NULL, // address hint
-		length,
-		PROT_READ | PROT_WRITE, // protection flags (rw)
-		MAP_SHARED | MAP_POPULATE, // writes reflect in the file,
-		                           // prepopulate the tlb
-		fd,
-		0 // the offset into the file
-	);
+	void * mapped = NULL;
+	if (fd > -1) {
+		mapped = mmap(
+			NULL, // address hint
+			length,
+			PROT_READ | PROT_WRITE, // protection flags (rw)
+			MAP_SHARED | MAP_POPULATE, // writes reflect in the file,
+									   // prepopulate the tlb
+			fd,
+			0 // the offset into the file
+		);
+	} else {
+		mapped = mmap(
+			NULL, // address hint
+			length,
+			PROT_READ | PROT_WRITE, // protection flags (rw)
+			MAP_ANONOMOUS, // an anon mapping
+			0, // the fd
+			0 // the offset into the file
+		);
+	}
 	if (mapped == MAP_FAILED) {
 		int err = errno;
 		errno = 0;

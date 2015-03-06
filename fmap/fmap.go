@@ -195,6 +195,13 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 var CREATEFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME | os.O_TRUNC
 
 func create(path string, blksize uint32) (*os.File, unsafe.Pointer, error) {
+	if path == "" {
+		ptr, err := do_map(nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, ptr, nil
+	}
 	f, err := do_open(path, CREATEFLAG)
 	if err != nil {
 		return nil, nil, err
@@ -238,7 +245,11 @@ func do_open(path string, FLAG int) (*os.File, error) {
 
 func do_map(f *os.File) (unsafe.Pointer, error) {
 	var mmap unsafe.Pointer = unsafe.Pointer(uintptr(0))
-	errno := C.create_mmap(&mmap, C.int(f.Fd()))
+	fd := -1
+	if f != nil {
+		fd = f.Fd()
+	}
+	errno := C.create_mmap(&mmap, C.int(fd))
 	if errno != 0 {
 		return nil, errors.Errorf("Could not create map fd = %d, %d", f.Fd(), errno)
 	}
@@ -423,13 +434,13 @@ func (self *BlockFile) alloc(n int) (offset uint64, err error) {
 }
 
 func (self *BlockFile) allocOne() (offset uint64, err error) {
-	n := uint64(256)
+	n := uint64(256 * 64)
 	start_size := self.size
 	amt := uint64(self.blksize) * n
 	if err := self.resize(self.size + amt); err != nil {
 		return 0, err
 	}
-	for i := uint64(1); i < n; i++ {
+	for i := n-1; i > 0; i-- {
 		o := i * uint64(self.blksize)
 		err := self.Free(start_size + o)
 		if err != nil {
