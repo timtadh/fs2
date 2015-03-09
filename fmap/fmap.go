@@ -135,25 +135,46 @@ func CreateBlockFile(path string) (*BlockFile, error) {
 
 // Create a blockfile with a custom blocksize. Note, the size must be a
 // multiple of 4096.
-func CreateBlockFileCustomBlockSize(path string, size uint32) (*BlockFile, error) {
-	if size%4096 != 0 {
-		panic(errors.Errorf("blocksize must be divisible by 4096"))
+func CreateBlockFileCustomBlockSize(path string, blksize uint32) (*BlockFile, error) {
+	if path == "" {
+		return nil, errors.Errorf("path cannot be nil")
+	}
+	if blksize%4096 != 0 {
+		return nil, errors.Errorf("blocksize must be divisible by 4096")
 	}
 	bf := &BlockFile{
 		path:    path,
-		blksize: int(size),
+		blksize: int(blksize),
 	}
 	var err error
-	bf.file, bf.mmap, err = create(path, size)
+	bf.file, bf.mmap, bf.size, err = create(path, blksize)
 	if err != nil {
 		return nil, err
 	}
 	bf.opened = true
-	bf.size, err = bf.Size()
+	err = bf.init_ctrl(blksize)
 	if err != nil {
 		return nil, err
 	}
-	err = bf.init_ctrl(size)
+	return bf, nil
+}
+
+// Create an anonymous blockfile. There is no backing file. The
+// blocksize must be divisible by 4096 as usual
+func Anonymous(blksize uint32) (*BlockFile, error) {
+	if blksize%4096 != 0 {
+		return nil, errors.Errorf("blocksize must be divisible by 4096")
+	}
+	bf := &BlockFile{
+		blksize: int(blksize),
+	}
+	var err error
+	bf.mmap, bf.size, err = anon_create(blksize)
+	if err != nil {
+		return nil, err
+	}
+	bf.opened = true
+	err = bf.init_ctrl(blksize)
 	if err != nil {
 		return nil, err
 	}
@@ -194,27 +215,32 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 // The flag used when creating the file
 var CREATEFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME | os.O_TRUNC
 
-func create(path string, blksize uint32) (*os.File, unsafe.Pointer, error) {
-	if path == "" {
-		ptr, err := do_map(nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		return nil, ptr, nil
+func anon_create(blksize uint32) (unsafe.Pointer, uint64, error) {
+	ptr, err := do_anon_map(blksize)
+	if err != nil {
+		return nil, 0, err
 	}
+	return ptr, uint64(blksize), nil
+}
+
+func create(path string, blksize uint32) (*os.File, unsafe.Pointer, uint64, error) {
 	f, err := do_open(path, CREATEFLAG)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	err = f.Truncate(int64(blksize))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
 	ptr, err := do_map(f)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, 0, err
 	}
-	return f, ptr, nil
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, nil, 0, err
+	}
+	return f, ptr, uint64(fi.Size()), nil
 }
 
 // The flag used when opening the file
@@ -245,13 +271,18 @@ func do_open(path string, FLAG int) (*os.File, error) {
 
 func do_map(f *os.File) (unsafe.Pointer, error) {
 	var mmap unsafe.Pointer = unsafe.Pointer(uintptr(0))
-	fd := -1
-	if f != nil {
-		fd = f.Fd()
-	}
-	errno := C.create_mmap(&mmap, C.int(fd))
+	errno := C.create_mmap(&mmap, C.int(f.Fd()))
 	if errno != 0 {
 		return nil, errors.Errorf("Could not create map fd = %d, %d", f.Fd(), errno)
+	}
+	return mmap, nil
+}
+
+func do_anon_map(length uint32) (unsafe.Pointer, error) {
+	var mmap unsafe.Pointer = unsafe.Pointer(uintptr(0))
+	errno := C.create_anon_mmap(&mmap, C.size_t(length))
+	if errno != 0 {
+		return nil, errors.Errorf("Could not create anon map. length = %d, %d", length, errno)
 	}
 	return mmap, nil
 }
@@ -265,12 +296,14 @@ func (self *BlockFile) Close() error {
 	if errno := C.destroy_mmap(self.mmap, C.int(self.file.Fd())); errno != 0 {
 		return errors.Errorf("destroy_mmap failed, %d", errno)
 	}
-	if err := self.file.Close(); err != nil {
-		return err
-	} else {
-		self.file = nil
-		self.opened = false
+	if self.file != nil {
+		if err := self.file.Close(); err != nil {
+			return err
+		} else {
+			self.file = nil
+		}
 	}
+	self.opened = false
 	return nil
 }
 
@@ -278,6 +311,9 @@ func (self *BlockFile) Close() error {
 func (self *BlockFile) Remove() error {
 	if self.opened {
 		return errors.Errorf("Expected file to be closed")
+	}
+	if self.Path() == "" {
+		return errors.Errorf("This was an anonymous map")
 	}
 	return os.Remove(self.Path())
 }
@@ -345,8 +381,15 @@ func (self *BlockFile) BlockSize() int {
 	return self.blksize
 }
 
-// The size of this file in bytes.
 func (self *BlockFile) Size() (uint64, error) {
+	if self.file != nil {
+		return self.fileSize()
+	}
+	return self.size, nil
+}
+
+// The size of this file in bytes.
+func (self *BlockFile) fileSize() (uint64, error) {
 	if !self.opened {
 		return 0, errors.Errorf("File is not open")
 	}
@@ -361,8 +404,25 @@ func (self *BlockFile) resize(size uint64) error {
 	if self.outstanding > 0 {
 		return errors.Errorf("cannot resize the file while there are outstanding pointers")
 	}
+	if !self.opened {
+		return errors.Errorf("File is not open")
+	}
+	if self.file == nil {
+		return self.anonResize(size)
+	}
 	var new_mmap unsafe.Pointer
 	errno := C.resize(self.mmap, &new_mmap, C.int(self.file.Fd()), C.size_t(size))
+	if errno != 0 {
+		return errors.Errorf("resize failed, %d", errno)
+	}
+	self.size = size
+	self.mmap = new_mmap
+	return nil
+}
+
+func (self *BlockFile) anonResize(size uint64) error {
+	var new_mmap unsafe.Pointer
+	errno := C.anon_resize(self.mmap, &new_mmap, C.size_t(self.size), C.size_t(size))
 	if errno != 0 {
 		return errors.Errorf("resize failed, %d", errno)
 	}
@@ -463,6 +523,9 @@ func (self *BlockFile) Valid(address uintptr) bool {
 
 // Allocate 1 block and return its offset.
 func (self *BlockFile) Allocate() (offset uint64, err error) {
+	if !self.opened {
+		return 0, errors.Errorf("File is not open")
+	}
 	var resize bool = false
 	err = self.ctrl(func(ctrl *ctrlblk) error {
 		var err error
@@ -489,6 +552,9 @@ func (self *BlockFile) Allocate() (offset uint64, err error) {
 // guarranteed to be sequential. This always causes a file resize at the
 // moment.
 func (self *BlockFile) AllocateBlocks(n int) (offset uint64, err error) {
+	if !self.opened {
+		return 0, errors.Errorf("File is not open")
+	}
 	offset, err = self.alloc(n)
 	if err != nil {
 		return 0, err
@@ -518,6 +584,9 @@ func (self *BlockFile) Do(offset, blocks uint64, do func([]byte) error) error {
 // Get the bytes at the offset and block count. You probably want to use
 // Do instead. You must call Release() on the bytes when done.
 func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
+	if !self.opened {
+		return nil, errors.Errorf("File is not open")
+	}
 	length := blocks * uint64(self.blksize)
 	if (offset + length) > uint64(self.size) {
 		return nil, errors.Errorf("Get outside of the file, (%d) %d + %d > %d", offset+length, offset, length, self.size)
@@ -546,9 +615,11 @@ func (self *BlockFile) Release(bytes []byte) error {
 // the MS_ASYNC flag) so the changes may not be written by the time this
 // method returns. However, they will be written soon.
 func (self *BlockFile) Sync() error {
-	errno := C.sync_mmap(self.mmap, C.int(self.file.Fd()))
-	if errno != 0 {
-		return errors.Errorf("sync_mmap failed, %d", errno)
+	if self.file != nil {
+		errno := C.sync_mmap(self.mmap, C.int(self.file.Fd()))
+		if errno != 0 {
+			return errors.Errorf("sync_mmap failed, %d", errno)
+		}
 	}
 	return nil
 }
