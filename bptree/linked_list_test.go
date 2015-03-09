@@ -9,7 +9,8 @@ import (
 const PATH = "/tmp/__bptree_test"
 
 func (t *T) blkfile() (*fmap.BlockFile, func()) {
-	bf, err := fmap.CreateBlockFile(PATH)
+	// bf, err := fmap.CreateBlockFile(PATH)
+	bf, err := fmap.Anonymous(fmap.BLOCKSIZE)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -18,10 +19,10 @@ func (t *T) blkfile() (*fmap.BlockFile, func()) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = bf.Remove()
-		if err != nil {
-			t.Fatal(err)
-		}
+		// err = bf.Remove()
+		// if err != nil {
+			// t.Fatal(err)
+		// }
 	}
 }
 

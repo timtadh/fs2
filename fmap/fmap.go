@@ -290,17 +290,24 @@ func do_anon_map(length uint32) (unsafe.Pointer, error) {
 // Close the file. Unmaps the region. There must be no outstanding
 // blocks.
 func (self *BlockFile) Close() error {
+	if !self.opened {
+		return errors.Errorf("File is not open")
+	}
 	if self.outstanding > 0 {
 		return errors.Errorf("Tried to close file when there were outstanding pointers")
 	}
-	if errno := C.destroy_mmap(self.mmap, C.int(self.file.Fd())); errno != 0 {
-		return errors.Errorf("destroy_mmap failed, %d", errno)
-	}
 	if self.file != nil {
+		if errno := C.destroy_mmap(self.mmap, C.int(self.file.Fd())); errno != 0 {
+			return errors.Errorf("destroy_mmap failed, %d", errno)
+		}
 		if err := self.file.Close(); err != nil {
 			return err
 		} else {
 			self.file = nil
+		}
+	} else {
+		if errno := C.destroy_anon_mmap(self.mmap, C.size_t(self.size)); errno != 0 {
+			return errors.Errorf("destroy_mmap failed, %d", errno)
 		}
 	}
 	self.opened = false
