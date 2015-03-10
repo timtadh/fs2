@@ -32,8 +32,19 @@ func loadFreeBlk(bytes []byte) *freeblk {
 type ctrldata struct {
 	// checksum  uint32
 	blksize   uint32
-	free_head uint64
 	free_len  uint32
+	free_head uint64
+}
+
+const ctrldataSize = 16
+var ctrldataSizeActual int
+
+func init() {
+	c := &ctrldata{}
+	ctrldataSizeActual = int(c.Size())
+	if ctrldataSizeActual != ctrldataSize {
+		panic("the ctrldataSize was an unexpected size")
+	}
 }
 
 func (cd *ctrldata) Size() uintptr {
@@ -41,64 +52,28 @@ func (cd *ctrldata) Size() uintptr {
 }
 
 type ctrlblk struct {
-	back []byte
-	data *ctrldata
-	user []byte
+	meta ctrldata
+	user [BLOCKSIZE-ctrldataSize]byte
 }
 
 func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
 	back := slice.AsSlice(&bytes)
-	data := (*ctrldata)(back.Array)
-	ptr := uintptr(back.Array) + data.Size()
-	// new_chksum := crc32.ChecksumIEEE(bytes[4:])
-	// if new_chksum != data.checksum {
-	// return nil, errors.Errorf("Bad control block checksum %x != %x", new_chksum, data.checksum)
-	// }
-	user_len := len(bytes) - int(data.Size())
-	user_s := &slice.Slice{
-		Array: unsafe.Pointer(ptr),
-		Len:   user_len,
-		Cap:   user_len,
-	}
-	user := *user_s.AsBytes()
-	cb = &ctrlblk{
-		back: bytes,
-		data: data,
-		user: user,
-	}
+	cb = (*ctrlblk)(back.Array)
 	return cb, nil
 }
 
 func new_ctrlblk(bytes []byte, blksize uint32) (cb *ctrlblk) {
 	back := slice.AsSlice(&bytes)
-	data := (*ctrldata)(back.Array)
-	ptr := uintptr(back.Array) + data.Size()
-	data.blksize = blksize
-	data.free_head = 0
-	data.free_len = 0
-	user_len := len(bytes) - int(data.Size())
-	user_s := &slice.Slice{
-		Array: unsafe.Pointer(ptr),
-		Len:   user_len,
-		Cap:   user_len,
-	}
-	user := *user_s.AsBytes()
-	copy(user, make([]byte, len(user))) // zeros the user data
-	// data.checksum = crc32.ChecksumIEEE(bytes[4:])
-	cb = &ctrlblk{
-		back: bytes,
-		data: data,
-		user: user,
-	}
+	cb = (*ctrlblk)(back.Array)
+	cb.meta.blksize = blksize
+	cb.meta.free_head = 0
+	cb.meta.free_len = 0
+	MemClr(cb.user[:])
 	return cb
 }
 
-func (cb *ctrlblk) Block() []byte {
-	return cb.back
-}
-
 func (cb *ctrlblk) updateChkSum() {
-	// cb.data.checksum = crc32.ChecksumIEEE(cb.back[4:])
+	// cb.meta.checksum = crc32.ChecksumIEEE(cb.back[4:])
 }
 
 // A BlockFile represents the memory mapped file. It has a blocksize all
@@ -202,7 +177,7 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 	}
 	var blksize uint64
 	err = bf.ctrl(func(ctrl *ctrlblk) error {
-		blksize = uint64(ctrl.data.blksize)
+		blksize = uint64(ctrl.meta.blksize)
 		return nil
 	})
 	if err != nil {
@@ -349,7 +324,7 @@ func (self *BlockFile) ctrl(do func(*ctrlblk) error) error {
 func (self *BlockFile) ControlData() (data []byte, err error) {
 	err = self.ctrl(func(ctrl *ctrlblk) error {
 		data = make([]byte, len(ctrl.user))
-		copy(data, ctrl.user)
+		copy(data, ctrl.user[:])
 		return nil
 	})
 	if err != nil {
@@ -373,7 +348,7 @@ func (self *BlockFile) SetControlDataNoSync(data []byte) (err error) {
 		if len(data) > len(ctrl.user) {
 			return errors.Errorf("control data was too large")
 		}
-		copy(ctrl.user, data)
+		copy(ctrl.user[:], data)
 		return nil
 	})
 }
@@ -447,12 +422,12 @@ func (self *BlockFile) Free(offset uint64) error {
 			return errors.Errorf("is_normal failed, %d", errno)
 		}*/
 	return self.ctrl(func(ctrl *ctrlblk) error {
-		head := ctrl.data.free_head
+		head := ctrl.meta.free_head
 		return self.Do(offset, 1, func(free_bytes []byte) error {
 			free := loadFreeBlk(free_bytes)
 			free.next = head
-			ctrl.data.free_head = offset
-			ctrl.data.free_len += 1
+			ctrl.meta.free_head = offset
+			ctrl.meta.free_len += 1
 			return nil
 		})
 	})
@@ -460,14 +435,14 @@ func (self *BlockFile) Free(offset uint64) error {
 
 func (self *BlockFile) pop_free() (offset uint64, err error) {
 	err = self.ctrl(func(ctrl *ctrlblk) error {
-		if ctrl.data.free_head == 0 || ctrl.data.free_len == 0 {
+		if ctrl.meta.free_head == 0 || ctrl.meta.free_len == 0 {
 			return errors.Errorf("No blocks free")
 		}
-		offset = ctrl.data.free_head
+		offset = ctrl.meta.free_head
 		return self.Do(offset, 1, func(bytes []byte) error {
 			free := loadFreeBlk(bytes)
-			ctrl.data.free_head = free.next
-			ctrl.data.free_len -= 1
+			ctrl.meta.free_head = free.next
+			ctrl.meta.free_len -= 1
 			return nil
 		})
 	})
@@ -536,7 +511,7 @@ func (self *BlockFile) Allocate() (offset uint64, err error) {
 	var resize bool = false
 	err = self.ctrl(func(ctrl *ctrlblk) error {
 		var err error
-		if ctrl.data.free_len > 0 {
+		if ctrl.meta.free_len > 0 {
 			offset, err = self.pop_free()
 		} else {
 			resize = true
