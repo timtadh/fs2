@@ -394,6 +394,17 @@ func (self *BpTree) leafSplit(n uint64, valFlags flag, key, value []byte) (a, b,
 			}
 			j := 0
 			if has {
+				if m.pure() && bytes.Equal(m.key(0), key) {
+					// ok we can just chain c off then end
+					c_unneeded = false
+					err = self.insertListNode(c, b, m.meta.next)
+					if err != nil {
+						return err
+					}
+					return self.doLeaf(c, func(o *leaf) error {
+						return o.putKV(valFlags, key, value)
+					})
+				}
 				// we are going to have get all of duplicates out
 				// and chain them... (which will need a d?)
 				for ; j < int(m.meta.keyCount); j++ {
