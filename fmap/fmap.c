@@ -6,9 +6,9 @@
  * published by the Free Software Foundation.
  *
  * fs2 is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public
+ * License for more details.
  *
  * You should have received a copy of the GNU General Public License
  * along with goiso.  If not, see <http://www.gnu.org/licenses/>.
@@ -23,18 +23,42 @@ memclr(void *addr, size_t size) {
 }
 
 int
+create_anon_mmap(void **addr, size_t length) {
+	void * mapped = NULL;
+	mapped = mmap(
+		NULL, // address hint
+		length,
+		PROT_READ | PROT_WRITE, // protection flags (rw)
+		MAP_ANONYMOUS | MAP_PRIVATE, // anon map
+		-1, // the fd
+		0 // the offset into the file
+	);
+	if (mapped == MAP_FAILED) {
+		int err = errno;
+		errno = 0;
+		char *msg = strerror(err);
+		fprintf(stderr, "MMAP ERROR: %s\n", msg);
+		fprintf(stderr, "length = %d\n", (int)length);
+		return err;
+	}
+	*addr = mapped;
+	return 0;
+}
+
+int
 create_mmap(void **addr, int fd) {
 	size_t length;
 	int err = fd_size(fd, &length);
 	if (err != 0) {
 		return err;
 	}
-	void * mapped = mmap(
+	void * mapped = NULL;
+	mapped = mmap(
 		NULL, // address hint
 		length,
 		PROT_READ | PROT_WRITE, // protection flags (rw)
 		MAP_SHARED | MAP_POPULATE, // writes reflect in the file,
-		                           // prepopulate the tlb
+								   // prepopulate the tlb
 		fd,
 		0 // the offset into the file
 	);
@@ -48,6 +72,19 @@ create_mmap(void **addr, int fd) {
 		return err;
 	}
 	*addr = mapped;
+	return 0;
+}
+
+int
+destroy_anon_mmap(void *addr, size_t length) {
+	int ret = munmap(addr, length);
+	if (ret != 0) {
+		int err = errno;
+		errno = 0;
+		char *msg = strerror(err);
+		fprintf(stderr, "MUNMAP ERROR: %s\n", msg);
+		return err;
+	}
 	return 0;
 }
 
@@ -84,6 +121,26 @@ sync_mmap(void *addr, int fd) {
 		fprintf(stderr, "MSYNC ERROR: %s\n", msg);
 		return err;
 	}
+	return 0;
+}
+
+int
+anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
+		new_length) {
+	void *mapped = mremap(
+		old_addr,
+		old_length,
+		new_length,
+		MREMAP_MAYMOVE
+	);
+	if (mapped == MAP_FAILED) {
+		int err = errno;
+		errno = 0;
+		char *msg = strerror(err);
+		fprintf(stderr, "MREMAP ERROR: %s\n", msg);
+		return err;
+	}
+	*new_addr = mapped;
 	return 0;
 }
 

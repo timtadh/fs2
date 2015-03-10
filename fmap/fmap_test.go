@@ -146,10 +146,9 @@ func TestAllocate(x *testing.T) {
 
 func TestFree(x *testing.T) {
 	t := (*T)(x)
-	bf := t.blkfile()
-	defer t.cleanup(bf)
+	bf, err := Anonymous(4096)
+	t.assert(err)
 	var off uint64
-	var err error
 	off, err = bf.Allocate()
 	t.assert(err)
 	// var size uint64
