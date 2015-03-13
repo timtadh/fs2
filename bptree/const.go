@@ -9,7 +9,3 @@ const (
 	lEAF
 )
 
-const (
-	sMALL_VALUE flag = 1 << iota
-	bIG_VALUE
-)
