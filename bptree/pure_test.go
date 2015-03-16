@@ -1,11 +1,11 @@
 package bptree
 
-// import "testing"
+import "testing"
 
 import (
-// 	"bytes"
+	"bytes"
 	"fmt"
-// 	"math/rand"
+	"math/rand"
 )
 
 func (t *T) assert_hasKV(bpt *BpTree) func(key, value []byte) {
@@ -28,9 +28,6 @@ func (t *T) assert_notHasKV(bpt *BpTree) func(key, value []byte) {
 	}
 }
 
-/*
-
-DISABLED
 func TestAddRemovePuresNoSplitRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
@@ -39,7 +36,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 	for i := 0; i < 500; i++ {
 		kv := &KV{
 			key:   t.rand_key(),
-			value: t.rand_value(24),
+			value: t.rand_value(8),
 		}
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
@@ -47,7 +44,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 		for i := 0; i < rand.Intn(50)+1; i++ {
 			kv2 := &KV{
 				key:   kv.key,
-				value: t.rand_value(24),
+				value: t.rand_value(8),
 			}
 			kvs = append(kvs, kv2)
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
@@ -84,7 +81,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 	for i := 0; i < 10; i++ {
 		kv := &KV{
 			key:   t.rand_key(),
-			value: t.rand_value(24),
+			value: t.rand_value(8),
 		}
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
@@ -94,7 +91,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 			// t.Log(i+2)
 			kv2 := &KV{
 				key:   kv.key,
-				value: t.rand_value(24),
+				value: t.rand_value(8),
 			}
 			kvs = append(kvs, kv2)
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
