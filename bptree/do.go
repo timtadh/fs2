@@ -13,7 +13,7 @@ func (self *BpTree) newInternal() (a uint64, err error) {
 
 func (self *BpTree) newLeaf() (a uint64, err error) {
 	return self.new(func(bytes []byte) error {
-		_, err := newLeaf(bytes, self.meta.keySize)
+		_, err := newLeaf(self.meta.flags, bytes, self.meta.keySize, self.meta.valSize)
 		return err
 	})
 }
@@ -89,7 +89,7 @@ func (self *BpTree) do(
 	leafDo func(*leaf) error,
 ) error {
 	return self.bf.Do(a, 1, func(bytes []byte) error {
-		flags := flag(bytes[0])
+		flags := Flag(bytes[0])
 		if flags&iNTERNAL != 0 {
 			return internalDo(asInternal(bytes))
 		} else if flags&lEAF != 0 {

@@ -1,9 +1,9 @@
 package bptree
 
-import "testing"
+//import "testing"
 
 import (
-	"bytes"
+//	"bytes"
 )
 
 func (t *T) assert_has(bpt *BpTree) func(key []byte) {
@@ -25,6 +25,9 @@ func (t *T) assert_notHas(bpt *BpTree) func(key []byte) {
 		t.assert("should not have found key", !has)
 	}
 }
+
+/*
+DISABLED
 
 func TestLeafRemove(x *testing.T) {
 	t := (*T)(x)
@@ -156,7 +159,7 @@ func TestAddRemoveRand(x *testing.T) {
 		/*
 			for _, kv := range kvs {
 				t.assert_has(bpt)(kv.key)
-			}*/
+			}/
 		for _, kv := range kvs {
 			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
@@ -164,7 +167,7 @@ func TestAddRemoveRand(x *testing.T) {
 			/*
 				for _, kv2 := range kvs[:i+1] {
 					t.assert_notHas(bpt)(kv2.key)
-				}*/
+				}/
 		}
 		for _, kv := range kvs {
 			t.assert_notHas(bpt)(kv.key)
@@ -176,7 +179,7 @@ func TestAddRemoveRand(x *testing.T) {
 		/*
 			for _, kv := range kvs {
 				t.assert_has(bpt)(kv.key)
-			}*/
+			}/
 		for _, kv := range kvs {
 			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
@@ -186,7 +189,7 @@ func TestAddRemoveRand(x *testing.T) {
 					if !bytes.Equal(kv.key, kv2.key) {
 						t.assert_has(bpt)(kv2.key)
 					}
-				}*/
+				}*
 			t.assert_notHas(bpt)(kv.key)
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 		}
@@ -200,7 +203,7 @@ func TestAddRemoveRand(x *testing.T) {
 			/*
 				for _, kv2 := range kvs[:i+1] {
 					t.assert_notHas(bpt)(kv2.key)
-				}*/
+				}/
 		}
 		for _, kv := range kvs {
 			t.assert_notHas(bpt)(kv.key)
@@ -208,3 +211,5 @@ func TestAddRemoveRand(x *testing.T) {
 		clean()
 	}
 }
+
+*/

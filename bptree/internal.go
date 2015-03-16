@@ -13,7 +13,7 @@ import (
 )
 
 type baseMeta struct {
-	flags    flag
+	flags    Flag
 	keySize  uint16
 	keyCount uint16
 	keyCap   uint16
@@ -42,7 +42,7 @@ func loadBaseMeta(backing []byte) *baseMeta {
 	return (*baseMeta)(back.Array)
 }
 
-func (m *baseMeta) Init(flags flag, keySize, keyCap uint16) {
+func (m *baseMeta) Init(flags Flag, keySize, keyCap uint16) {
 	m.flags = flags
 	m.keySize = keySize
 	m.keyCount = 0

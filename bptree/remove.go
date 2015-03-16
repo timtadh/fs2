@@ -4,7 +4,6 @@ import ()
 
 import (
 	"github.com/timtadh/fs2/errors"
-	"github.com/timtadh/fs2/slice"
 )
 
 // Remove one or more key/value pairs at the given key. The callback
@@ -35,9 +34,9 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 }
 
 func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
-	var flags flag
+	var flags Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = flag(bytes[0])
+		flags = Flag(bytes[0])
 		return nil
 	})
 	if err != nil {
@@ -156,14 +155,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if (*n.valueFlag(i))&bIG_VALUE != 0 {
-					val := n.val(i)
-					bv := (*bigValue)(slice.AsSlice(&val).Array)
-					err = self.removeBigValue(bv.offset, bv.size)
-					if err != nil {
-						return err
-					}
-				}
+				// TODO: Add logic to deref and remove big values and keys
 				err = n.delItemAt(i)
 				if err != nil {
 					return err

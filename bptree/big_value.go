@@ -10,8 +10,9 @@ import (
 )
 
 type bigValue struct {
-	size   uint32
 	offset uint64
+	size   uint32
+	refs   uint16
 }
 
 var bvSize uintptr
@@ -34,4 +35,12 @@ func (bv *bigValue) Bytes() []byte {
 	bytes := make([]byte, len(ubytes))
 	copy(bytes, ubytes)
 	return bytes
+}
+
+func (bv *bigValue) Ref() {
+	bv.refs += 1
+}
+
+func (bv *bigValue) Deref() {
+	bv.refs -= 1
 }

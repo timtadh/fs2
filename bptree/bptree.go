@@ -19,8 +19,10 @@ type BpTree struct {
 
 type bpTreeMeta struct {
 	root    uint64
-	keySize uint16
 	itemCount uint64
+	keySize uint16
+	valSize uint16
+	flags Flag
 }
 
 var bpTreeMetaSize uintptr
@@ -30,13 +32,13 @@ func init() {
 	bpTreeMetaSize = reflect.TypeOf(*m).Size()
 }
 
-func newBpTreeMeta(bf *fmap.BlockFile, keySize uint16) ([]byte, *bpTreeMeta, error) {
+func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags Flag) ([]byte, *bpTreeMeta, error) {
 	a, err := bf.Allocate()
 	if err != nil {
 		return nil, nil, err
 	}
 	err = bf.Do(a, 1, func(bytes []byte) error {
-		_, err := newLeaf(bytes, keySize)
+		_, err := newLeaf(flags, bytes, keySize, valSize)
 		return err
 	})
 	if err != nil {
@@ -47,6 +49,7 @@ func newBpTreeMeta(bf *fmap.BlockFile, keySize uint16) ([]byte, *bpTreeMeta, err
 	meta.root = a
 	meta.keySize = keySize
 	meta.itemCount = 0
+	meta.flags = flags
 	err = bf.SetControlData(data)
 	if err != nil {
 		return nil, nil, err
@@ -69,14 +72,14 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 // Create a new B+ Tree in the given BlockFile with the given key size
 // (in bytes).  The size of the key cannot change after creation. The
 // maximum size is about ~1350 bytes.
-func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
+func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 	if bf.BlockSize() != BLOCKSIZE {
 		return nil, errors.Errorf("The block size must be %v, got %v", BLOCKSIZE, bf.BlockSize())
 	}
 	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}
-	back, meta, err := newBpTreeMeta(bf, uint16(keySize))
+	back, meta, err := newBpTreeMeta(bf, uint16(keySize), uint16(valSize), 0)
 	if err != nil {
 		return nil, err
 	}

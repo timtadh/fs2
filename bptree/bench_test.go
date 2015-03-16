@@ -3,7 +3,7 @@ package bptree
 import "testing"
 
 import (
-	"bytes"
+//	"bytes"
 	"os"
 	"runtime/debug"
 )
@@ -32,6 +32,7 @@ func (t *B) blkfile() (*fmap.BlockFile, func()) {
 	}
 }
 
+/*
 func (t *B) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
 	bpt, err := New(bf, 8)
@@ -39,7 +40,7 @@ func (t *B) bpt() (*BpTree, func()) {
 		t.Fatal(err)
 	}
 	return bpt, bf_clean
-}
+}*/
 
 func (t *B) assert(msg string, oks ...bool) {
 	for _, ok := range oks {
@@ -95,6 +96,9 @@ func (t *B) assert_has(bpt *BpTree) func(key []byte) {
 		t.assert("should have found key", has)
 	}
 }
+
+/*
+DISABLED AFTER EVISCERATION
 
 func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 	LEAF_CAP := 190
@@ -184,3 +188,4 @@ func BenchmarkBpTreeAdd(x *testing.B) {
 		clean()
 	}
 }
+*/

@@ -255,9 +255,9 @@ func (self *BpTree) getStart(key []byte) (a uint64, i int, err error) {
 }
 
 func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error) {
-	var flags flag
+	var flags Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = flag(bytes[0])
+		flags = Flag(bytes[0])
 		return nil
 	})
 	if err != nil {

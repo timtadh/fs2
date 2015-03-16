@@ -1,12 +1,13 @@
 package bptree
 
-import "testing"
+//import "testing"
 
 import (
-	"bytes"
-	"sort"
+//	"bytes"
+//	"sort"
 )
 
+/*
 func TestIterate(x *testing.T) {
 	t := (*T)(x)
 	LEAF_CAP := 190
@@ -69,3 +70,4 @@ func TestIterate(x *testing.T) {
 		clean()
 	}
 }
+*/

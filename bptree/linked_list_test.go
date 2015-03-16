@@ -34,7 +34,7 @@ func (t *T) assert_alc(bf *fmap.BlockFile) uint64 {
 
 func (t *T) newLeafIn(bf *fmap.BlockFile, a uint64) {
 	t.assert_nil(bf.Do(a, 1, func(bytes []byte) error {
-		_, err := newLeaf(bytes, 8)
+		_, err := newLeaf(0, bytes, 8, 8)
 		return err
 	}))
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
-	"unsafe"
 )
 
 import (
@@ -15,17 +14,18 @@ import (
 
 type leafMeta struct {
 	baseMeta
-	next uint64
-	prev uint64
+	next    uint64
+	prev    uint64
 	valSize uint16
 }
 
 type leaf struct {
-	meta       leafMeta
-	bytes      [BLOCKSIZE-leafMetaSize]byte
+	meta  leafMeta
+	bytes [BLOCKSIZE - leafMetaSize]byte
 }
 
-const leafMetaSize = 28
+const leafMetaSize = 32
+
 var leafMetaSizeActual int
 
 func init() {
@@ -41,7 +41,7 @@ func loadLeafMeta(backing []byte) *leafMeta {
 	return (*leafMeta)(back.Array)
 }
 
-func (m *leafMeta) Init(flags flag, keySize, keyCap, valSize uint16) {
+func (m *leafMeta) Init(flags Flag, keySize, keyCap, valSize uint16) {
 	bm := &m.baseMeta
 	bm.Init(flags, keySize, keyCap)
 	m.next = 0
@@ -55,14 +55,14 @@ func (m *leafMeta) Size() uintptr {
 
 func (m *leafMeta) String() string {
 	return fmt.Sprintf(
-		"%v, next: %v, prev: %v",
-		&m.baseMeta, m.next, m.prev)
+		"%v, valSize: %v, next: %v, prev: %v",
+		&m.baseMeta, m.valSize, m.next, m.prev)
 }
 
 func (n *leaf) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>",
-		n.meta)
+		"meta: <%v>, keys: <%v>, vals: <%v>",
+		n.meta, n.keys()[:n.meta.keyCount*n.meta.keySize], n.vals()[:n.meta.keyCount*n.meta.valSize])
 }
 
 func (n *leaf) Has(key []byte) bool {
@@ -70,16 +70,63 @@ func (n *leaf) Has(key []byte) bool {
 	return has
 }
 
-func (n *leaf) key(i int) []byte {
-	keySize := int(n.meta.keySize)
-	keyCap := int(n.meta.keyCap)
-	s := keySize*i
-	e := s + keySize
-	return n.bytes[s:e]
-}
-
 func (n *leaf) keyCount() int {
 	return int(n.meta.keyCount)
+}
+
+func (n *leaf) firstValue(key []byte) ([]byte, error) {
+	i, has := find(n, key)
+	if !has {
+		return nil, errors.Errorf("leaf does not have that key")
+	}
+	return n.val(i), nil
+}
+
+func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
+	flags := Flag(n.meta.flags)
+	if flags & VARCHAR_VALS != 0 {
+		return n.doBig(bf, n.val(i), do)
+	} else {
+		return do(n.val(i))
+	}
+}
+
+func (n *leaf) doKeyAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
+	flags := Flag(n.meta.flags)
+	if flags & VARCHAR_KEYS != 0 {
+		return n.doBig(bf, n.key(i), do)
+	} else {
+		return do(n.val(i))
+	}
+}
+
+func (n *leaf) doBig(bf *fmap.BlockFile, bv_bytes []byte, do func([]byte) error) error {
+	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
+	blks := blksNeeded(bf, int(bv.size))
+	if bv.offset == 0 {
+		return errors.Errorf("the bv.offset, %d, was 0.", bv.offset)
+	} else if bv.offset%4096 != 0 {
+		return errors.Errorf("the bv.offset, %d, was not block aligned", bv.offset)
+	}
+	return bf.Do(bv.offset, uint64(blks), func(bytes []byte) error {
+		return do(bytes[:bv.size])
+	})
+}
+
+func blksNeeded(bf *fmap.BlockFile, size int) int {
+	blk := int(bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m)) / blk
+}
+
+func (n *leaf) key(i int) []byte {
+	keySize := int(n.meta.keySize)
+	s := keySize * i
+	e := s + keySize
+	return n.bytes[s:e]
 }
 
 func (n *leaf) val(i int) []byte {
@@ -103,17 +150,13 @@ func (n *leaf) vals() []byte {
 	keySize := int(n.meta.keySize)
 	keyCap := int(n.meta.keyCap)
 	valSize := int(n.meta.valSize)
-	s := keyCap*keySize
+	s := keyCap * keySize
 	e := s + keyCap*valSize
 	return n.bytes[s:e]
 }
 
-func (n *leaf) next_kv_in_kvs() int {
-	return n.keyOffset(int(n.meta.keyCount))
-}
-
 func (n *leaf) fitsAnother() bool {
-	return n.meta.keyCount + 1 < n.meta.keyCap
+	return n.meta.keyCount+1 < n.meta.keyCap
 }
 
 func (n *leaf) pure() bool {
@@ -129,57 +172,64 @@ func (n *leaf) pure() bool {
 	return true
 }
 
-func (n *leaf) putKV(valFlags flag, key []byte, value []byte) (err error) {
+func (n *leaf) putKV(key []byte, value []byte) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
+	}
+	if len(value) != int(n.meta.valSize) {
+		return errors.Errorf("value was the wrong size")
 	}
 	if n.meta.keyCount+1 >= n.meta.keyCap {
 		return errors.Errorf("block is full")
 	}
-	if !n.fits(value) {
+	if !n.fitsAnother() {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
-	key_idx, _ := find(n, key)
-	key_offset := n.keyOffset(key_idx)
-	kv_size := n.size(value)
-	length := n.next_kv_in_kvs()
-	if key_idx == int(n.meta.keyCount) {
+	idx, _ := find(n, key)
+	keys := n.keys()
+	vals := n.vals()
+	keySize := int(n.meta.keySize)
+	valSize := int(n.meta.valSize)
+	if idx == int(n.meta.keyCount) {
 		// fantastic we don't nee to move any thing.
 		// we can just append
 	} else {
-		chunk_size := int(n.meta.keyCount) - key_idx
-		// we move the valueSizes around to expand
+		chunk := int(n.meta.keyCount) - idx
+		// move the keys
 		{
-			valueSizes := n.valueSizes()
-			s := key_idx*2
-			size := chunk_size*2
-			from := valueSizes[s : s+size]
-			to := valueSizes[s+2 : s+size+2]
+			chunkSize := chunk * keySize
+			s := idx * keySize
+			e := s + chunkSize
+			from := keys[s:e]
+			to := keys[s+keySize : e+keySize]
 			copy(to, from)
 		}
-		// we move the valueFlags around to expand
+		// move the vals
 		{
-			valueFlags := n.valueFlags()
-			from := valueFlags[key_idx : key_idx+chunk_size]
-			to := valueFlags[key_idx+1 : key_idx+chunk_size+1]
+			chunkSize := chunk * valSize
+			s := idx * valSize
+			e := s + chunkSize
+			from := vals[s:e]
+			to := vals[s+valSize : e+valSize]
 			copy(to, from)
 		}
-		// then we make room for the kv
-		to_shift := length - key_offset
-		shift(n.kvs(), key_offset, to_shift, kv_size, true)
 	}
 	// do the book keeping
-	*n.valueSize(key_idx) = uint16(len(value))
 	n.meta.keyCount += 1
-	*n.valueFlag(key_idx) = valFlags
-	// copy in the new kv
-	kvs := n.kvs()
-	key_end := key_offset + int(n.meta.keySize)
-	key_slice := kvs[key_offset:key_end]
-	val_slice := kvs[key_end : key_end+len(value)]
-	copy(key_slice, key)
-	copy(val_slice, value)
-	// reattach our byte slices
+	// copy in the new key
+	{
+		s := idx * keySize
+		e := s + keySize
+		key_slice := keys[s:e]
+		copy(key_slice, key)
+	}
+	// copy in the new val
+	{
+		s := idx * valSize
+		e := s + valSize
+		val_slice := vals[s:e]
+		copy(val_slice, value)
+	}
 	return nil
 }
 
@@ -190,56 +240,54 @@ func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
 	if n.meta.keyCount <= 0 {
 		return errors.Errorf("block is empty")
 	}
-	key_idx, has := find(n, key)
+	idx, has := find(n, key)
 	if !has {
 		return errors.Errorf("that key was not in the block")
 	}
-	for ; key_idx < int(n.meta.keyCount); key_idx++ {
-		if !bytes.Equal(key, n.key(key_idx)) {
-			return nil
+	for ; idx < int(n.meta.keyCount); idx++ {
+		if !bytes.Equal(key, n.key(idx)) {
+			return errors.Errorf("no key removed")
 		}
-		if which(n.val(key_idx)) {
+		if which(n.val(idx)) {
 			break
 		}
 	}
-	return n.delItemAt(key_idx)
+	return n.delItemAt(idx)
 }
 
-func (n *leaf) delItemAt(key_idx int) error {
+func (n *leaf) delItemAt(idx int) error {
 	// ok we have our key_idx
-	length := n.next_kv_in_kvs()
-	if key_idx+1 == int(n.meta.keyCount) {
+	if idx+1 == int(n.meta.keyCount) {
 		// sweet we can just drop the last
 		// key value
-		*n.valueSize(key_idx) = 0
 		n.meta.keyCount--
+		// zero out the old ones
+		fmap.MemClr(n.key(idx))
+		fmap.MemClr(n.val(idx))
 		return nil
 	}
-	// drop the k4
+	chunk := int(n.meta.keyCount) - idx - 1
+	// drop the key
 	{
-		key_offset := n.keyOffset(key_idx)
-		i := n.keyOffset(key_idx + 1)
-		size := length - i
-		shift(n.kvs(), i, size, i-key_offset, false)
-	}
-	// drop the valueSize
-	{
-		valueSizes := n.valueSizes()
-		size := (int(n.meta.keyCount) - key_idx - 1)*2
-		s := key_idx*2
-		from := valueSizes[s+2 : s+2+size]
-		to := valueSizes[s : s+size]
+		keys := n.keys()
+		keySize := int(n.meta.keySize)
+		chunkSize := chunk * keySize
+		s := idx * keySize
+		e := s + chunkSize
+		from := keys[s+keySize : e+keySize]
+		to := keys[s:e]
 		copy(to, from)
-		*n.valueSize(int(n.meta.keyCount-1)) = 0
 	}
-	// drop the valueFlag
+	// drop the value
 	{
-		valueFlags := n.valueFlags()
-		size := int(n.meta.keyCount) - key_idx - 1
-		from := valueFlags[key_idx+1 : key_idx+1+size]
-		to := valueFlags[key_idx : key_idx+size]
+		vals := n.vals()
+		valSize := int(n.meta.valSize)
+		chunkSize := chunk * valSize
+		s := idx * valSize
+		e := s + chunkSize
+		from := vals[s+valSize : e+valSize]
+		to := vals[s:e]
 		copy(to, from)
-		*n.valueFlag(int(n.meta.keyCount-1)) = 0
 	}
 	// do the book keeping
 	n.meta.keyCount--
@@ -259,7 +307,7 @@ func asLeaf(backing []byte) *leaf {
 	return (*leaf)(back.Array)
 }
 
-func newLeaf(backing []byte, keySize, valSize uint16) (*leaf, error) {
+func newLeaf(flags Flag, backing []byte, keySize, valSize uint16) (*leaf, error) {
 	n := asLeaf(backing)
 
 	available := uintptr(len(backing)) - leafMetaSize
@@ -267,6 +315,6 @@ func newLeaf(backing []byte, keySize, valSize uint16) (*leaf, error) {
 	kvSize := uintptr(keySize) + uintptr(valSize)
 	keyCap := available / kvSize
 
-	n.meta.Init(lEAF, keySize, uint16(keyCap), valSize)
+	n.meta.Init(lEAF|flags, keySize, uint16(keyCap), valSize)
 	return n, nil
 }

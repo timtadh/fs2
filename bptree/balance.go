@@ -43,17 +43,11 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
-		*b.valueSize(i) = *a.valueSize(j) 
-		*a.valueSize(j) = 0
-		*b.valueFlag(i) = *a.valueFlag(j)
-		*a.valueFlag(j) = 0
+		copy(b.val(i), a.val(j))
+		fmap.MemClr(a.val(j))
+		copy(b.key(i), a.key(j))
+		fmap.MemClr(a.key(j))
 	}
-	m_offset := a.keyOffset(m)
-	a_kvs := a.kvs()
-	b_kvs := b.kvs()
-	from := a_kvs[m_offset:]
-	copy(b_kvs, from)
-	fmap.MemClr(from)
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
 	return nil
@@ -68,15 +62,7 @@ func (n *leaf) balancePoint() int {
 	if n.meta.keyCount == 0 {
 		return 0
 	}
-	length := n.next_kv_in_kvs()
-	guess := length / 2
-	m := 0
-	for m+1 < int(n.meta.keyCount) {
-		if n.keyOffset(m+1) > guess {
-			break
-		}
-		m++
-	}
+	m := int(n.meta.keyCount) / 2
 	return noSplitBalancePoint(n, m)
 }
 
@@ -109,28 +95,20 @@ func (a *leaf) merge(b *leaf) error {
 	}
 	for i := 0; i < int(b.meta.keyCount); i++ {
 		j := int(a.meta.keyCount) + i
-		*a.valueSize(j) = *b.valueSize(i) 
-		*b.valueSize(i) = 0
-		*a.valueFlag(j) = *b.valueFlag(i)
-		*b.valueFlag(i) = 0
+		copy(a.val(j), b.val(i))
+		fmap.MemClr(b.val(i))
+		copy(a.key(j), b.key(i))
+		fmap.MemClr(b.key(i))
 	}
-	m_offset := a.keyOffset(int(a.meta.keyCount))
-	a_kvs := a.kvs()
-	b_kvs := b.kvs()
-	to := a_kvs[m_offset:]
-	copy(to, b_kvs)
-	fmap.MemClr(b_kvs)
 	b.meta.keyCount = 0
 	a.meta.keyCount = uint16(total)
 	if swapped {
 		for i := 0; i < int(a.meta.keyCount); i++ {
-			*b.valueSize(i) = *a.valueSize(i) 
-			*a.valueSize(i) = 0
-			*b.valueFlag(i) = *a.valueFlag(i)
-			*a.valueFlag(i) = 0
+			copy(b.val(i), a.val(i))
+			fmap.MemClr(a.val(i))
+			copy(b.key(i), a.key(i))
+			fmap.MemClr(a.key(i))
 		}
-		copy(b_kvs, a_kvs)
-		fmap.MemClr(a_kvs)
 		b.meta.keyCount = a.meta.keyCount
 		a.meta.keyCount = 0
 	}
