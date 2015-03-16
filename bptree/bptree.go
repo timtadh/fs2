@@ -15,11 +15,13 @@ type BpTree struct {
 	bf       *fmap.BlockFile
 	metaBack []byte
 	meta     *bpTreeMeta
+	varchar  *varchar
 }
 
 type bpTreeMeta struct {
 	root        uint64
 	itemCount   uint64
+	varcharCtrl uint64
 	keySize     uint16
 	valSize     uint16
 	flags       Flag
@@ -44,11 +46,16 @@ func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags Flag) ([]b
 	if err != nil {
 		return nil, nil, err
 	}
+	b, err := bf.Allocate()
+	if err != nil {
+		return nil, nil, err
+	}
 	data := make([]byte, bpTreeMetaSize)
 	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
 	meta.root = a
 	meta.keySize = keySize
 	meta.valSize = valSize
+	meta.varcharCtrl = b
 	meta.itemCount = 0
 	meta.flags = flags
 	err = bf.SetControlData(data)
@@ -84,10 +91,15 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
+	v, err := newVarchar(bf, meta.varcharCtrl)
+	if err != nil {
+		return nil, err
+	}
 	bpt := &BpTree{
 		bf:       bf,
 		metaBack: back,
 		meta:     meta,
+		varchar:  v,
 	}
 	return bpt, nil
 }
@@ -99,10 +111,15 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
+	v, err := loadVarchar(bf, meta.varcharCtrl)
+	if err != nil {
+		return nil, err
+	}
 	bpt := &BpTree{
 		bf:       bf,
 		metaBack: back,
 		meta:     meta,
+		varchar:  v,
 	}
 	return bpt, nil
 }
