@@ -21,7 +21,6 @@ func (t *T) assert_notValue(expect []byte) func(value []byte, err error) {
 	}
 }
 
-
 func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*10; TEST++ {
@@ -172,4 +171,3 @@ func TestBalancePureLeaf(x *testing.T) {
 		}
 	}
 }
-

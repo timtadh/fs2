@@ -184,12 +184,12 @@ func TestNewInternal(t *testing.T) {
 	}
 
 	n.key(0)[0] = 1
-	n.key(int(n.meta.keyCap-1))[15] = 0xf
+	n.key(int(n.meta.keyCap - 1))[15] = 0xf
 	*n.ptr(0) = 1
 	*n.ptr(1) = 21
 	*n.ptr(2) = 23
 	*n.ptr(3) = 125
-	*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
+	*n.ptr(int(n.meta.keyCap - 1)) = 0xffffffffffffffff
 
 	one := []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
@@ -228,16 +228,16 @@ func TestLoadInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 		n.key(0)[0] = 1
-		n.key(int(n.meta.keyCap-1))[15] = 0xf
+		n.key(int(n.meta.keyCap - 1))[15] = 0xf
 		*n.ptr(0) = 1
 		*n.ptr(1) = 21
 		*n.ptr(2) = 23
 		*n.ptr(3) = 125
-		*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
+		*n.ptr(int(n.meta.keyCap - 1)) = 0xffffffffffffffff
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len: BLOCKSIZE,
-			Cap: BLOCKSIZE,
+			Len:   BLOCKSIZE,
+			Cap:   BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()

@@ -12,17 +12,17 @@ import (
 
 // The Ubiquitous B+ Tree
 type BpTree struct {
-	bf            *fmap.BlockFile
-	metaBack      []byte
-	meta          *bpTreeMeta
+	bf       *fmap.BlockFile
+	metaBack []byte
+	meta     *bpTreeMeta
 }
 
 type bpTreeMeta struct {
-	root    uint64
-	itemCount uint64
-	keySize uint16
-	valSize uint16
-	flags Flag
+	root        uint64
+	itemCount   uint64
+	keySize     uint16
+	valSize     uint16
+	flags       Flag
 }
 
 var bpTreeMetaSize uintptr
@@ -85,9 +85,9 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 		return nil, err
 	}
 	bpt := &BpTree{
-		bf:            bf,
-		metaBack:      back,
-		meta:          meta,
+		bf:       bf,
+		metaBack: back,
+		meta:     meta,
 	}
 	return bpt, nil
 }
@@ -100,9 +100,9 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 		return nil, err
 	}
 	bpt := &BpTree{
-		bf:            bf,
-		metaBack:      back,
-		meta:          meta,
+		bf:       bf,
+		metaBack: back,
+		meta:     meta,
 	}
 	return bpt, nil
 }
@@ -120,4 +120,3 @@ func (self *BpTree) KeySize() int {
 func (self *BpTree) Size() int {
 	return int(self.meta.itemCount)
 }
-

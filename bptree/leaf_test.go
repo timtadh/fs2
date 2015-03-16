@@ -280,8 +280,8 @@ func TestLoadLeaf(t *testing.T) {
 		}
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len: BLOCKSIZE,
-			Cap: BLOCKSIZE,
+			Len:   BLOCKSIZE,
+			Cap:   BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()

@@ -21,7 +21,7 @@ func (t *T) blkfile() (*fmap.BlockFile, func()) {
 		}
 		// err = bf.Remove()
 		// if err != nil {
-			// t.Fatal(err)
+		// t.Fatal(err)
 		// }
 	}
 }

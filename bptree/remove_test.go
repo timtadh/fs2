@@ -145,7 +145,6 @@ func TestLeafBigRemove(x *testing.T) {
 }
 */
 
-
 func TestAddRemoveRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
@@ -212,4 +211,3 @@ func TestAddRemoveRand(x *testing.T) {
 		clean()
 	}
 }
-

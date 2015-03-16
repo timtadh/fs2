@@ -64,7 +64,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		}
 		kid = *n.ptr(i)
 		if i+1 < int(n.meta.keyCount) {
-			sibling = *n.ptr(i+1)
+			sibling = *n.ptr(i + 1)
 		} else if sibling != 0 {
 			return self.doInternal(sibling, func(m *internal) error {
 				sibling = *m.ptr(0)

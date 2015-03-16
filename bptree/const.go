@@ -10,4 +10,3 @@ const (
 	VARCHAR_KEYS
 	VARCHAR_VALS
 )
-

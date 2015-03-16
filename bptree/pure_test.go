@@ -65,7 +65,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 			}
 			return false
 		}))
-		t.assert("bpt.Size() == len(kvs) - (i + 1)", bpt.Size() == len(kvs) - (i + 1))
+		t.assert("bpt.Size() == len(kvs) - (i + 1)", bpt.Size() == len(kvs)-(i+1))
 	}
 	for _, key := range keys {
 		t.assert_notHas(bpt)(key)

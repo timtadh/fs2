@@ -87,7 +87,6 @@ func (t *B) assert_has(bpt *BpTree) func(key []byte) {
 	}
 }
 
-
 func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 	LEAF_CAP := 190
 	t := (*B)(x)

@@ -84,7 +84,7 @@ func (n *leaf) firstValue(key []byte) ([]byte, error) {
 
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	flags := Flag(n.meta.flags)
-	if flags & VARCHAR_VALS != 0 {
+	if flags&VARCHAR_VALS != 0 {
 		return n.doBig(bf, n.val(i), do)
 	} else {
 		return do(n.val(i))
@@ -93,7 +93,7 @@ func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error
 
 func (n *leaf) doKeyAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
 	flags := Flag(n.meta.flags)
-	if flags & VARCHAR_KEYS != 0 {
+	if flags&VARCHAR_KEYS != 0 {
 		return n.doBig(bf, n.key(i), do)
 	} else {
 		return do(n.val(i))

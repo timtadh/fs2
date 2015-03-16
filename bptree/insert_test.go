@@ -70,7 +70,6 @@ func (t *T) make_kp() *KP {
 	}
 }
 
-
 func TestLeafInsert(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
@@ -399,4 +398,3 @@ func TestInternalInsertSplit(x *testing.T) {
 		clean()
 	}
 }
-
