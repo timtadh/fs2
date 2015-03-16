@@ -476,7 +476,7 @@ func (self *BlockFile) alloc(n int) (offset uint64, err error) {
 }
 
 func (self *BlockFile) allocOne() (offset uint64, err error) {
-	n := uint64(256 * 64)
+	n := uint64(256)
 	start_size := self.size
 	amt := uint64(self.blksize) * n
 	if err := self.resize(self.size + amt); err != nil {
