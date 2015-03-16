@@ -1,6 +1,6 @@
 package bptree
 
-// import "testing"
+import "testing"
 
 import (
 	"bytes"
@@ -21,8 +21,6 @@ func (t *T) assert_notValue(expect []byte) func(value []byte, err error) {
 	}
 }
 
-/*
-DISABLED TEST AFTER EVISCERATION
 
 func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
@@ -75,13 +73,12 @@ func TestBalanceInternal(x *testing.T) {
 
 func TestBalanceLeaf(x *testing.T) {
 	t := (*T)(x)
-	bf, bf_clean := t.blkfile()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE >= BLOCKSIZE {
 			SIZE = BLOCKSIZE
 		}
-		n, err := newLeaf(make([]byte, SIZE), 8)
+		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
 		type KV struct {
 			key   []byte
@@ -90,34 +87,34 @@ func TestBalanceLeaf(x *testing.T) {
 		make_kv := func() *KV {
 			return &KV{
 				key:   t.rand_key(),
-				value: t.rand_value(24),
+				value: t.rand_value(8),
 			}
 		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := make_kv()
-			if !n.fits(kv.value) {
+			if !n.fitsAnother() {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(kv.key))
 		}
-		b, err := newLeaf(make([]byte, SIZE), 8)
+		b, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
 		t.assert_nil(n.balance(b))
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
 			if n.Has(kv.key) {
-				t.assert_value(kv.value)(n.first_value(bf, kv.key))
+				t.assert_value(kv.value)(n.firstValue(kv.key))
 			} else {
-				t.assert_value(kv.value)(b.first_value(bf, kv.key))
+				t.assert_value(kv.value)(b.firstValue(kv.key))
 			}
 		}
 		for i := 0; i < n.keyCount(); i++ {
@@ -125,7 +122,6 @@ func TestBalanceLeaf(x *testing.T) {
 			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 		}
 	}
-	bf_clean()
 }
 
 func TestBalancePureLeaf(x *testing.T) {
@@ -135,7 +131,7 @@ func TestBalancePureLeaf(x *testing.T) {
 		if SIZE > BLOCKSIZE {
 			SIZE = BLOCKSIZE
 		}
-		n, err := newLeaf(make([]byte, SIZE), 8)
+		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
 		type KV struct {
 			key   []byte
@@ -145,24 +141,24 @@ func TestBalancePureLeaf(x *testing.T) {
 		make_kv := func() *KV {
 			return &KV{
 				key:   only_key,
-				value: t.rand_value(24),
+				value: t.rand_value(8),
 			}
 		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := make_kv()
-			if !n.fits(kv.value) {
+			if !n.fitsAnother() {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
 		}
-		b, err := newLeaf(make([]byte, SIZE), 8)
+		b, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
 		t.assert_nil(n.balance(b))
 		for _, kv := range kvs {
@@ -176,4 +172,4 @@ func TestBalancePureLeaf(x *testing.T) {
 		}
 	}
 }
-*/
+
