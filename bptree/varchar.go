@@ -32,15 +32,35 @@ type varFree struct {
 
 const varFreeSize = 24
 
+const mAX_UINT32 uint32 = 0xffffffff
+
+type varRunMeta struct {
+	flags  Flag
+	length uint32
+	refs   uint32
+}
+
+const varRunMetaSize = 12
+
+type varRun struct {
+	meta  varRunMeta
+	bytes [mAX_UINT32-varRunMetaSize]byte
+}
+
 func init() {
 	var vc varCtrl
 	var vf varFree
+	var vr varRunMeta
 	vc_size := reflect.TypeOf(vc).Size()
 	vf_size := reflect.TypeOf(vf).Size()
+	vr_size := reflect.TypeOf(vr).Size()
 	if vc_size != varCtrlSize {
 		panic("the varCtrl was an unexpected size")
 	}
 	if vf_size != varFreeSize {
+		panic("the varFree was an unexpected size")
+	}
+	if vr_size != varRunMetaSize {
 		panic("the varFree was an unexpected size")
 	}
 }
@@ -79,6 +99,24 @@ func loadVarchar(bf *fmap.BlockFile, a uint64) (v *varchar, err error) {
 	return v, nil
 }
 
+func blksNeeded(bf *fmap.BlockFile, size int) int {
+	blk := int(bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m)) / blk
+}
+
+func blksNeeded(bf *fmap.BlockFile, size int) int {
+	blk := int(bf.BlockSize())
+	m := size % blk
+	if m == 0 {
+		return size / blk
+	}
+	return (size + (blk - m)) / blk
+}
+
 func asCtrl(backing []byte) *varCtrl {
 	back := slice.AsSlice(&backing)
 	return (*varCtrl)(back.Array)
@@ -87,6 +125,11 @@ func asCtrl(backing []byte) *varCtrl {
 func asFree(backing []byte) *varFree {
 	back := slice.AsSlice(&backing)
 	return (*varFree)(back.Array)
+}
+
+func asRun(backing []byte) *varFree {
+	back := slice.AsSlice(&backing)
+	return (*varRun)(back.Array)
 }
 
 func (v *varchar) do(
