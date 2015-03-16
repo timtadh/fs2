@@ -48,6 +48,7 @@ func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags Flag) ([]b
 	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
 	meta.root = a
 	meta.keySize = keySize
+	meta.valSize = valSize
 	meta.itemCount = 0
 	meta.flags = flags
 	err = bf.SetControlData(data)
