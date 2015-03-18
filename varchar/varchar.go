@@ -353,13 +353,30 @@ func (v *Varchar) Do(a uint64, do func(bytes []byte) error) (err error) {
 // Ref increments the ref field of the block. It starts out as one (when
 // allocated). Each call to ref will add 1 to that.
 func (v *Varchar) Ref(a uint64) (err error) {
-	return errors.Errorf("Unimplemented")
+	return v.doRun(a, func(m *varRunMeta) error {
+		m.refs += 1
+		return nil
+	})
 }
 
 // Deref decremnents the ref field. If it ever reaches 0 it will
 // automatically be freed (by calling `v.Free(a)`).
 func (v *Varchar) Deref(a uint64) (err error) {
-	return errors.Errorf("Unimplemented")
+	doFree := false
+	err = v.doRun(a, func(m *varRunMeta) error {
+		m.refs -= 1
+		if m.refs == 0 {
+			doFree = true
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	if doFree {
+		return v.Free(a)
+	}
+	return nil
 }
 
 func asCtrl(backing []byte) *varCtrl {
