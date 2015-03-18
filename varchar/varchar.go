@@ -24,11 +24,17 @@ type varCtrl struct {
 
 const varCtrlSize = 16
 
+type listNode struct {
+	prev uint64
+	next uint64
+}
+
+type nodeDoer func(uint64, func(*listNode) error) error
+
 type varFree struct {
 	flags consts.Flag
 	length uint32
-	prev uint64
-	next uint64
+	list listNode
 }
 
 const varFreeSize = 24
@@ -38,10 +44,11 @@ const mAX_UINT32 uint32 = 0xffffffff
 type varRunMeta struct {
 	flags  consts.Flag
 	length uint32
+	extra  uint32
 	refs   uint32
 }
 
-const varRunMetaSize = 12
+const varRunMetaSize = 16
 
 type varRun struct {
 	meta  varRunMeta
@@ -77,6 +84,14 @@ func (vc *varCtrl) Init() {
 	vc.freeLen = 0
 	vc.freeHead = 0
 }
+
+func (vrm *varRunMeta) Init(length int) {
+	vrm.flags = consts.VARCHAR_RUN
+	vrm.length = uint32(length)
+	vrm.extra = 0
+	vrm.refs = 1
+}
+
 
 // Create a new varchar structure. This takes a blockfile and an offset
 // of an allocated block. The block becomes the control block for the
@@ -118,8 +133,172 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 	return 0, errors.Errorf("Unimplemented")
 }
 
-func (v *Varhar) Free(a uint64) (err error) {
-	return errors.Errorf("Unimplemented")
+func (v *Varchar) allocNew(length int) (a uint64, err error) {
+	fullLength := v.allocAmt(length)
+	blks := v.blksNeeded(fullLength)
+	if blks > 1 {
+		a, err = v.bf.AllocateBlocks(blks)
+	} else {
+		a, err = v.bf.Allocate()
+	}
+	if err != nil {
+		return 0, err
+	}
+	err = v.bf.Do(a, uint64(blks), func(bytes []byte) error {
+		m := asRunMeta(bytes)
+		m.Init(length)
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	extra, err := v.freeExtra(a, blks * v.bf.BlockSize(), fullLength)
+	if err != nil {
+		return 0, err
+	}
+	err = v.doRun(a, func(m *varRunMeta) error {
+		if extra != 0 {
+			m.extra = uint32(extra)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return a, nil
+}
+
+func (v *Varchar) allocAmt(length int) int {
+	fullLength := length + varRunMetaSize
+	if fullLength < varFreeSize {
+		return varFreeSize
+	}
+	return fullLength
+}
+
+func (v *Varchar) freeExtra(a uint64, aLen, allocLen int) (extra int, err error) {
+	if aLen == allocLen {
+		return 0, nil
+	} else if aLen < allocLen {
+		return 0, errors.Errorf("underallocated !")
+	}
+	freeSize := aLen - allocLen
+	if freeSize < varFreeSize {
+		return freeSize, nil
+	}
+	e := a + uint64(allocLen)
+	err = v.free(e, freeSize)
+	if err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
+func (v *Varchar) blksNeeded(length int) int {
+	blkSize := int(v.bf.BlockSize())
+	m := length % blkSize
+	if m == 0 {
+		return length / blkSize
+	}
+	return (length + (blkSize - m)) / blkSize
+}
+
+func (v *Varchar) Free(a uint64) (err error) {
+	var length int
+	err = v.doRun(a, func(m *varRunMeta) error {
+		length = int(m.length + m.extra)
+		return nil
+	})
+	return v.free(a, length)
+}
+
+// free block starting at a running for length.
+func (v *Varchar) free(a uint64, length int) (err error) {
+	err = v.newFree(a, length)
+	if err != nil {
+		return err
+	}
+	return v.doCtrl(func(ctrl *varCtrl) error {
+		var prev, cur uint64
+		cur = ctrl.freeHead
+		listLen := int(ctrl.freeLen)
+		found := false
+		for i := 0; i < listLen; i++ {
+			err = v.doFree(cur, func(p *varFree) error {
+				if a < cur {
+					found = true
+					return nil
+				}
+				prev = cur
+				cur = p.list.next
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			if found {
+				break
+			}
+		}
+		err = v.listInsert(a, prev, cur, v.doFreeNode)
+		if err != nil {
+			return err
+		}
+		if prev == 0 {
+			ctrl.freeHead = a
+		}
+		return v.coallesce(ctrl, a)
+	})
+}
+
+// coallesce blocks centered around "a". The address "a" may not be a
+// block after this function returns.
+func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
+	return v.doFree(a, func(c *varFree) error {
+		if c.list.next != 0 && a + uint64(c.length) == c.list.next {
+			err = v.joinNext(ctrl, a)
+			if err != nil {
+				return err
+			}
+		}
+		if c.list.prev != 0 {
+			return v.doFree(c.list.prev, func(p *varFree) error {
+				if c.list.prev + uint64(c.length) == a {
+					return v.joinNext(ctrl, c.list.prev)
+					// the block at the previous "a" no longer exists.
+					// freeHead should not need to be adjusted because
+					// 1. the old "a" could not have been the head 
+					//    since prev != 0
+					// 2. if c.list.prev was the head, joinNext will not
+					//    change that
+				}
+				return nil
+			})
+		}
+		return nil
+	})
+}
+
+// joins the block at "a" to the next block. The next block is removed
+// from the free list and freeLen is decremented. Note, this will have
+// no effect on the freeHead.
+func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
+	return v.doFree(a, func(c *varFree) error {
+		if c.list.next == 0 || a + uint64(c.length) != c.list.next {
+			return errors.Errorf("invalid joinNext call")
+		}
+		err = v.listRemove(c.list.next, v.doFreeNode)
+		if err != nil {
+			return err
+		}
+		ctrl.freeLen -= 1
+		return v.doFree(c.list.next, func(n *varFree) error {
+			c.length += n.length
+			n.flags = 0
+			n.length = 0
+			return nil
+		})
+	})
 }
 
 func (v *Varchar) Do(a uint64, do func(bytes []byte) error) (err error) {
@@ -158,26 +337,51 @@ func asRunMeta(backing []byte) *varRunMeta {
 	return (*varRunMeta)(back.Array)
 }
 
-// TIM YOU ARE HERE
-// ADDING VAR RUNS TO THIS METHOD
-// fixing the fact that these could be unaligned block access
-// You should load the amount of bytes need for the struct. This could be
-// crossing a block boundry. However, these guys are small. So we could
-// a) force them on creation to always be block aligned.
-// b) load up 2 blocks (there can never be 3)
+func (v *Varchar) doRun(a uint64, do func(*varRunMeta) error) error {
+	return v.do(
+		a,
+		func(*varCtrl) error { return errors.Errorf("unexpected ctrl blk") },
+		func(*varFree) error { return errors.Errorf("unexpected free blk") },
+		do,
+	)
+}
+
+func (v *Varchar) doFree(a uint64, do func(*varFree) error) error {
+	return v.do(
+		a,
+		func(*varCtrl) error { return errors.Errorf("unexpected ctrl blk") },
+		do,
+		func(*varRunMeta) error { return errors.Errorf("unexpected run blk") },
+	)
+}
+
+func (v *Varchar) doCtrl(do func(*varCtrl) error) error {
+	return v.do(
+		v.a,
+		do,
+		func(*varFree) error { return errors.Errorf("unexpected free blk") },
+		func(*varRunMeta) error { return errors.Errorf("unexpected run blk") },
+	)
+}
+
+func (v *Varchar) startOffsetBlks(a uint64) (offset, start, blks uint64) {
+	blkSize := uint64(v.bf.BlockSize())
+	offset = a % blkSize
+	start = a - offset
+	blks = 1
+	if offset + varFreeSize > blkSize {
+		blks = 2
+	}
+	return offset, start, blks
+}
+
 func (v *Varchar) do(
 	a uint64,
 	ctrlDo func(*varCtrl) error,
 	freeDo func(*varFree) error,
 	runDo func(*varRunMeta) error,
 ) error {
-	blkSize := uint64(v.bf.BlockSize())
-	offset := a % blkSize
-	start := a - offset
-	var blks uint64 = 1
-	if offset + varFreeSize > blkSize {
-		blks = 2
-	}
+	offset, start, blks := v.startOffsetBlks(a)
 	return v.bf.Do(start, blks, func(bytes []byte) error {
 		bytes = bytes[offset:]
 		flags := consts.Flag(bytes[0])
@@ -192,3 +396,98 @@ func (v *Varchar) do(
 		}
 	})
 }
+
+// This is for making new free segments. You probably (most definitely)
+// want to use doFree.
+func (v *Varchar) doAsFree(a uint64, do func(*varFree) error) error {
+	offset, start, blks := v.startOffsetBlks(a)
+	return v.bf.Do(start, blks, func(bytes []byte) error {
+		bytes = bytes[offset:]
+		return do(asFree(bytes))
+	})
+}
+
+func (v *Varchar) newFree(a uint64, length int) error {
+	if length < varFreeSize {
+		return errors.Errorf("tried to free block which was too small to be a freeList node")
+	}
+	return v.doAsFree(a, func(m *varFree) error {
+		m.flags = consts.VARCHAR_FREE
+		m.length = uint32(length)
+		m.list.prev = 0
+		m.list.next = 0
+		return nil
+	})
+}
+
+func (v *Varchar) doFreeNode(a uint64, do func(*listNode) error) error {
+	return v.doFree(a, func(m *varFree) error {
+		return do(&m.list)
+	})
+}
+
+func (v *Varchar) listInsert(node, prev, next uint64, doNode nodeDoer) error {
+	if node == 0 {
+		return errors.Errorf("0 offset for node (the inserted node)")
+	}
+	return doNode(node, func(n *listNode) error {
+		if prev == 0 && next == 0 {
+			n.prev = 0
+			n.next = 0
+			return nil
+		} else if next == 0 {
+			return doNode(prev, func(pn *listNode) error {
+				n.next = 0
+				n.prev = prev
+				pn.next = node
+				return nil
+			})
+		} else if prev == 0 {
+			return doNode(next, func(nn *listNode) error {
+				n.next = next
+				n.prev = 0
+				nn.prev = node
+				return nil
+			})
+		}
+		return doNode(prev, func(pn *listNode) error {
+			return doNode(next, func(nn *listNode) error {
+				n.next = next
+				n.prev = prev
+				pn.next = node
+				nn.prev = node
+				return nil
+			})
+		})
+	})
+}
+
+func (v *Varchar) listRemove(node uint64, doNode nodeDoer) error {
+	if node == 0 {
+		return errors.Errorf("0 offset for node (the removed node)")
+	}
+	return doNode(node, func(n *listNode) (err error) {
+		if n.prev != 0 {
+			err = doNode(n.prev, func(pn *listNode) error {
+				pn.next = n.next
+				return nil
+			})
+			if err != nil {
+				return nil
+			}
+		}
+		if n.next != 0 {
+			err = doNode(n.next, func(nn *listNode) error {
+				nn.prev = n.prev
+				return nil
+			})
+			if err != nil {
+				return nil
+			}
+		}
+		n.prev = 0
+		n.next = 0
+		return nil
+	})
+}
+
