@@ -78,6 +78,11 @@ func (vc *varCtrl) Init() {
 	vc.freeHead = 0
 }
 
+// Create a new varchar structure. This takes a blockfile and an offset
+// of an allocated block. The block becomes the control block for the
+// varchar file (storing the free list for the allocator). It is
+// important for the parent structure to track the location of this
+// control block.
 func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	v = &Varchar{bf: bf, a: a}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
@@ -91,6 +96,9 @@ func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	return v, nil
 }
 
+// Open a varchar structure in the given blockfile with the given offset
+// as the control block. This function will confirm that the control
+// block is indeed a properly formated control block.
 func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	v = &Varchar{bf: bf, a: a}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
@@ -104,6 +112,26 @@ func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 		return nil, err
 	}
 	return v, nil
+}
+
+func (v *Varchar) Alloc(length int) (a uint64, err error) {
+	return 0, errors.Errorf("Unimplemented")
+}
+
+func (v *Varhar) Free(a uint64) (err error) {
+	return errors.Errorf("Unimplemented")
+}
+
+func (v *Varchar) Do(a uint64, do func(bytes []byte) error) (err error) {
+	return errors.Errorf("Unimplemented")
+}
+
+func (v *Varchar) Ref(a uint64) (err error) {
+	return errors.Errorf("Unimplemented")
+}
+
+func (v *Varchar) Deref(a uint64) (err error) {
+	return errors.Errorf("Unimplemented")
 }
 
 func asCtrl(backing []byte) *varCtrl {
