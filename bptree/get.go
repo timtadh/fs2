@@ -5,6 +5,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
@@ -255,17 +256,17 @@ func (self *BpTree) getStart(key []byte) (a uint64, i int, err error) {
 }
 
 func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error) {
-	var flags Flag
+	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = Flag(bytes[0])
+		flags = consts.Flag(bytes[0])
 		return nil
 	})
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags&iNTERNAL != 0 {
+	if flags&consts.INTERNAL != 0 {
 		return self.internalGetStart(n, key)
-	} else if flags&lEAF != 0 {
+	} else if flags&consts.LEAF != 0 {
 		return self.leafGetStart(n, key)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")

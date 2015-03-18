@@ -7,6 +7,10 @@ import (
 	"fmt"
 )
 
+import (
+	"github.com/timtadh/fs2/consts"
+)
+
 func (t *T) assert_value(expect []byte) func(value []byte, err error) {
 	return func(value []byte, err error) {
 		t.assert_nil(err)
@@ -25,8 +29,8 @@ func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*10; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
@@ -74,8 +78,8 @@ func TestBalanceLeaf(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE >= BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE >= consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
@@ -127,8 +131,8 @@ func TestBalancePureLeaf(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)

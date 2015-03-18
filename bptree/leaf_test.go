@@ -11,6 +11,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -98,8 +99,8 @@ func TestPutKVRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
@@ -127,8 +128,8 @@ func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*2; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
@@ -239,7 +240,7 @@ func TestNewLeaf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not a LEAF node")
 	}
 	if n.meta.keySize != 16 {
@@ -255,7 +256,7 @@ func TestNewLeaf(t *testing.T) {
 		t.Error("keyCount was not 0")
 	}
 
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {
@@ -280,8 +281,8 @@ func TestLoadLeaf(t *testing.T) {
 		}
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len:   BLOCKSIZE,
-			Cap:   BLOCKSIZE,
+			Len:   consts.BLOCKSIZE,
+			Cap:   consts.BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()
@@ -291,7 +292,7 @@ func TestLoadLeaf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {

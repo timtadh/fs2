@@ -7,13 +7,14 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
 
 type baseMeta struct {
-	flags    Flag
+	flags    consts.Flag
 	keySize  uint16
 	keyCount uint16
 	keyCap   uint16
@@ -35,7 +36,7 @@ func init() {
 
 type internal struct {
 	meta  baseMeta
-	bytes [BLOCKSIZE - baseMetaSize]byte
+	bytes [consts.BLOCKSIZE - baseMetaSize]byte
 }
 
 func loadBaseMeta(backing []byte) *baseMeta {
@@ -43,7 +44,7 @@ func loadBaseMeta(backing []byte) *baseMeta {
 	return (*baseMeta)(back.Array)
 }
 
-func (m *baseMeta) Init(flags Flag, keySize, keyCap uint16) {
+func (m *baseMeta) Init(flags consts.Flag, keySize, keyCap uint16) {
 	m.flags = flags
 	m.keySize = keySize
 	m.keyCount = 0
@@ -212,7 +213,7 @@ func (n *internal) delKeyAt(i int) error {
 
 func loadInternal(backing []byte) (*internal, error) {
 	n := asInternal(backing)
-	if n.meta.flags&iNTERNAL == 0 {
+	if n.meta.flags&consts.INTERNAL == 0 {
 		return nil, errors.Errorf("Was not an internal node")
 	}
 	return n, nil
@@ -235,7 +236,7 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	n := asInternal(backing)
 
 	keyCap := uint16(keysPerInternal(len(backing), int(keySize)))
-	n.meta.Init(iNTERNAL, keySize, keyCap)
+	n.meta.Init(consts.INTERNAL, keySize, keyCap)
 
 	return n, nil
 }

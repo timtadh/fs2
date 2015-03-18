@@ -5,6 +5,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
@@ -53,17 +54,17 @@ func (self *BpTree) Add(key, value []byte) error {
  * - When split is true left is the pointer to the new left block
  */
 func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error) {
-	var flags Flag
+	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = Flag(bytes[0])
+		flags = consts.Flag(bytes[0])
 		return nil
 	})
 	if err != nil {
 		return 0, 0, err
 	}
-	if flags&iNTERNAL != 0 {
+	if flags&consts.INTERNAL != 0 {
 		return self.internalInsert(n, key, value)
-	} else if flags&lEAF != 0 {
+	} else if flags&consts.LEAF != 0 {
 		return self.leafInsert(n, key, value)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")

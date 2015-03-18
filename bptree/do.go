@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
@@ -89,10 +90,10 @@ func (self *BpTree) do(
 	leafDo func(*leaf) error,
 ) error {
 	return self.bf.Do(a, 1, func(bytes []byte) error {
-		flags := Flag(bytes[0])
-		if flags&iNTERNAL != 0 {
+		flags := consts.Flag(bytes[0])
+		if flags&consts.INTERNAL != 0 {
 			return internalDo(asInternal(bytes))
-		} else if flags&lEAF != 0 {
+		} else if flags&consts.LEAF != 0 {
 			return leafDo(asLeaf(bytes))
 		} else {
 			return errors.Errorf("Unknown block type")

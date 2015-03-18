@@ -7,6 +7,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
@@ -21,7 +22,7 @@ type leafMeta struct {
 
 type leaf struct {
 	meta  leafMeta
-	bytes [BLOCKSIZE - leafMetaSize]byte
+	bytes [consts.BLOCKSIZE - leafMetaSize]byte
 }
 
 const leafMetaSize = 32
@@ -41,7 +42,7 @@ func loadLeafMeta(backing []byte) *leafMeta {
 	return (*leafMeta)(back.Array)
 }
 
-func (m *leafMeta) Init(flags Flag, keySize, keyCap, valSize uint16) {
+func (m *leafMeta) Init(flags consts.Flag, keySize, keyCap, valSize uint16) {
 	bm := &m.baseMeta
 	bm.Init(flags, keySize, keyCap)
 	m.next = 0
@@ -83,8 +84,8 @@ func (n *leaf) firstValue(key []byte) ([]byte, error) {
 }
 
 func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
-	flags := Flag(n.meta.flags)
-	if flags&VARCHAR_VALS != 0 {
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_VALS != 0 {
 		return n.doBig(bf, n.val(i), do)
 	} else {
 		return do(n.val(i))
@@ -92,8 +93,8 @@ func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error
 }
 
 func (n *leaf) doKeyAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
-	flags := Flag(n.meta.flags)
-	if flags&VARCHAR_KEYS != 0 {
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(bf, n.key(i), do)
 	} else {
 		return do(n.val(i))
@@ -296,7 +297,7 @@ func (n *leaf) delItemAt(idx int) error {
 
 func loadLeaf(backing []byte) (*leaf, error) {
 	n := asLeaf(backing)
-	if n.meta.flags&lEAF == 0 {
+	if n.meta.flags&consts.LEAF == 0 {
 		return nil, errors.Errorf("Was not a leaf node")
 	}
 	return n, nil
@@ -307,7 +308,7 @@ func asLeaf(backing []byte) *leaf {
 	return (*leaf)(back.Array)
 }
 
-func newLeaf(flags Flag, backing []byte, keySize, valSize uint16) (*leaf, error) {
+func newLeaf(flags consts.Flag, backing []byte, keySize, valSize uint16) (*leaf, error) {
 	n := asLeaf(backing)
 
 	available := uintptr(len(backing)) - leafMetaSize
@@ -315,6 +316,6 @@ func newLeaf(flags Flag, backing []byte, keySize, valSize uint16) (*leaf, error)
 	kvSize := uintptr(keySize) + uintptr(valSize)
 	keyCap := available / kvSize
 
-	n.meta.Init(lEAF|flags, keySize, uint16(keyCap), valSize)
+	n.meta.Init(consts.LEAF|flags, keySize, uint16(keyCap), valSize)
 	return n, nil
 }

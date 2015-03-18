@@ -3,6 +3,7 @@ package bptree
 import ()
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
@@ -34,17 +35,17 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 }
 
 func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
-	var flags Flag
+	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = Flag(bytes[0])
+		flags = consts.Flag(bytes[0])
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
-	if flags&iNTERNAL != 0 {
+	if flags&consts.INTERNAL != 0 {
 		return self.internalRemove(n, sibling, key, where)
-	} else if flags&lEAF != 0 {
+	} else if flags&consts.LEAF != 0 {
 		return self.leafRemove(n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")

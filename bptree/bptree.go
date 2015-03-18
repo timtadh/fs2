@@ -5,9 +5,11 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
+	"github.com/timtadh/fs2/varchar"
 )
 
 // The Ubiquitous B+ Tree
@@ -15,7 +17,7 @@ type BpTree struct {
 	bf       *fmap.BlockFile
 	metaBack []byte
 	meta     *bpTreeMeta
-	varchar  *varchar
+	varchar  *varchar.Varchar
 }
 
 type bpTreeMeta struct {
@@ -24,7 +26,7 @@ type bpTreeMeta struct {
 	varcharCtrl uint64
 	keySize     uint16
 	valSize     uint16
-	flags       Flag
+	flags       consts.Flag
 }
 
 var bpTreeMetaSize uintptr
@@ -34,7 +36,7 @@ func init() {
 	bpTreeMetaSize = reflect.TypeOf(*m).Size()
 }
 
-func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags Flag) ([]byte, *bpTreeMeta, error) {
+func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags consts.Flag) ([]byte, *bpTreeMeta, error) {
 	a, err := bf.Allocate()
 	if err != nil {
 		return nil, nil, err
@@ -81,8 +83,8 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 // (in bytes).  The size of the key cannot change after creation. The
 // maximum size is about ~1350 bytes.
 func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
-	if bf.BlockSize() != BLOCKSIZE {
-		return nil, errors.Errorf("The block size must be %v, got %v", BLOCKSIZE, bf.BlockSize())
+	if bf.BlockSize() != consts.BLOCKSIZE {
+		return nil, errors.Errorf("The block size must be %v, got %v", consts.BLOCKSIZE, bf.BlockSize())
 	}
 	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
@@ -91,7 +93,7 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := newVarchar(bf, meta.varcharCtrl)
+	v, err := varchar.New(bf, meta.varcharCtrl)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +113,7 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := loadVarchar(bf, meta.varcharCtrl)
+	v, err := varchar.Open(bf, meta.varcharCtrl)
 	if err != nil {
 		return nil, err
 	}

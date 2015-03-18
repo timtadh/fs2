@@ -9,6 +9,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -86,8 +87,8 @@ func TestPutKPRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*5; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
@@ -161,7 +162,7 @@ func TestNewInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -195,7 +196,7 @@ func TestNewInternal(t *testing.T) {
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -236,8 +237,8 @@ func TestLoadInternal(t *testing.T) {
 		*n.ptr(int(n.meta.keyCap - 1)) = 0xffffffffffffffff
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len:   BLOCKSIZE,
-			Cap:   BLOCKSIZE,
+			Len:   consts.BLOCKSIZE,
+			Cap:   consts.BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()
@@ -251,7 +252,7 @@ func TestLoadInternal(t *testing.T) {
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
