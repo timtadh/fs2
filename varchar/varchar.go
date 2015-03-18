@@ -39,7 +39,7 @@ type varFree struct {
 
 const varFreeSize = 24
 
-const mAX_UINT32 uint32 = 0xffffffff
+const maxArraySize uint32 = 0x7fffffff
 
 type varRunMeta struct {
 	flags  consts.Flag
@@ -52,7 +52,7 @@ const varRunMetaSize = 16
 
 type varRun struct {
 	meta  varRunMeta
-	bytes [mAX_UINT32-varRunMetaSize]byte
+	bytes [maxArraySize]byte
 }
 
 func assert_len(bytes []byte, length int) {
@@ -131,6 +131,9 @@ func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 
 // Allocate a varchar of the desired length.
 func (v *Varchar) Alloc(length int) (a uint64, err error) {
+	if uint32(length) >= maxArraySize {
+		return 0, errors.Errorf("Size is too large. Cannon allocate an array that big")
+	}
 	newAlloc := false
 	fullLength := v.allocAmt(length)
 	err = v.doCtrl(func(ctrl *varCtrl) error {
@@ -346,8 +349,21 @@ func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 // you want as long as no pointers escape. You can even change the
 // values of the bytes (and these changes will be persisted). However,
 // you cannot change the length of the varchar.
-func (v *Varchar) Do(a uint64, do func(bytes []byte) error) (err error) {
-	return errors.Errorf("Unimplemented")
+func (v *Varchar) Do(a uint64, do func([]byte) error) (err error) {
+	return v.doRun(a, func(m *varRunMeta) error {
+		blks := uint64(v.blksNeeded(int(m.length)))
+		offset, start, blksM := v.startOffsetBlks(a)
+		blks += blksM
+		return v.bf.Do(start, blks, func(bytes []byte) error {
+			bytes = bytes[offset:]
+			flags := consts.Flag(bytes[0])
+			if flags & consts.VARCHAR_RUN == 0 {
+				return errors.Errorf("bad address, was not a run block")
+			}
+			r := asRun(bytes)
+			return do(r.bytes[:r.meta.length])
+		})
+	})
 }
 
 // Ref increments the ref field of the block. It starts out as one (when
