@@ -129,12 +129,49 @@ func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	return v, nil
 }
 
+// Allocate a varchar of the desired length.
 func (v *Varchar) Alloc(length int) (a uint64, err error) {
-	return 0, errors.Errorf("Unimplemented")
+	newAlloc := false
+	fullLength := v.allocAmt(length)
+	err = v.doCtrl(func(ctrl *varCtrl) error {
+		if ctrl.freeLen == 0 {
+			newAlloc = true
+			return nil
+		}
+		found := false
+		cur := ctrl.freeHead
+		for i := 0; i < int(ctrl.freeLen); i++ {
+			err = v.doFree(cur, func(n *varFree) error {
+				if fullLength <= int(n.length) {
+					found = true
+					a = cur
+					return v.newRun(cur, length, fullLength, int(n.length))
+				}
+				cur = n.list.next
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			if found {
+				break
+			}
+		}
+		if !found {
+			newAlloc = true
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if newAlloc {
+		return v.allocNew(length, fullLength)
+	}
+	return a, nil
 }
 
-func (v *Varchar) allocNew(length int) (a uint64, err error) {
-	fullLength := v.allocAmt(length)
+func (v *Varchar) allocNew(length, fullLength int) (a uint64, err error) {
 	blks := v.blksNeeded(fullLength)
 	if blks > 1 {
 		a, err = v.bf.AllocateBlocks(blks)
@@ -144,24 +181,7 @@ func (v *Varchar) allocNew(length int) (a uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	err = v.bf.Do(a, uint64(blks), func(bytes []byte) error {
-		m := asRunMeta(bytes)
-		m.Init(length)
-		return nil
-	})
-	if err != nil {
-		return 0, err
-	}
-	extra, err := v.freeExtra(a, blks * v.bf.BlockSize(), fullLength)
-	if err != nil {
-		return 0, err
-	}
-	err = v.doRun(a, func(m *varRunMeta) error {
-		if extra != 0 {
-			m.extra = uint32(extra)
-		}
-		return nil
-	})
+	err = v.newRun(a, length, fullLength, blks * int(v.bf.BlockSize()))
 	if err != nil {
 		return 0, err
 	}
@@ -176,6 +196,9 @@ func (v *Varchar) allocAmt(length int) int {
 	return fullLength
 }
 
+// This frees the extra on the end of the segment starting at `a` for
+// length `aLen`. If the extra is too short it will return the amount of
+// extra. This should be added to the meta data for the attached run.
 func (v *Varchar) freeExtra(a uint64, aLen, allocLen int) (extra int, err error) {
 	if aLen == allocLen {
 		return 0, nil
@@ -203,6 +226,7 @@ func (v *Varchar) blksNeeded(length int) int {
 	return (length + (blkSize - m)) / blkSize
 }
 
+// Free the varchar at the address a.
 func (v *Varchar) Free(a uint64) (err error) {
 	var length int
 	err = v.doRun(a, func(m *varRunMeta) error {
@@ -301,14 +325,39 @@ func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 	})
 }
 
+// Interact with the contents of the varchar. The bytes passed into the
+// callback are UNSAFE. You could cause a segmentation fault if you
+// simply copy the *slice* out of the function. You need to copy the
+// data instead.
+//
+// The right way:
+//
+// 	var myBytes []byte
+// 	err = v.Do(a, func(bytes []byte) error {
+// 		myBytes = make([]byte, len(bytes))
+// 		copy(myBytes, bytes)
+// 		return nil
+// 	})
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+//
+// you can of course interact with the bytes in the callback in any way
+// you want as long as no pointers escape. You can even change the
+// values of the bytes (and these changes will be persisted). However,
+// you cannot change the length of the varchar.
 func (v *Varchar) Do(a uint64, do func(bytes []byte) error) (err error) {
 	return errors.Errorf("Unimplemented")
 }
 
+// Ref increments the ref field of the block. It starts out as one (when
+// allocated). Each call to ref will add 1 to that.
 func (v *Varchar) Ref(a uint64) (err error) {
 	return errors.Errorf("Unimplemented")
 }
 
+// Deref decremnents the ref field. If it ever reaches 0 it will
+// automatically be freed (by calling `v.Free(a)`).
 func (v *Varchar) Deref(a uint64) (err error) {
 	return errors.Errorf("Unimplemented")
 }
@@ -416,6 +465,44 @@ func (v *Varchar) newFree(a uint64, length int) error {
 		m.length = uint32(length)
 		m.list.prev = 0
 		m.list.next = 0
+		return nil
+	})
+}
+
+// This is for making new run segments. You probably (most definitely)
+// want to use doRun.
+func (v *Varchar) doAsRun(a uint64, do func(*varRunMeta) error) error {
+	offset, start, blks := v.startOffsetBlks(a)
+	return v.bf.Do(start, blks, func(bytes []byte) error {
+		bytes = bytes[offset:]
+		return do(asRunMeta(bytes))
+	})
+}
+
+// a == address of the start of the segment
+// length == the requested length of the block
+// fullLength == the length + meta data for the run. This is what is
+//               actually allocated
+// segLength == the length of the segment we are allocating in
+func (v *Varchar) newRun(a uint64, length, fullLength, segLength int) (err error) {
+	if fullLength <= segLength {
+		return errors.Errorf("tried to alloc in a segment smaller than the requested run")
+	}
+	err = v.doAsRun(a, func(m *varRunMeta) error {
+		m.Init(length)
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	extra, err := v.freeExtra(a, segLength, fullLength)
+	if err != nil {
+		return err
+	}
+	return v.doRun(a, func(m *varRunMeta) error {
+		if extra != 0 {
+			m.extra = uint32(extra)
+		}
 		return nil
 	})
 }
