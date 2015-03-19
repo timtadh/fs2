@@ -85,10 +85,10 @@ func (vc *varCtrl) Init() {
 	vc.freeHead = 0
 }
 
-func (vrm *varRunMeta) Init(length int) {
+func (vrm *varRunMeta) Init(length, extra int) {
 	vrm.flags = consts.VARCHAR_RUN
 	vrm.length = uint32(length)
-	vrm.extra = 0
+	vrm.extra = uint32(extra)
 	vrm.refs = 1
 }
 
@@ -146,6 +146,14 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 		for i := 0; i < int(ctrl.freeLen); i++ {
 			err = v.doFree(cur, func(n *varFree) error {
 				if fullLength <= int(n.length) {
+					if cur == ctrl.freeHead {
+						ctrl.freeHead = n.list.next
+					}
+					ctrl.freeLen--
+					err = v.listRemove(cur, v.doFreeNode)
+					if err != nil {
+						return err
+					}
 					found = true
 					a = cur
 					return v.newRun(cur, length, fullLength, int(n.length))
@@ -233,9 +241,12 @@ func (v *Varchar) blksNeeded(length int) int {
 func (v *Varchar) Free(a uint64) (err error) {
 	var length int
 	err = v.doRun(a, func(m *varRunMeta) error {
-		length = int(m.length + m.extra)
+		length = int(m.length + m.extra) + varRunMetaSize
 		return nil
 	})
+	if err != nil {
+		return err
+	}
 	return v.free(a, length)
 }
 
@@ -267,6 +278,7 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 				break
 			}
 		}
+		ctrl.freeLen++
 		err = v.listInsert(a, prev, cur, v.doFreeNode)
 		if err != nil {
 			return err
@@ -275,6 +287,26 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 			ctrl.freeHead = a
 		}
 		return v.coallesce(ctrl, a)
+	})
+}
+
+func (v *Varchar) coallesceAll() error {
+	return v.doCtrl(func(ctrl *varCtrl) (err error) {
+		cur := ctrl.freeHead
+		for cur != 0 {
+			err = v.coallesce(ctrl, cur)
+			if err != nil {
+				return err
+			}
+			err = v.doFree(cur, func(m *varFree) error {
+				cur = m.list.next
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 }
 
@@ -290,7 +322,7 @@ func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
 		}
 		if c.list.prev != 0 {
 			return v.doFree(c.list.prev, func(p *varFree) error {
-				if c.list.prev + uint64(c.length) == a {
+				if c.list.prev + uint64(p.length) == a {
 					return v.joinNext(ctrl, c.list.prev)
 					// the block at the previous "a" no longer exists.
 					// freeHead should not need to be adjusted because
@@ -306,22 +338,24 @@ func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
 	})
 }
 
+
 // joins the block at "a" to the next block. The next block is removed
 // from the free list and freeLen is decremented. Note, this will have
 // no effect on the freeHead.
 func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 	return v.doFree(a, func(c *varFree) error {
-		if c.list.next == 0 || a + uint64(c.length) != c.list.next {
+		next := c.list.next
+		if next == 0 || a + uint64(c.length) != next {
 			return errors.Errorf("invalid joinNext call")
 		}
-		err = v.listRemove(c.list.next, v.doFreeNode)
+		err = v.listRemove(next, v.doFreeNode)
 		if err != nil {
 			return err
 		}
-		ctrl.freeLen -= 1
-		return v.doFree(c.list.next, func(n *varFree) error {
+		ctrl.freeLen--
+		return v.doFree(next, func(n *varFree) error {
 			c.length += n.length
-			n.flags = 0
+			n.flags = 0xff
 			n.length = 0
 			return nil
 		})
@@ -351,9 +385,19 @@ func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 // you cannot change the length of the varchar.
 func (v *Varchar) Do(a uint64, do func([]byte) error) (err error) {
 	return v.doRun(a, func(m *varRunMeta) error {
-		blks := uint64(v.blksNeeded(int(m.length)))
-		offset, start, blksM := v.startOffsetBlks(a)
-		blks += blksM
+		fullLength := v.allocAmt(int(m.length))
+		blks := uint64(v.blksNeeded(fullLength))
+		offset, start, _ := v.startOffsetBlks(a)
+		for offset + uint64(fullLength) >= blks * uint64(v.bf.BlockSize()) {
+			blks++
+		}
+		size, err := v.bf.Size()
+		if err != nil {
+			return err
+		}
+		for start + blks * uint64(v.bf.BlockSize()) > uint64(size) {
+			blks--
+		}
 		return v.bf.Do(start, blks, func(bytes []byte) error {
 			bytes = bytes[offset:]
 			flags := consts.Flag(bytes[0])
@@ -467,14 +511,14 @@ func (v *Varchar) do(
 	return v.bf.Do(start, blks, func(bytes []byte) error {
 		bytes = bytes[offset:]
 		flags := consts.Flag(bytes[0])
-		if flags&consts.VARCHAR_CTRL != 0 {
+		if flags == consts.VARCHAR_CTRL {
 			return ctrlDo(asCtrl(bytes))
-		} else if flags&consts.VARCHAR_FREE != 0 {
+		} else if flags == consts.VARCHAR_FREE {
 			return freeDo(asFree(bytes))
-		} else if flags&consts.VARCHAR_RUN != 0 {
+		} else if flags == consts.VARCHAR_RUN {
 			return runDo(asRunMeta(bytes))
 		} else {
-			return errors.Errorf("Unknown block type")
+			return errors.Errorf("Unknown block type, %v", flags)
 		}
 	})
 }
@@ -518,11 +562,11 @@ func (v *Varchar) doAsRun(a uint64, do func(*varRunMeta) error) error {
 //               actually allocated
 // segLength == the length of the segment we are allocating in
 func (v *Varchar) newRun(a uint64, length, fullLength, segLength int) (err error) {
-	if fullLength <= segLength {
+	if fullLength > segLength {
 		return errors.Errorf("tried to alloc in a segment smaller than the requested run")
 	}
 	err = v.doAsRun(a, func(m *varRunMeta) error {
-		m.Init(length)
+		m.Init(length, fullLength - length - varRunMetaSize)
 		return nil
 	})
 	if err != nil {
@@ -534,7 +578,7 @@ func (v *Varchar) newRun(a uint64, length, fullLength, segLength int) (err error
 	}
 	return v.doRun(a, func(m *varRunMeta) error {
 		if extra != 0 {
-			m.extra = uint32(extra)
+			m.extra += uint32(extra)
 		}
 		return nil
 	})
