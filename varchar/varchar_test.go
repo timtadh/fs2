@@ -139,68 +139,63 @@ func TestAlloc(x *testing.T) {
 
 func TestFree(x *testing.T) {
 	t := (*T)(x)
-	test := func() {
-		v, clean := t.varchar()
-		defer clean()
-		avs := make([]*AV, 0, TESTS)
-		for i := 0; i < TESTS; i++ {
-			r := t.rand_varchar(0, fmap.BLOCKSIZE*12)
-			a, err := v.Alloc(len(r))
-			t.assert_nil(err)
-			t.assert_nil(v.Do(a, func(data []byte) error {
-				copy(data, r)
-				return nil
-			}))
-			avs = append(avs, &AV{a, r})
-		}
-		for _, av := range avs {
-			t.assert_nil(v.Do(av.a, func(data []byte) error {
-				t.assert("data == r", bytes.Equal(data, av.value))
-				return nil
-			}))
-		}
-		var freeLen int
-		t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
-			freeLen = int(ctrl.freeLen)
+	v, clean := t.varchar()
+	defer clean()
+	avs := make([]*AV, 0, TESTS)
+	for i := 0; i < TESTS; i++ {
+		r := t.rand_varchar(0, fmap.BLOCKSIZE*12)
+		a, err := v.Alloc(len(r))
+		t.assert_nil(err)
+		t.assert_nil(v.Do(a, func(data []byte) error {
+			copy(data, r)
 			return nil
 		}))
-		for i, av := range avs {
-			t.assert_nil(v.Free(av.a))
-			for _, av := range avs[i+1:] {
-				t.assert_nil(v.Do(av.a, func(data []byte) error {
-					t.assert("data == r", bytes.Equal(data, av.value))
-					return nil
-				}))
-			}
-		}
-		t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
-			t.assert_nil(v.coallesceAll())
-			t.assert(fmt.Sprintf("freeLen, %v, <= 2", ctrl.freeLen), ctrl.freeLen <= 2)
+		avs = append(avs, &AV{a, r})
+	}
+	for _, av := range avs {
+		t.assert_nil(v.Do(av.a, func(data []byte) error {
+			t.assert("data == r", bytes.Equal(data, av.value))
 			return nil
-			/*
-			return v.doFree(ctrl.freeHead, func(m *varFree) error {
-				t.assert("head.Len >= sum", m.length >= uint32(sum))
-				return nil
-			})*/
 		}))
-		for _, av := range avs {
-			a, err := v.Alloc(len(av.value))
-			t.assert_nil(err)
-			t.assert_nil(v.Do(a, func(data []byte) error {
-				copy(data, av.value)
-				return nil
-			}))
-			av.a = a
-		}
-		for _, av := range avs {
+	}
+	var freeLen int
+	t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
+		freeLen = int(ctrl.freeLen)
+		return nil
+	}))
+	for i, av := range avs {
+		t.assert_nil(v.Free(av.a))
+		for _, av := range avs[i+1:] {
 			t.assert_nil(v.Do(av.a, func(data []byte) error {
 				t.assert("data == r", bytes.Equal(data, av.value))
 				return nil
 			}))
 		}
 	}
-	for TEST := 0; TEST < 1; TEST++ {
-		test()
+	t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
+		t.assert_nil(v.coallesceAll())
+		t.assert(fmt.Sprintf("freeLen, %v, <= 1", ctrl.freeLen), ctrl.freeLen <= 1)
+		return nil
+		/*
+		return v.doFree(ctrl.freeHead, func(m *varFree) error {
+			t.assert("head.Len >= sum", m.length >= uint32(sum))
+			return nil
+		})*/
+	}))
+	for _, av := range avs {
+		a, err := v.Alloc(len(av.value))
+		t.assert_nil(err)
+		t.assert_nil(v.Do(a, func(data []byte) error {
+			copy(data, av.value)
+			return nil
+		}))
+		av.a = a
+	}
+	for _, av := range avs {
+		t.assert_nil(v.Do(av.a, func(data []byte) error {
+			t.assert("data == r", bytes.Equal(data, av.value))
+			return nil
+		}))
 	}
 }
 
