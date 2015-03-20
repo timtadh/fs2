@@ -97,6 +97,8 @@ func (t *T) newLeaf() *leaf {
 
 func TestPutKVRand(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {
@@ -115,17 +117,19 @@ func TestPutKVRand(x *testing.T) {
 			// t.Log(n)
 			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 	}
 }
 
 func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS*2; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {
@@ -143,11 +147,11 @@ func TestPutDelKVRand(x *testing.T) {
 			kvs = append(kvs, kv)
 			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -160,11 +164,11 @@ func TestPutDelKVRand(x *testing.T) {
 		for _, kv := range kvs {
 			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -191,6 +195,8 @@ func TestPutDelKVRand(x *testing.T) {
 
 func TestPutKV(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	n, err := newLeaf(0, make([]byte, 256), 8, 8)
 	t.assert_nil(err)
 	k1 := uint64(7)
@@ -205,34 +211,34 @@ func TestPutKV(x *testing.T) {
 	v5 := t.rand_bytes(8)
 	t.assert_nil(n.putKV(t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert_value(v1)(n.firstValue(t.bkey(&k1)))
+	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
 
 	t.assert_nil(n.putKV(t.bkey(&k2), v2))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert_value(v2)(n.firstValue(t.bkey(&k2)))
+	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
 
 	t.assert_nil(n.putKV(t.bkey(&k3), v3))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert_value(v3)(n.firstValue(t.bkey(&k3)))
+	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
 
 	t.assert_nil(n.putKV(t.bkey(&k4), v4))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert_value(v4)(n.firstValue(t.bkey(&k4)))
+	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
 
 	t.assert_nil(n.putKV(t.bkey(&k5), v5))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
-	t.assert_value(v5)(n.firstValue(t.bkey(&k5)))
+	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert_value(v1)(n.firstValue(t.bkey(&k1)))
+	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert_value(v2)(n.firstValue(t.bkey(&k2)))
+	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert_value(v3)(n.firstValue(t.bkey(&k3)))
+	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert_value(v4)(n.firstValue(t.bkey(&k4)))
+	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
-	t.assert_value(v5)(n.firstValue(t.bkey(&k5)))
+	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 }
 
 func TestNewLeaf(t *testing.T) {

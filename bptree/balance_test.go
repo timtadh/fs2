@@ -76,6 +76,8 @@ func TestBalanceInternal(x *testing.T) {
 
 func TestBalanceLeaf(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE >= consts.BLOCKSIZE {
@@ -103,11 +105,11 @@ func TestBalanceLeaf(x *testing.T) {
 			kvs = append(kvs, kv)
 			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		b, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
@@ -115,9 +117,9 @@ func TestBalanceLeaf(x *testing.T) {
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
 			if n.Has(kv.key) {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 			} else {
-				t.assert_value(kv.value)(b.firstValue(kv.key))
+				t.assert_value(kv.value)(b.firstValue(bpt.varchar, kv.key))
 			}
 		}
 		for i := 0; i < n.keyCount(); i++ {

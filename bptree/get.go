@@ -208,8 +208,8 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 		}
 		err = self.doKV(a, i, func(k, v []byte) error {
 			key = make([]byte, len(k))
-			value = make([]byte, len(v))
 			copy(key, k)
+			value = make([]byte, len(v))
 			copy(value, v)
 			return nil
 		})

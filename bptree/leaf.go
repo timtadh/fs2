@@ -11,6 +11,7 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
+	"github.com/timtadh/fs2/varchar"
 )
 
 type leafMeta struct {
@@ -75,52 +76,50 @@ func (n *leaf) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
-func (n *leaf) firstValue(key []byte) ([]byte, error) {
+func (n *leaf) firstValue(vc *varchar.Varchar, key []byte) ([]byte, error) {
 	i, has := find(n, key)
 	if !has {
 		return nil, errors.Errorf("leaf does not have that key")
 	}
-	return n.val(i), nil
+	v := n.val(i)
+	if n.meta.flags & consts.VARCHAR_VALS != 0 {
+		var value []byte
+		err := vc.Do(*slice.AsUint64(&v), func(vbytes []byte) error {
+			value = make([]byte, len(vbytes))
+			copy(value, vbytes)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		return value, nil
+	} else {
+		return v, nil
+	}
 }
 
-func (n *leaf) doValueAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
+func (n *leaf) doValueAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_VALS != 0 {
-		return n.doBig(bf, n.val(i), do)
+		return n.doBig(vc, n.val(i), do)
 	} else {
 		return do(n.val(i))
 	}
 }
 
-func (n *leaf) doKeyAt(bf *fmap.BlockFile, i int, do func([]byte) error) error {
+func (n *leaf) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_KEYS != 0 {
-		return n.doBig(bf, n.key(i), do)
+		return n.doBig(vc, n.key(i), do)
 	} else {
 		return do(n.val(i))
 	}
 }
 
-func (n *leaf) doBig(bf *fmap.BlockFile, bv_bytes []byte, do func([]byte) error) error {
-	bv := (*bigValue)(slice.AsSlice(&bv_bytes).Array)
-	blks := blksNeeded(bf, int(bv.size))
-	if bv.offset == 0 {
-		return errors.Errorf("the bv.offset, %d, was 0.", bv.offset)
-	} else if bv.offset%4096 != 0 {
-		return errors.Errorf("the bv.offset, %d, was not block aligned", bv.offset)
-	}
-	return bf.Do(bv.offset, uint64(blks), func(bytes []byte) error {
-		return do(bytes[:bv.size])
+func (n *leaf) doBig(vc *varchar.Varchar, v []byte, do func([]byte) error) error {
+	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
+		return do(bytes)
 	})
-}
-
-func blksNeeded(bf *fmap.BlockFile, size int) int {
-	blk := int(bf.BlockSize())
-	m := size % blk
-	if m == 0 {
-		return size / blk
-	}
-	return (size + (blk - m)) / blk
 }
 
 func (n *leaf) key(i int) []byte {

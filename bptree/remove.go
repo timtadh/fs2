@@ -5,6 +5,7 @@ import ()
 import (
 	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
+	"github.com/timtadh/fs2/slice"
 )
 
 // Remove one or more key/value pairs at the given key. The callback
@@ -148,7 +149,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		i := locs[x].i
 		err = self.doLeaf(a, func(n *leaf) error {
 			var remove bool = false
-			err = n.doValueAt(self.bf, i, func(value []byte) error {
+			err = n.doValueAt(self.varchar, i, func(value []byte) error {
 				remove = where(value)
 				return nil
 			})
@@ -157,7 +158,13 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 			}
 			if remove {
 				// TODO: Add logic to deref and remove big values and keys
+				v := n.val(i)
+				vi := *slice.AsUint64(&v)
 				err = n.delItemAt(i)
+				if err != nil {
+					return err
+				}
+				err = self.varchar.Deref(vi)
 				if err != nil {
 					return err
 				}
@@ -186,14 +193,3 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 	return b, nil
 }
 
-func (self *BpTree) removeBigValue(a uint64, size uint32) (err error) {
-	blksize := uint64(self.bf.BlockSize())
-	blks := uint64(blksNeeded(self.bf, int(size)))
-	for i := uint64(0); i < blks; i++ {
-		err = self.bf.Free(a + (blksize * i))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}

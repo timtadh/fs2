@@ -11,7 +11,7 @@ import (
 
 func (t *T) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
-	bpt, err := New(bf, 8, 8)
+	bpt, err := New(bf, 8, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestLeafInsert(x *testing.T) {
 			t.assert_nil(err)
 			t.assert("wrong key", t.key(kv.key) == t.key(k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
 			}))
 		}
@@ -158,7 +158,7 @@ func TestLeafSplit(x *testing.T) {
 			t.assert_nil(err)
 			t.assert("wrong key", t.key(kv.key) == t.key(k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
 			}))
 		}
@@ -193,7 +193,7 @@ func TestInsert3Level(x *testing.T) {
 		k2 := t.key(k)
 		t.assert(fmt.Sprintf("wrong key %v == %v", k1, k2), k1 == k2)
 		t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-			t.assert_value(kv.value)(n.firstValue(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 			return nil
 		}))
 	}
@@ -329,11 +329,15 @@ func TestInternalInsertSplit(x *testing.T) {
 		bpt.meta.root = I
 		t.assert_nil(bpt.writeMeta())
 		t.assert_nil(bpt.doInternal(I, func(I *internal) error {
+			v0, err := bpt.checkValue(kvs[0].value)
+			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(a, func(a *leaf) error {
-				return a.putKV(kvs[0].key, kvs[0].value)
+				return a.putKV(kvs[0].key, v0)
 			}))
+			vL, err := bpt.checkValue(kvs[LEAF_CAP].value)
+			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(b, func(b *leaf) error {
-				return b.putKV(kvs[LEAF_CAP].key, kvs[LEAF_CAP].value)
+				return b.putKV(kvs[LEAF_CAP].key, vL)
 			}))
 			t.assert_nil(I.putKP(kvs[0].key, a))
 			t.assert_nil(I.putKP(kvs[LEAF_CAP].key, b))
@@ -341,14 +345,18 @@ func TestInternalInsertSplit(x *testing.T) {
 		}))
 		for i := 1; i < LEAF_CAP; i++ {
 			kv := kvs[i]
-			p, q, err := bpt.leafInsert(a, kv.key, kv.value)
+			v, err := bpt.checkValue(kv.value)
+			t.assert_nil(err)
+			p, q, err := bpt.leafInsert(a, kv.key, v)
 			t.assert_nil(err)
 			t.assert("p should be a", p == a)
 			t.assert("q should be 0", q == 0)
 		}
 		for i := LEAF_CAP + 1; i < len(kvs); i++ {
 			kv := kvs[i]
-			p, q, err := bpt.leafInsert(b, kv.key, kv.value)
+			v, err := bpt.checkValue(kv.value)
+			t.assert_nil(err)
+			p, q, err := bpt.leafInsert(b, kv.key, v)
 			t.assert_nil(err)
 			t.assert("p should be b", p == b)
 			t.assert("q should be 0", q == 0)
@@ -357,7 +365,9 @@ func TestInternalInsertSplit(x *testing.T) {
 			key:   t.rand_key(),
 			value: t.rand_key(),
 		}
-		p, q, err := bpt.internalInsert(I, split_kv.key, split_kv.value)
+		sv, err := bpt.checkValue(split_kv.value)
+		t.assert_nil(err)
+		p, q, err := bpt.internalInsert(I, split_kv.key, sv)
 		t.assert_nil(err)
 		t.assert("p should be I", p == I)
 		t.assert("q should not be 0", q != 0)
@@ -382,7 +392,7 @@ func TestInternalInsertSplit(x *testing.T) {
 			k2 := t.key(k)
 			t.assert(fmt.Sprintf("wrong key %v == %v", k1, k2), k1 == k2)
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
 			}))
 		}

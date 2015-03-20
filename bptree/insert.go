@@ -7,7 +7,28 @@ import (
 import (
 	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
+	"github.com/timtadh/fs2/slice"
 )
+
+func (self *BpTree) checkValue(value []byte) ([]byte, error) {
+	if self.meta.flags&consts.VARCHAR_VALS != 0 {
+		v, err := self.varchar.Alloc(len(value))
+		if err != nil {
+			return nil, err
+		}
+		err = self.varchar.Do(v, func(data []byte) error {
+			copy(data, value)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		value = slice.Uint64AsSlice(&v)
+	} else if len(value) != int(self.meta.valSize) {
+		return nil, errors.Errorf("value was the wrong size")
+	}
+	return value, nil
+}
 
 // Add a key/value pair to the tree. There is a reason this isn't called
 // `Put`, this operation does not replace or modify any data in the
@@ -16,6 +37,10 @@ import (
 func (self *BpTree) Add(key, value []byte) error {
 	if len(key) != int(self.meta.keySize) {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
+	}
+	value, err := self.checkValue(value)
+	if err != nil {
+		return err
 	}
 	a, b, err := self.insert(self.meta.root, key, value)
 	if err != nil {

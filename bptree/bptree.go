@@ -79,17 +79,32 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 	return data, meta, nil
 }
 
-// Create a new B+ Tree in the given BlockFile with the given key size
-// (in bytes).  The size of the key cannot change after creation. The
-// maximum size is about ~1350 bytes.
+// Create a new B+ Tree in the given BlockFile.
+//
+// bf *BlockFile. Can be an anonymous map or a file backed map
+// keySize int. If this is negative it will use varchar keys
+// valSize int. If this is negative it will use varchar values
 func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 	if bf.BlockSize() != consts.BLOCKSIZE {
 		return nil, errors.Errorf("The block size must be %v, got %v", consts.BLOCKSIZE, bf.BlockSize())
 	}
-	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
+	if keysPerInternal(int(bf.BlockSize()), keySize + valSize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}
-	back, meta, err := newBpTreeMeta(bf, uint16(keySize), uint16(valSize), 0)
+	if keySize == 0 {
+		return nil, errors.Errorf("keySize was 0")
+	}
+	var flags consts.Flag = 0
+	if keySize < 0 {
+		keySize = 8
+		flags = flags | consts.VARCHAR_KEYS
+		return nil, errors.Errorf("varchar keys not yet supported")
+	}
+	if valSize < 0 {
+		valSize = 8
+		flags = flags | consts.VARCHAR_VALS
+	}
+	back, meta, err := newBpTreeMeta(bf, uint16(keySize), uint16(valSize), flags)
 	if err != nil {
 		return nil, err
 	}

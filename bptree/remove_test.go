@@ -49,7 +49,7 @@ func TestLeafRemove(x *testing.T) {
 			t.assert_nil(err)
 			t.assert("wrong key", t.key(kv.key) == t.key(k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
 			}))
 		}
@@ -60,7 +60,7 @@ func TestLeafRemove(x *testing.T) {
 			t.assert_nil(err)
 			t.assert("wrong key", t.key(kv.key) == t.key(k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
-				t.assert_value(kv.value)(n.firstValue(kv.key))
+				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
 			}))
 		}
@@ -77,7 +77,7 @@ func TestLeafRemove(x *testing.T) {
 			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 				if t.key(kv.key) == t.key(k) {
-					t.assert_notValue(kv.value)(n.firstValue(kv.key))
+					t.assert_notValue(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				}
 				return nil
 			}))

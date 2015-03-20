@@ -146,6 +146,8 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 		for i := 0; i < int(ctrl.freeLen); i++ {
 			err = v.doFree(cur, func(n *varFree) error {
 				if fullLength <= int(n.length) {
+					found = true
+					a = cur
 					if cur == ctrl.freeHead {
 						ctrl.freeHead = n.list.next
 					}
@@ -154,8 +156,6 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 					if err != nil {
 						return err
 					}
-					found = true
-					a = cur
 					return v.newRun(cur, length, fullLength, int(n.length))
 				}
 				cur = n.list.next
@@ -290,26 +290,6 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 	})
 }
 
-func (v *Varchar) coallesceAll() error {
-	return v.doCtrl(func(ctrl *varCtrl) (err error) {
-		cur := ctrl.freeHead
-		for cur != 0 {
-			err = v.coallesce(ctrl, cur)
-			if err != nil {
-				return err
-			}
-			err = v.doFree(cur, func(m *varFree) error {
-				cur = m.list.next
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 // coallesce blocks centered around "a". The address "a" may not be a
 // block after this function returns.
 func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
@@ -348,11 +328,11 @@ func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 		if next == 0 || a + uint64(c.length) != next {
 			return errors.Errorf("invalid joinNext call")
 		}
+		ctrl.freeLen--
 		err = v.listRemove(next, v.doFreeNode)
 		if err != nil {
 			return err
 		}
-		ctrl.freeLen--
 		return v.doFree(next, func(n *varFree) error {
 			c.length += n.length
 			n.flags = 0xff
