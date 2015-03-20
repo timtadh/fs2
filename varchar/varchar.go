@@ -14,6 +14,7 @@ import (
 type Varchar struct {
 	bf *fmap.BlockFile
 	a uint64
+	blkSize int
 }
 
 type varCtrl struct {
@@ -99,7 +100,7 @@ func (vrm *varRunMeta) Init(length, extra int) {
 // important for the parent structure to track the location of this
 // control block.
 func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
-	v = &Varchar{bf: bf, a: a}
+	v = &Varchar{bf: bf, a: a, blkSize: bf.BlockSize()}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
 		ctrl.Init()
@@ -115,7 +116,7 @@ func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 // as the control block. This function will confirm that the control
 // block is indeed a properly formated control block.
 func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
-	v = &Varchar{bf: bf, a: a}
+	v = &Varchar{bf: bf, a: a, blkSize: bf.BlockSize()}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
 		if ctrl.flags&consts.VARCHAR_CTRL == 0 {
@@ -471,7 +472,7 @@ func (v *Varchar) doCtrl(do func(*varCtrl) error) error {
 }
 
 func (v *Varchar) startOffsetBlks(a uint64) (offset, start, blks uint64) {
-	blkSize := uint64(v.bf.BlockSize())
+	blkSize := uint64(v.blkSize)
 	offset = a % blkSize
 	start = a - offset
 	blks = 1
