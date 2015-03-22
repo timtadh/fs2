@@ -29,7 +29,7 @@ func (t *B) blkfile() (*fmap.BlockFile, func()) {
 
 func (t *B) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
-	bpt, err := New(bf, 8, 8)
+	bpt, err := New(bf, 8, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
 				key:   t.rand_key(),
-				value: t.rand_value(8),
+				value: t.rand_value(24),
 			}
 			kvs = append(kvs, kv)
 		}

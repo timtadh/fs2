@@ -40,7 +40,7 @@ func (kvs KVS) Less(i, j int) bool {
 func (t *T) make_kv() *KV {
 	return &KV{
 		key:   t.rand_key(),
-		value: t.rand_value(8),
+		value: t.rand_varchar(1, 127),
 	}
 }
 
@@ -80,7 +80,10 @@ func TestLeafInsert(x *testing.T) {
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
-			kv := t.make_kv()
+			kv := &KV{
+				key:   t.rand_key(),
+				value: t.rand_value(8),
+			}
 			if !n.fitsAnother() {
 				break
 			}
