@@ -3,6 +3,7 @@ package bptree
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"reflect"
 )
 
@@ -67,17 +68,23 @@ func (n *leaf) String() string {
 		n.meta, n.keys()[:n.meta.keyCount*n.meta.keySize], n.vals()[:n.meta.keyCount*n.meta.valSize])
 }
 
-func (n *leaf) Has(key []byte) bool {
-	_, has := find(n, key)
-	return has
-}
-
 func (n *leaf) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
+func (n *leaf) _has(v *varchar.Varchar, key []byte) bool {
+	_, has, err := find(v, n, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return has
+}
+
 func (n *leaf) firstValue(vc *varchar.Varchar, key []byte) ([]byte, error) {
-	i, has := find(n, key)
+	i, has, err := find(vc, n, key)
+	if err != nil {
+		return nil, err
+	}
 	if !has {
 		return nil, errors.Errorf("leaf does not have that key")
 	}
@@ -112,7 +119,7 @@ func (n *leaf) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error 
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(vc, n.key(i), do)
 	} else {
-		return do(n.val(i))
+		return do(n.key(i))
 	}
 }
 
@@ -172,7 +179,7 @@ func (n *leaf) pure() bool {
 	return true
 }
 
-func (n *leaf) putKV(key []byte, value []byte) (err error) {
+func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
@@ -185,7 +192,10 @@ func (n *leaf) putKV(key []byte, value []byte) (err error) {
 	if !n.fitsAnother() {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
-	idx, _ := find(n, key)
+	idx, _, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
 	keys := n.keys()
 	vals := n.vals()
 	keySize := int(n.meta.keySize)
@@ -233,14 +243,17 @@ func (n *leaf) putKV(key []byte, value []byte) (err error) {
 	return nil
 }
 
-func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
+func (n *leaf) delKV(v *varchar.Varchar, key []byte, which func([]byte) bool) error {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount <= 0 {
 		return errors.Errorf("block is empty")
 	}
-	idx, has := find(n, key)
+	idx, has, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
 	if !has {
 		return errors.Errorf("that key was not in the block")
 	}

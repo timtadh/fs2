@@ -7,13 +7,17 @@ import (
 import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
+	"github.com/timtadh/fs2/varchar"
 )
 
-func (a *internal) balance(b *internal) error {
+func (a *internal) balance(v *varchar.Varchar, b *internal) error {
 	if b.meta.keyCount != 0 {
 		return errors.Errorf("b was not empty")
 	}
-	var m int = a.balancePoint()
+	m, err := a.balancePoint(v)
+	if err != nil {
+		return err
+	}
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
@@ -27,11 +31,14 @@ func (a *internal) balance(b *internal) error {
 	return nil
 }
 
-func (a *leaf) balance(b *leaf) error {
+func (a *leaf) balance(v *varchar.Varchar, b *leaf) error {
 	if b.meta.keyCount != 0 {
 		return errors.Errorf("b was not empty")
 	}
-	var m int = a.balancePoint()
+	m, err := a.balancePoint(v)
+	if err != nil {
+		return err
+	}
 	if m == 0 {
 		// we had a pure balance
 		return nil
@@ -53,31 +60,53 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 	return nil
 }
 
-func (n *internal) balancePoint() int {
+func (n *internal) balancePoint(v *varchar.Varchar) (int, error) {
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(n, m)
+	return noSplitBalancePoint(v, n, m)
 }
 
-func (n *leaf) balancePoint() int {
+func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
 	if n.meta.keyCount == 0 {
-		return 0
+		return 0, nil
 	}
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(n, m)
+	return noSplitBalancePoint(v, n, m)
 }
 
-func noSplitBalancePoint(keys keyed, m int) int {
-	for m < keys.keyCount() && bytes.Equal(keys.key(m-1), keys.key(m)) {
+func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
+	var eq bool = true
+	for m < keys.keyCount() && eq {
+		err := keys.doKeyAt(v, m-1, func(a []byte) error {
+			return keys.doKeyAt(v, m, func(b []byte) error {
+				eq = bytes.Equal(a, b)
+				return nil
+			})
+		})
+		if err != nil {
+			return 0, err
+		}
 		m++
 	}
 	if m >= keys.keyCount() && m > 0 {
+		eq = true
 		m--
-		for m > 0 && bytes.Equal(keys.key(m-1), keys.key(m)) {
+		for m > 0 && eq {
+			err := keys.doKeyAt(v, m-1, func(a []byte) error {
+				return keys.doKeyAt(v, m, func(b []byte) error {
+					eq = bytes.Equal(a, b)
+					return nil
+				})
+			})
+			if err != nil {
+				return 0, err
+			}
 			m--
 		}
 	}
-	return m
+	return m, nil
 }
+
+/*** outdated. Needs to be updated for doKeyAt
 
 // merges b into a. after this method returns b will be empty
 func (a *leaf) merge(b *leaf) error {
@@ -114,3 +143,6 @@ func (a *leaf) merge(b *leaf) error {
 	}
 	return nil
 }
+
+***/
+

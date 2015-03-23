@@ -2,6 +2,7 @@ package bptree
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"unsafe"
 )
@@ -11,6 +12,7 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
+	"github.com/timtadh/fs2/varchar"
 )
 
 type baseMeta struct {
@@ -67,11 +69,6 @@ func (n *internal) String() string {
 		n.meta)
 }
 
-func (n *internal) Has(key []byte) bool {
-	_, has := find(n, key)
-	return has
-}
-
 func (n *internal) key(i int) []byte {
 	keySize := int(n.meta.keySize)
 	s := i * keySize
@@ -100,26 +97,52 @@ func (n *internal) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
+func (n *internal) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_KEYS != 0 {
+		return n.doBig(vc, n.key(i), do)
+	} else {
+		return do(n.key(i))
+	}
+}
+
+func (n *internal) doBig(vc *varchar.Varchar, v []byte, do func([]byte) error) error {
+	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
+		return do(bytes)
+	})
+}
+
 func (n *internal) full() bool {
 	return n.meta.keyCount+1 >= n.meta.keyCap
 }
 
-func (n *internal) findPtr(key []byte) (uint64, error) {
-	i, has := find(n, key)
+func (n *internal) findPtr(v *varchar.Varchar, key []byte) (uint64, error) {
+	i, has, err := find(v, n, key)
+	if err != nil {
+		return 0, err
+	}
 	if !has {
 		return 0, errors.Errorf("key was not in the internal node")
 	}
 	return *n.ptr(i), nil
 }
 
-func (n *internal) putKP(key []byte, p uint64) error {
+func (n *internal) _has(v *varchar.Varchar, key []byte) bool {
+	_, has, err := find(v, n, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return has
+}
+
+func (n *internal) putKP(v *varchar.Varchar, key []byte, p uint64) error {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
 	if n.full() {
 		return errors.Errorf("block is full")
 	}
-	err := n.putKey(key, func(i int) error {
+	err := n.putKey(v, key, func(i int) error {
 		ptrs := n.ptrs()
 		chunkSize := (int(n.meta.keyCount) - i) * ptrSize
 		s := i * ptrSize
@@ -136,8 +159,11 @@ func (n *internal) putKP(key []byte, p uint64) error {
 	return nil
 }
 
-func (n *internal) delKP(key []byte) error {
-	i, has := find(n, key)
+func (n *internal) delKP(v *varchar.Varchar, key []byte) error {
+	i, has, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
 	if !has {
 		return errors.Errorf("key was not in the internal node")
 	} else if i < 0 {
@@ -167,11 +193,14 @@ func (n *internal) delItemAt(i int) error {
 	return nil
 }
 
-func (n *internal) putKey(key []byte, put func(i int) error) error {
+func (n *internal) putKey(v *varchar.Varchar, key []byte, put func(i int) error) error {
 	if n.keyCount()+1 >= int(n.meta.keyCap) {
 		return errors.Errorf("Block is full.")
 	}
-	i, has := find(n, key)
+	i, has, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
 	if i < 0 {
 		return errors.Errorf("find returned a negative int")
 	} else if i >= int(n.meta.keyCap) {

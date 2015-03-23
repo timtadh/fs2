@@ -39,7 +39,7 @@ func (kvs KVS) Less(i, j int) bool {
 
 func (t *T) make_kv() *KV {
 	return &KV{
-		key:   t.rand_key(),
+		key: t.rand_key(), // t.rand_varchar(1, 127),
 		value: t.rand_varchar(1, 127),
 	}
 }
@@ -88,7 +88,7 @@ func TestLeafInsert(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
@@ -229,7 +229,7 @@ func TestEndOfPureRun(x *testing.T) {
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				return cur.putKV(kv.key, kv.value)
+				return cur.putKV(bpt.varchar, kv.key, kv.value)
 			}))
 		}
 		end, err := bpt.endOfPureRun(start)
@@ -250,7 +250,7 @@ func TestInternalSplit(x *testing.T) {
 			kp := t.make_kp()
 			kps = append(kps, kp)
 			t.assert_nil(bpt.doInternal(a, func(a *internal) error {
-				return a.putKP(kp.key, kp.ptr)
+				return a.putKP(bpt.varchar, kp.key, kp.ptr)
 			}))
 		}
 		sort.Sort(kps)
@@ -264,14 +264,16 @@ func TestInternalSplit(x *testing.T) {
 		t.assert_nil(bpt.doInternal(p, func(p *internal) error {
 			for ; i < len(kps); i++ {
 				kp := kps[i]
-				j, has := find(p, kp.key)
+				j, has, err := find(bpt.varchar, p, kp.key)
+				t.assert_nil(err)
 				if !has {
 					break
 				}
 				t.assert("keys should equal", t.key(p.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *p.ptr(j) == kp.ptr)
 			}
-			j, has := find(p, split_kp.key)
+			j, has, err := find(bpt.varchar, p, split_kp.key)
+			t.assert_nil(err)
 			if !has {
 				return nil
 			}
@@ -283,14 +285,16 @@ func TestInternalSplit(x *testing.T) {
 		t.assert_nil(bpt.doInternal(q, func(q *internal) error {
 			for ; i < len(kps); i++ {
 				kp := kps[i]
-				j, has := find(q, kp.key)
+				j, has, err := find(bpt.varchar, q, kp.key)
+				t.assert_nil(err)
 				if !has {
 					break
 				}
 				t.assert("keys should equal", t.key(q.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *q.ptr(j) == kp.ptr)
 			}
-			j, has := find(q, split_kp.key)
+			j, has, err := find(bpt.varchar, q, split_kp.key)
+			t.assert_nil(err)
 			if !has {
 				return nil
 			}
@@ -335,15 +339,15 @@ func TestInternalInsertSplit(x *testing.T) {
 			v0, err := bpt.checkValue(kvs[0].value)
 			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(a, func(a *leaf) error {
-				return a.putKV(kvs[0].key, v0)
+				return a.putKV(bpt.varchar, kvs[0].key, v0)
 			}))
 			vL, err := bpt.checkValue(kvs[LEAF_CAP].value)
 			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(b, func(b *leaf) error {
-				return b.putKV(kvs[LEAF_CAP].key, vL)
+				return b.putKV(bpt.varchar, kvs[LEAF_CAP].key, vL)
 			}))
-			t.assert_nil(I.putKP(kvs[0].key, a))
-			t.assert_nil(I.putKP(kvs[LEAF_CAP].key, b))
+			t.assert_nil(I.putKP(bpt.varchar, kvs[0].key, a))
+			t.assert_nil(I.putKP(bpt.varchar, kvs[LEAF_CAP].key, b))
 			return nil
 		}))
 		for i := 1; i < LEAF_CAP; i++ {
@@ -378,10 +382,10 @@ func TestInternalInsertSplit(x *testing.T) {
 		t.assert_nil(err)
 		t.assert_nil(bpt.doInternal(root, func(n *internal) error {
 			t.assert_nil(bpt.firstKey(p, func(pkey []byte) error {
-				return n.putKP(pkey, p)
+				return n.putKP(bpt.varchar, pkey, p)
 			}))
 			return bpt.firstKey(q, func(qkey []byte) error {
-				return n.putKP(qkey, q)
+				return n.putKP(bpt.varchar, qkey, q)
 			})
 		}))
 		bpt.meta.root = root

@@ -56,9 +56,12 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
 	var i int
 	var kid uint64
-	err = self.doInternal(n, func(n *internal) error {
+	err = self.doInternal(n, func(n *internal) (err error) {
 		var has bool
-		i, has = find(n, key)
+		i, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -117,9 +120,9 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 
 func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
 	var i int
-	err = self.doLeaf(a, func(n *leaf) error {
+	err = self.doLeaf(a, func(n *leaf) (err error) {
 		var has bool
-		i, has = find(n, key)
+		i, has, err = find(self.varchar, n, key)
 		if !has {
 			return errors.Errorf("key was not in tree")
 		}

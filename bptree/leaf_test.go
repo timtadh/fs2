@@ -118,12 +118,12 @@ func TestPutKVRand(x *testing.T) {
 			}
 			kvs = append(kvs, kv)
 			// t.Log(n)
-			t.assert_nil(n.putKV(kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 	}
@@ -151,49 +151,49 @@ func TestPutDelKVRand(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for i, kv := range kvs {
-			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
+			t.assert_nil(n.delKV(bpt.varchar, kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
 			}))
 			for _, kv2 := range kvs[:i+1] {
-				t.assert("found key in leaf", !n.Has(kv2.key))
+				t.assert("found key in leaf", !n._has(bpt.varchar, kv2.key))
 			}
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.putKV(kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
+			t.assert_nil(n.delKV(bpt.varchar, kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
 			}))
 			for _, kv2 := range kvs {
 				if !bytes.Equal(kv.key, kv2.key) {
-					t.assert("no key in leaf", n.Has(kv2.key))
+					t.assert("no key in leaf", n._has(bpt.varchar, kv2.key))
 				}
 			}
-			t.assert("found key in leaf", !n.Has(kv.key))
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert("found key in leaf", !n._has(bpt.varchar, kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
 		}
 		for i, kv := range kvs {
-			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
+			t.assert_nil(n.delKV(bpt.varchar, kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)
 			}))
 			for _, kv2 := range kvs[:i+1] {
-				t.assert("found key in leaf", !n.Has(kv2.key))
+				t.assert("found key in leaf", !n._has(bpt.varchar, kv2.key))
 			}
 		}
 	}
@@ -215,35 +215,35 @@ func TestPutKV(x *testing.T) {
 	v4 := t.rand_bytes(8)
 	k5 := uint64(5)
 	v5 := t.rand_bytes(8)
-	t.assert_nil(n.putKV(t.bkey(&k1), v1))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert_nil(n.putKV(bpt.varchar, t.bkey(&k1), v1))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k1)))
 	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
 
-	t.assert_nil(n.putKV(t.bkey(&k2), v2))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert_nil(n.putKV(bpt.varchar, t.bkey(&k2), v2))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k2)))
 	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
 
-	t.assert_nil(n.putKV(t.bkey(&k3), v3))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert_nil(n.putKV(bpt.varchar, t.bkey(&k3), v3))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k3)))
 	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
 
-	t.assert_nil(n.putKV(t.bkey(&k4), v4))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert_nil(n.putKV(bpt.varchar, t.bkey(&k4), v4))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k4)))
 	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
 
-	t.assert_nil(n.putKV(t.bkey(&k5), v5))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert_nil(n.putKV(bpt.varchar, t.bkey(&k5), v5))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k5)))
 	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k1)))
 	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k2)))
 	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k3)))
 	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k4)))
 	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
-	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
+	t.assert("could not find key in leaf", n._has(bpt.varchar, t.bkey(&k5)))
 	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 }
 

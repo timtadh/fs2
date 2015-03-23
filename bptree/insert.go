@@ -56,13 +56,13 @@ func (self *BpTree) Add(key, value []byte) error {
 	}
 	err = self.doInternal(root, func(n *internal) error {
 		err := self.firstKey(a, func(akey []byte) error {
-			return n.putKP(akey, a)
+			return n.putKP(self.varchar, akey, a)
 		})
 		if err != nil {
 			return err
 		}
 		return self.firstKey(b, func(bkey []byte) error {
-			return n.putKP(bkey, b)
+			return n.putKP(self.varchar, bkey, b)
 		})
 		return nil
 	})
@@ -105,9 +105,12 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, err error) {
 	var i int
 	var ptr uint64
-	err = self.doInternal(n, func(n *internal) error {
+	err = self.doInternal(n, func(n *internal) (err error) {
 		var has bool
-		i, has = find(n, key)
+		i, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -142,7 +145,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 					copy(split_key, key)
 					return nil
 				}
-				return m.putKP(key, q)
+				return m.putKP(self.varchar, key, q)
 			})
 		}
 		return nil
@@ -173,7 +176,7 @@ func (self *BpTree) leafDoInsert(n uint64, key, value []byte) (a, b uint64, err 
 			mustSplit = true
 			return nil
 		}
-		return n.putKV(key, value)
+		return n.putKV(self.varchar, key, value)
 	})
 	if err != nil {
 		return 0, 0, err
@@ -198,14 +201,14 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 	}
 	err = self.doInternal(a, func(n *internal) error {
 		return self.doInternal(b, func(m *internal) (err error) {
-			err = n.balance(m)
+			err = n.balance(self.varchar, m)
 			if err != nil {
 				return err
 			}
 			if bytes.Compare(key, m.key(0)) < 0 {
-				return n.putKP(key, ptr)
+				return n.putKP(self.varchar, key, ptr)
 			} else {
-				return m.putKP(key, ptr)
+				return m.putKP(self.varchar, key, ptr)
 			}
 		})
 	})
@@ -245,14 +248,14 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 			return err
 		}
 		return self.doLeaf(b, func(m *leaf) (err error) {
-			err = n.balance(m)
+			err = n.balance(self.varchar, m)
 			if err != nil {
 				return err
 			}
 			if bytes.Compare(key, m.key(0)) < 0 {
-				return n.putKV(key, value)
+				return n.putKV(self.varchar, key, value)
 			} else {
-				return m.putKV(key, value)
+				return m.putKV(self.varchar, key, value)
 			}
 		})
 	})
@@ -289,7 +292,7 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 				return err
 			}
 			return self.doLeaf(a, func(anode *leaf) (err error) {
-				return anode.putKV(key, value)
+				return anode.putKV(self.varchar, key, value)
 			})
 		} else {
 			a = n
@@ -300,10 +303,10 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 			return self.doLeaf(e, func(m *leaf) (err error) {
 				if m.fitsAnother() && bytes.Equal(key, m.key(0)) {
 					unneeded = true
-					return m.putKV(key, value)
+					return m.putKV(self.varchar, key, value)
 				} else {
 					return self.doLeaf(new_off, func(o *leaf) (err error) {
-						err = o.putKV(key, value)
+						err = o.putKV(self.varchar, key, value)
 						if err != nil {
 							return err
 						}

@@ -280,7 +280,10 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 			kid = *n.ptr(0)
 			return nil
 		}
-		i, has := find(n, key)
+		i, has, err := find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -300,9 +303,12 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		return n, 0, nil
 	}
 	var next uint64 = 0
-	err = self.doLeaf(n, func(n *leaf) error {
+	err = self.doLeaf(n, func(n *leaf) (err error) {
 		var has bool
-		i, has = find(n, key)
+		i, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if i >= int(n.meta.keyCount) && i > 0 {
 			i = int(n.meta.keyCount) - 1
 		}

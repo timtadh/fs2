@@ -44,7 +44,7 @@ func TestLeafRemove(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)

@@ -27,6 +27,7 @@ func (t *T) assert_notValue(expect []byte) func(value []byte, err error) {
 
 func TestBalanceInternal(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
 	for TEST := 0; TEST < TESTS*10; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {
@@ -48,23 +49,23 @@ func TestBalanceInternal(x *testing.T) {
 		for i := 0; i < cap(kps); i++ {
 			kp := make_kp()
 			kps = append(kps, kp)
-			t.assert_nil(n.putKP(kp.key, kp.ptr))
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert_nil(n.putKP(bpt.varchar, kp.key, kp.ptr))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		b, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
-		t.assert_nil(n.balance(b))
+		t.assert_nil(n.balance(bpt.varchar, b))
 		for _, kp := range kps {
-			t.assert("could not find key in internal", n.Has(kp.key) || b.Has(kp.key))
-			if n.Has(kp.key) {
-				t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key) || b._has(bpt.varchar, kp.key))
+			if n._has(bpt.varchar, kp.key) {
+				t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 			} else {
-				t.assert_ptr(kp.ptr)(b.findPtr(kp.key))
+				t.assert_ptr(kp.ptr)(b.findPtr(bpt.varchar, kp.key))
 			}
 		}
 		for i := 0; i < n.keyCount(); i++ {
@@ -72,6 +73,7 @@ func TestBalanceInternal(x *testing.T) {
 			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
 		}
 	}
+	clean()
 }
 
 func TestBalanceLeaf(x *testing.T) {
@@ -103,20 +105,20 @@ func TestBalanceLeaf(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		b, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
-		t.assert_nil(n.balance(b))
+		t.assert_nil(n.balance(bpt.varchar, b))
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
-			if n.Has(kv.key) {
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key) || b._has(bpt.varchar, kv.key))
+			if n._has(bpt.varchar, kv.key) {
 				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 			} else {
 				t.assert_value(kv.value)(b.firstValue(bpt.varchar, kv.key))
@@ -131,6 +133,8 @@ func TestBalanceLeaf(x *testing.T) {
 
 func TestBalancePureLeaf(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {
@@ -157,17 +161,17 @@ func TestBalancePureLeaf(x *testing.T) {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(kv.key, kv.value))
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
 		}
 		b, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
-		t.assert_nil(n.balance(b))
+		t.assert_nil(n.balance(bpt.varchar, b))
 		for _, kv := range kvs {
-			t.assert("could not find key in leaf", n.Has(kv.key) || b.Has(kv.key))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key) || b._has(bpt.varchar, kv.key))
 		}
 		for i := 0; i < n.keyCount(); i++ {
 			key := n.key(i)
