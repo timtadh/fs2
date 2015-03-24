@@ -125,8 +125,12 @@ func TestBalanceLeaf(x *testing.T) {
 			}
 		}
 		for i := 0; i < n.keyCount(); i++ {
-			key := n.key(i)
-			t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
+			t.assert_nil(n.doKeyAt(bpt.varchar, i, func(n_key_i []byte) error {
+				return b.doKeyAt(bpt.varchar, 0, func(b_key_0 []byte) error {
+					t.assert("key >= to start key in b", bytes.Compare(n_key_i, b_key_0) < 0)
+					return nil
+				})
+			}))
 		}
 	}
 }
@@ -174,9 +178,13 @@ func TestBalancePureLeaf(x *testing.T) {
 			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key) || b._has(bpt.varchar, kv.key))
 		}
 		for i := 0; i < n.keyCount(); i++ {
-			key := n.key(i)
 			if b.meta.keyCount > 0 {
-				t.assert("key >= to start key in b", bytes.Compare(key, b.key(0)) < 0)
+				t.assert_nil(n.doKeyAt(bpt.varchar, i, func(n_key_i []byte) error {
+					return b.doKeyAt(bpt.varchar, 0, func(b_key_0 []byte) error {
+						t.assert("key >= to start key in b", bytes.Compare(n_key_i, b_key_0) < 0)
+						return nil
+					})
+				}))
 			}
 		}
 	}

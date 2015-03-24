@@ -228,7 +228,7 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 	var isPure bool = false
 	a = n
 	err = self.doLeaf(a, func(n *leaf) (err error) {
-		isPure = n.pure()
+		isPure = n.pure(self.varchar)
 		return nil
 	})
 	if err != nil {
@@ -252,11 +252,13 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 			if err != nil {
 				return err
 			}
-			if bytes.Compare(key, m.key(0)) < 0 {
-				return n.putKV(self.varchar, key, value)
-			} else {
-				return m.putKV(self.varchar, key, value)
-			}
+			return m.doKeyAt(self.varchar, 0, func(mk []byte) error {
+				if bytes.Compare(key, mk) < 0 {
+					return n.putKV(self.varchar, key, value)
+				} else {
+					return m.putKV(self.varchar, key, value)
+				}
+			})
 		})
 	})
 	if err != nil {
@@ -284,49 +286,53 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 		return 0, 0, err
 	}
 	err = self.doLeaf(n, func(node *leaf) (err error) {
-		if bytes.Compare(key, node.key(0)) < 0 {
-			a = new_off
-			b = n
-			err = self.insertListNode(a, node.meta.prev, b)
-			if err != nil {
-				return err
-			}
-			return self.doLeaf(a, func(anode *leaf) (err error) {
-				return anode.putKV(self.varchar, key, value)
-			})
-		} else {
-			a = n
-			e, err := self.endOfPureRun(a)
-			if err != nil {
-				return err
-			}
-			return self.doLeaf(e, func(m *leaf) (err error) {
-				if m.fitsAnother() && bytes.Equal(key, m.key(0)) {
-					unneeded = true
-					return m.putKV(self.varchar, key, value)
-				} else {
-					return self.doLeaf(new_off, func(o *leaf) (err error) {
-						err = o.putKV(self.varchar, key, value)
-						if err != nil {
-							return err
-						}
-						if bytes.Compare(key, m.key(0)) >= 0 {
-							err = self.insertListNode(new_off, e, m.meta.next)
-						} else {
-							err = self.insertListNode(new_off, m.meta.prev, e)
-						}
-						if err != nil {
-							return err
-						}
-						b = 0
-						if !bytes.Equal(key, node.key(0)) {
-							b = new_off
-						}
-						return nil
-					})
+		return node.doKeyAt(self.varchar, 0, func(node_key_0 []byte) error {
+			if bytes.Compare(key, node_key_0) < 0 {
+				a = new_off
+				b = n
+				err = self.insertListNode(a, node.meta.prev, b)
+				if err != nil {
+					return err
 				}
-			})
-		}
+				return self.doLeaf(a, func(anode *leaf) (err error) {
+					return anode.putKV(self.varchar, key, value)
+				})
+			} else {
+				a = n
+				e, err := self.endOfPureRun(a)
+				if err != nil {
+					return err
+				}
+				return self.doLeaf(e, func(m *leaf) (err error) {
+					return m.doKeyAt(self.varchar, 0, func(m_key_0 []byte) error {
+						if m.fitsAnother() && bytes.Equal(key, m_key_0) {
+							unneeded = true
+							return m.putKV(self.varchar, key, value)
+						} else {
+							return self.doLeaf(new_off, func(o *leaf) (err error) {
+								err = o.putKV(self.varchar, key, value)
+								if err != nil {
+									return err
+								}
+								if bytes.Compare(key, m_key_0) >= 0 {
+									err = self.insertListNode(new_off, e, m.meta.next)
+								} else {
+									err = self.insertListNode(new_off, m.meta.prev, e)
+								}
+								if err != nil {
+									return err
+								}
+								b = 0
+								if !bytes.Equal(key, node_key_0) {
+									b = new_off
+								}
+								return nil
+							})
+						}
+					})
+				})
+			}
+		})
 	})
 	if err != nil {
 		return 0, 0, err
@@ -352,26 +358,29 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 		if n.meta.keyCount < 0 {
 			return errors.Errorf("block was empty")
 		}
-		key := n.key(0)
-		prev := start
-		next := n.meta.next
-		notDone := func(next uint64, node *leaf) bool {
-			return next != 0 && node.pure() && bytes.Equal(key, node.key(0))
-		}
-		not_done := notDone(next, n)
-		for not_done {
-			err = self.doLeaf(next, func(n *leaf) error {
-				prev = next
-				next = n.meta.next
-				not_done = notDone(next, n)
-				return nil
-			})
-			if err != nil {
-				return err
+		return n.doKeyAt(self.varchar, 0, func(key []byte) error {
+			prev := start
+			next := n.meta.next
+			notDone := func(next uint64, node *leaf, node_key_0 []byte) bool {
+				return next != 0 && node.pure(self.varchar) && bytes.Equal(key, node_key_0)
 			}
-		}
-		a = prev
-		return nil
+			not_done := notDone(next, n, key)
+			for not_done {
+				err = self.doLeaf(next, func(n *leaf) error {
+					prev = next
+					next = n.meta.next
+					return n.doKeyAt(self.varchar, 0, func(k []byte) error {
+						not_done = notDone(next, n, k)
+						return nil
+					})
+				})
+				if err != nil {
+					return err
+				}
+			}
+			a = prev
+			return nil
+		})
 	})
 	if err != nil {
 		return 0, err

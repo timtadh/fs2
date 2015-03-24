@@ -166,13 +166,29 @@ func (n *leaf) fitsAnother() bool {
 	return n.meta.keyCount+1 < n.meta.keyCap
 }
 
-func (n *leaf) pure() bool {
+// this method is totally UNSAFE
+func (n *leaf) pure(v *varchar.Varchar) bool {
 	if n.meta.keyCount == 0 {
 		return true
 	}
-	key := n.key(0)
+	var firstKey []byte
+	err := n.doKeyAt(v, 0, func(k []byte) error {
+		firstKey = k
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 	for i := 1; i < int(n.meta.keyCount); i++ {
-		if !bytes.Equal(key, n.key(i)) {
+		var key_i []byte
+		err := n.doKeyAt(v, i, func(k []byte) error {
+			key_i = k
+			return nil
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !bytes.Equal(firstKey, key_i) {
 			return false
 		}
 	}
@@ -258,10 +274,26 @@ func (n *leaf) delKV(v *varchar.Varchar, key []byte, which func([]byte) bool) er
 		return errors.Errorf("that key was not in the block")
 	}
 	for ; idx < int(n.meta.keyCount); idx++ {
-		if !bytes.Equal(key, n.key(idx)) {
+		var eq bool
+		err = n.doKeyAt(v, idx, func(k []byte) error {
+			eq = bytes.Equal(key, k)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if !eq {
 			return errors.Errorf("no key removed")
 		}
-		if which(n.val(idx)) {
+		var whichRes bool
+		err = n.doValueAt(v, idx, func(v []byte) error {
+			whichRes = which(v)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if whichRes {
 			break
 		}
 	}

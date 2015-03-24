@@ -74,8 +74,8 @@ func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
 }
 
 func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
-	var eq bool = true
-	for m < keys.keyCount() && eq {
+	var eq bool
+	for m < keys.keyCount() {
 		err := keys.doKeyAt(v, m-1, func(a []byte) error {
 			return keys.doKeyAt(v, m, func(b []byte) error {
 				eq = bytes.Equal(a, b)
@@ -85,12 +85,14 @@ func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 		if err != nil {
 			return 0, err
 		}
+		if !eq {
+			break
+		}
 		m++
 	}
 	if m >= keys.keyCount() && m > 0 {
-		eq = true
 		m--
-		for m > 0 && eq {
+		for m > 0 {
 			err := keys.doKeyAt(v, m-1, func(a []byte) error {
 				return keys.doKeyAt(v, m, func(b []byte) error {
 					eq = bytes.Equal(a, b)
@@ -99,6 +101,9 @@ func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 			})
 			if err != nil {
 				return 0, err
+			}
+			if !eq {
+				break
 			}
 			m--
 		}

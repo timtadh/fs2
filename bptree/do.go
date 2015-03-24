@@ -60,8 +60,10 @@ func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err
 		if i >= int(n.meta.keyCount) {
 			return errors.Errorf("Index out of range")
 		}
-		return n.doValueAt(self.varchar, i, func(value []byte) error {
-			return do(n.key(i), value)
+		return n.doKeyAt(self.varchar, i, func(key []byte) error {
+			return n.doValueAt(self.varchar, i, func(value []byte) error {
+				return do(key, value)
+			})
 		})
 	})
 }
@@ -73,13 +75,17 @@ func (self *BpTree) doKey(a uint64, i int, do func(key []byte) error) (err error
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("Index out of range")
 			}
-			return do(n.key(i))
+			return n.doKeyAt(self.varchar, i, func(key []byte) error {
+				return do(key)
+			})
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("Index out of range")
 			}
-			return do(n.key(i))
+			return n.doKeyAt(self.varchar, i, func(key []byte) error {
+				return do(key)
+			})
 		},
 	)
 }
