@@ -21,8 +21,8 @@ func (a *internal) balance(v *varchar.Varchar, b *internal) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
-		copy(b._key(i), a._key(j))
-		fmap.MemClr(a._key(j))
+		copy(b.key(i), a.key(j))
+		fmap.MemClr(a.key(j))
 		*b.ptr(i) = *a.ptr(j)
 		*a.ptr(j) = 0
 	}
@@ -62,7 +62,7 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 
 func (n *internal) balancePoint(v *varchar.Varchar) (int, error) {
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(v, n, m)
+	return noSplitBalancePoint(n, m)
 }
 
 func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
@@ -70,9 +70,23 @@ func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
 		return 0, nil
 	}
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(v, n, m)
+	return noSplitBalancePoint(n, m)
 }
 
+func noSplitBalancePoint(keys keyed, m int) (int, error) {
+	for m < keys.keyCount() && bytes.Equal(keys.key(m-1), keys.key(m)) {
+		m++
+	}
+	if m >= keys.keyCount() && m > 0 {
+		m--
+		for m > 0 && bytes.Equal(keys.key(m-1), keys.key(m)) {
+			m--
+		}
+	}
+	return m, nil
+}
+
+/*
 func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 	var eq bool
 	for m < keys.keyCount() {
@@ -109,7 +123,7 @@ func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 		}
 	}
 	return m, nil
-}
+}*/
 
 /*** outdated. Needs to be updated for doKeyAt
 

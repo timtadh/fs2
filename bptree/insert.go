@@ -258,7 +258,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 				return err
 			}
 			if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS == 0 {
-				if bytes.Compare(key, m._key(0)) < 0 {
+				if bytes.Compare(key, m.key(0)) < 0 {
 					return n.putKP(self.varchar, key, ptr)
 				} else {
 					return m.putKP(self.varchar, key, ptr)
@@ -317,15 +317,17 @@ func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, e
 				return err
 			}
 			return m.doKeyAt(self.varchar, 0, func(mk []byte) error {
-				if bytes.Compare(key, mk) < 0 {
-					if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
-						return n.putKV(self.varchar, vkey, value)
+				if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+					if bytes.Compare(key, mk) < 0 {
+						return n.doKeyAt(self.varchar, 0, func(nk []byte) error {
+							return n.putKV(self.varchar, vkey, value)
+						})
 					} else {
-						return n.putKV(self.varchar, key, value)
+						return m.putKV(self.varchar, vkey, value)
 					}
 				} else {
-					if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
-						return m.putKV(self.varchar, vkey, value)
+					if bytes.Compare(key, mk) < 0 {
+						return n.putKV(self.varchar, key, value)
 					} else {
 						return m.putKV(self.varchar, key, value)
 					}

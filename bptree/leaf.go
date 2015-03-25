@@ -209,7 +209,15 @@ func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
 
-	idx, _, err := find(v, n, key)
+	var idx int
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+		idx, _, err = find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+			idx, _, err = find(v, n, key)
+			return err
+		})
+	}
 	if err != nil {
 		return err
 	}
@@ -257,6 +265,22 @@ func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 		e := s + valSize
 		val_slice := vals[s:e]
 		copy(val_slice, value)
+	}
+
+	var has bool
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+		idx, has, err = find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+			idx, has, err = find(v, n, key)
+			return nil
+		})
+	}
+	if err != nil {
+		return err
+	}
+	if !has {
+		return errors.Errorf("could not find key after put")
 	}
 	return nil
 }
@@ -365,3 +389,4 @@ func newLeaf(flags consts.Flag, backing []byte, keySize, valSize uint16) (*leaf,
 	n.meta.Init(consts.LEAF|flags, keySize, uint16(keyCap), valSize)
 	return n, nil
 }
+

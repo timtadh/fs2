@@ -9,6 +9,10 @@ import (
 	"sort"
 )
 
+import (
+	"github.com/timtadh/fs2/consts"
+)
+
 func (t *T) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
 	bpt, err := New(bf, -1, -1)
@@ -40,7 +44,7 @@ func (kvs KVS) Less(i, j int) bool {
 func (t *T) make_kv() *KV {
 	return &KV{
 		// key: t.rand_key(),
-		key: t.rand_varchar(1, 127),
+		key: t.rand_varchar(1, 4),
 		value: t.rand_varchar(1, 127),
 	}
 }
@@ -73,29 +77,20 @@ func (t *T) make_kp() *KP {
 
 func TestLeafInsert(x *testing.T) {
 	t := (*T)(x)
+	LEAF_CAP := ((consts.BLOCKSIZE - leafMetaSize) / 16) - 1
 	for TEST := 0; TEST < TESTS; TEST++ {
-		SIZE := 1027 + TEST*16
 		bpt, clean := t.bpt()
-		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
-		t.assert_nil(err)
-		kvs := make([]*KV, 0, n.meta.keyCap/2)
+		kvs := make([]*KV, 0, LEAF_CAP)
 		// t.Log(n)
-		for i := 0; i < cap(kvs); i++ {
-			kv := &KV{
-				key:   t.rand_key(),
-				value: t.rand_value(8),
-			}
-			if !n.fitsAnother() {
-				break
-			}
+		for i := 0; i < LEAF_CAP; i++ {
+			kv := t.make_kv()
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 			a, i, err := bpt.getStart(kv.key)
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
 			t.assert_nil(err)
-			t.assert("wrong key", t.key(kv.key) == t.key(k))
+			t.assert(fmt.Sprintf("wrong key %v != %v", kv.key, k), bytes.Equal(kv.key, k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
@@ -148,11 +143,11 @@ func TestLeafBigInsert(x *testing.T) {
 
 func TestLeafSplit(x *testing.T) {
 	t := (*T)(x)
+	CAP := 300
 	for TEST := 0; TEST < TESTS; TEST++ {
 		bpt, clean := t.bpt()
-		kvs := make([]*KV, 0, 200)
-		// t.Log(n)
-		for i := 0; i < cap(kvs); i++ {
+		kvs := make([]*KV, 0, CAP)
+		for i := 0; i < CAP; i++ {
 			kv := t.make_kv()
 			kvs = append(kvs, kv)
 			t.assert_nil(bpt.Add(kv.key, kv.value))
@@ -160,7 +155,10 @@ func TestLeafSplit(x *testing.T) {
 			t.assert_nil(err)
 			k, err := bpt.keyAt(a, i)
 			t.assert_nil(err)
-			t.assert("wrong key", t.key(kv.key) == t.key(k))
+			if !bytes.Equal(kv.key, k) {
+				t.Log(a, i)
+			}
+			t.assert(fmt.Sprintf("wrong key %v != %v", kv.key, k), bytes.Equal(kv.key, k))
 			t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 				t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 				return nil
@@ -268,7 +266,7 @@ func TestInternalSplit(x *testing.T) {
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(p._key(j)) == t.key(kp.key))
+				t.assert("keys should equal", t.key(p.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *p.ptr(j) == kp.ptr)
 			}
 			j, has, err := find(bpt.varchar, p, split_kp.key)
@@ -276,7 +274,7 @@ func TestInternalSplit(x *testing.T) {
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(p._key(j)) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(p.key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", *p.ptr(j) == split_kp.ptr)
 			found_split = true
 			return nil
@@ -289,7 +287,7 @@ func TestInternalSplit(x *testing.T) {
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(q._key(j)) == t.key(kp.key))
+				t.assert("keys should equal", t.key(q.key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *q.ptr(j) == kp.ptr)
 			}
 			j, has, err := find(bpt.varchar, q, split_kp.key)
@@ -297,7 +295,7 @@ func TestInternalSplit(x *testing.T) {
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(q._key(j)) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(q.key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", *q.ptr(j) == split_kp.ptr)
 			found_split = true
 			return nil

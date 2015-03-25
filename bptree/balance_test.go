@@ -33,7 +33,7 @@ func TestBalanceInternal(x *testing.T) {
 		if SIZE > consts.BLOCKSIZE {
 			SIZE = consts.BLOCKSIZE
 		}
-		n, err := newInternal(make([]byte, SIZE), 8)
+		n, err := newInternal(0, make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KP struct {
 			key []byte
@@ -57,7 +57,7 @@ func TestBalanceInternal(x *testing.T) {
 			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
 			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
-		b, err := newInternal(make([]byte, SIZE), 8)
+		b, err := newInternal(0, make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		t.assert_nil(n.balance(bpt.varchar, b))
 		for _, kp := range kps {
@@ -91,20 +91,13 @@ func TestBalanceLeaf(x *testing.T) {
 		}
 		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
-		type KV struct {
-			key   []byte
-			value []byte
-		}
-		make_kv := func() *KV {
-			return &KV{
-				key:   t.rand_key(),
-				value: t.rand_value(8),
-			}
-		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
-			kv := make_kv()
+			kv := &KV{
+				key: t.rand_key(),
+				value: t.rand_key(),
+			}
 			if !n.fitsAnother() {
 				break
 			}

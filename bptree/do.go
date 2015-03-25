@@ -7,7 +7,7 @@ import (
 
 func (self *BpTree) newInternal() (a uint64, err error) {
 	return self.new(func(bytes []byte) error {
-		_, err := newInternal(bytes, self.meta.keySize)
+		_, err := newInternal(self.meta.flags, bytes, self.meta.keySize)
 		return err
 	})
 }

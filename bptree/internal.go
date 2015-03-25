@@ -65,11 +65,11 @@ func (m *baseMeta) String() string {
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>",
-		n.meta)
+		"meta: <%v>, ptrs: <%v>",
+		n.meta, n.ptrs_uint64s())
 }
 
-func (n *internal) _key(i int) []byte {
+func (n *internal) key(i int) []byte {
 	keySize := int(n.meta.keySize)
 	s := i * keySize
 	e := s + keySize
@@ -93,6 +93,18 @@ func (n *internal) ptrs() []byte {
 	return n.bytes[s:e]
 }
 
+func (n *internal) ptrs_uint64s() []uint64 {
+	keySize := int(n.meta.keySize)
+	keyCap := int(n.meta.keyCap)
+	s := keyCap * keySize
+	e := s + keyCap*ptrSize
+	bytes := n.bytes[s:e]
+	sl := slice.AsSlice(&bytes)
+	sl.Len = int(n.meta.keyCount)
+	sl.Cap = sl.Len
+	return *sl.AsUint64s()
+}
+
 func (n *internal) keyCount() int {
 	return int(n.meta.keyCount)
 }
@@ -100,9 +112,9 @@ func (n *internal) keyCount() int {
 func (n *internal) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_KEYS != 0 {
-		return n.doBig(vc, n._key(i), do)
+		return n.doBig(vc, n.key(i), do)
 	} else {
-		return do(n._key(i))
+		return do(n.key(i))
 	}
 }
 
@@ -146,13 +158,13 @@ func (n *internal) updateK(v *varchar.Varchar, i int, key []byte) error {
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.bigUpdateK(v, i, key)
 	} else {
-		copy(n._key(i), key)
+		copy(n.key(i), key)
 		return nil
 	}
 }
 
 func (n *internal) bigUpdateK(v *varchar.Varchar, i int, key []byte) (err error) {
-	old_key := n._key(i)
+	old_key := n.key(i)
 	err = v.Deref(*slice.AsUint64(&old_key))
 	if err != nil {
 		return err
@@ -229,14 +241,25 @@ func (n *internal) delItemAt(v *varchar.Varchar, i int) error {
 	return nil
 }
 
-func (n *internal) putKey(v *varchar.Varchar, key []byte, put func(i int) error) error {
+func (n *internal) putKey(v *varchar.Varchar, key []byte, put func(i int) error) (err error) {
 	if n.keyCount()+1 >= int(n.meta.keyCap) {
 		return errors.Errorf("Block is full.")
 	}
-	i, has, err := find(v, n, key)
+
+	var i int
+	var has bool
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+		i, has, err = find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+			i, has, err = find(v, n, key)
+			return err
+		})
+	}
 	if err != nil {
 		return err
 	}
+
 	if i < 0 {
 		return errors.Errorf("find returned a negative int")
 	} else if i >= int(n.meta.keyCap) {
@@ -255,9 +278,9 @@ func (n *internal) putKeyAt(key []byte, i int) error {
 		return errors.Errorf("i was not in range")
 	}
 	for j := int(n.meta.keyCount) + 1; j > i; j-- {
-		copy(n._key(j), n._key(j-1))
+		copy(n.key(j), n.key(j-1))
 	}
-	copy(n._key(i), key)
+	copy(n.key(i), key)
 	return nil
 }
 
@@ -269,17 +292,17 @@ func (n *internal) delKeyAt(v *varchar.Varchar, i int) (err error) {
 		return errors.Errorf("i was not in range")
 	}
 	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS != 0 {
-		k := n._key(i)
+		k := n.key(i)
 		err = v.Deref(*slice.AsUint64(&k))
 		if err != nil {
 			return err
 		}
 	}
 	for j := i; j+1 < int(n.meta.keyCount); j++ {
-		copy(n._key(j), n._key(j+1))
+		copy(n.key(j), n.key(j+1))
 	}
 	// zero the old
-	fmap.MemClr(n._key(int(n.meta.keyCount - 1)))
+	fmap.MemClr(n.key(int(n.meta.keyCount - 1)))
 	return nil
 }
 
@@ -304,11 +327,11 @@ func asInternal(backing []byte) *internal {
 	return (*internal)(back.Array)
 }
 
-func newInternal(backing []byte, keySize uint16) (*internal, error) {
+func newInternal(flags consts.Flag, backing []byte, keySize uint16) (*internal, error) {
 	n := asInternal(backing)
 
 	keyCap := uint16(keysPerInternal(len(backing), int(keySize)))
-	n.meta.Init(consts.INTERNAL, keySize, keyCap)
+	n.meta.Init(consts.INTERNAL|flags, keySize, keyCap)
 
 	return n, nil
 }

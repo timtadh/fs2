@@ -9,6 +9,7 @@ import (
 )
 
 type keyed interface {
+	key(i int) []byte
 	doKeyAt(v *varchar.Varchar, i int, do func(key []byte) error) error
 	keyCount() int
 }

@@ -18,7 +18,7 @@ func testAlloc() []byte {
 }
 
 func (t *T) newInternal() *internal {
-	n, err := newInternal(testAlloc(), 8)
+	n, err := newInternal(0, testAlloc(), 8)
 	t.assert_nil(err)
 	return n
 }
@@ -35,7 +35,7 @@ func TestPutDelKPRand(x *testing.T) {
 	bpt, clean := t.bpt()
 	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
-		n, err := newInternal(make([]byte, 1027+TEST*16), 8)
+		n, err := newInternal(0, make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
 		kps := make([]*KP, 0, n.meta.keyCap-1)
 		for i := 0; i < cap(kps); i++ {
@@ -94,7 +94,7 @@ func TestPutKPRand(x *testing.T) {
 		if SIZE > consts.BLOCKSIZE {
 			SIZE = consts.BLOCKSIZE
 		}
-		n, err := newInternal(make([]byte, SIZE), 8)
+		n, err := newInternal(0, make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KP struct {
 			key []byte
@@ -164,7 +164,7 @@ func TestPutKP(x *testing.T) {
 }
 
 func TestNewInternal(t *testing.T) {
-	n, err := newInternal(testAlloc(), 16)
+	n, err := newInternal(0, testAlloc(), 16)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func TestNewInternal(t *testing.T) {
 	}
 	zero := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	for i := 0; i < int(n.meta.keyCap); i++ {
-		if bytes.Compare(n._key(i), zero) != 0 {
+		if bytes.Compare(n.key(i), zero) != 0 {
 			t.Error("key was not zero")
 		}
 		if *n.ptr(i) != 0 {
@@ -190,8 +190,8 @@ func TestNewInternal(t *testing.T) {
 		}
 	}
 
-	n._key(0)[0] = 1
-	n._key(int(n.meta.keyCap - 1))[15] = 0xf
+	n.key(0)[0] = 1
+	n.key(int(n.meta.keyCap - 1))[15] = 0xf
 	*n.ptr(0) = 1
 	*n.ptr(1) = 21
 	*n.ptr(2) = 23
@@ -214,10 +214,10 @@ func TestNewInternal(t *testing.T) {
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
 	}
-	if bytes.Compare(n._key(0), one) != 0 {
+	if bytes.Compare(n.key(0), one) != 0 {
 		t.Error("expected key to lead with 1")
 	}
-	if bytes.Compare(n._key(int(n.meta.keyCap-1)), fifteen) != 0 {
+	if bytes.Compare(n.key(int(n.meta.keyCap-1)), fifteen) != 0 {
 		t.Error("expected key to end with 15")
 	}
 
@@ -230,12 +230,12 @@ func TestNewInternal(t *testing.T) {
 
 func TestLoadInternal(t *testing.T) {
 	back := func() []byte {
-		n, err := newInternal(testAlloc(), 16)
+		n, err := newInternal(0, testAlloc(), 16)
 		if err != nil {
 			t.Fatal(err)
 		}
-		n._key(0)[0] = 1
-		n._key(int(n.meta.keyCap - 1))[15] = 0xf
+		n.key(0)[0] = 1
+		n.key(int(n.meta.keyCap - 1))[15] = 0xf
 		*n.ptr(0) = 1
 		*n.ptr(1) = 21
 		*n.ptr(2) = 23
@@ -270,10 +270,10 @@ func TestLoadInternal(t *testing.T) {
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
 	}
-	if bytes.Compare(n._key(0), one) != 0 {
+	if bytes.Compare(n.key(0), one) != 0 {
 		t.Error("expected key to lead with 1")
 	}
-	if bytes.Compare(n._key(int(n.meta.keyCap-1)), fifteen) != 0 {
+	if bytes.Compare(n.key(int(n.meta.keyCap-1)), fifteen) != 0 {
 		t.Error("expected key to end with 15")
 	}
 

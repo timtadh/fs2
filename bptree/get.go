@@ -318,6 +318,8 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 			i = int(n.meta.keyCount) - 1
 		}
 		return n.doKeyAt(self.varchar, i, func(k []byte) error {
+			if !has {
+			}
 			if !has && n.meta.next != 0 && bytes.Compare(k, key) < 0 {
 				next = n.meta.next
 			}
