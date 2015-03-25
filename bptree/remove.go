@@ -87,7 +87,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 	}
 	if kid == 0 {
 		err = self.doInternal(n, func(n *internal) error {
-			return n.delItemAt(i)
+			return n.delItemAt(self.varchar, i)
 		})
 		if err != nil {
 			return 0, err

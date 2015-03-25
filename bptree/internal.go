@@ -135,14 +135,50 @@ func (n *internal) _has(v *varchar.Varchar, key []byte) bool {
 	return has
 }
 
-func (n *internal) putKP(v *varchar.Varchar, key []byte, p uint64) error {
+func (n *internal) updateK(v *varchar.Varchar, i int, key []byte) error {
+	if i < 0 || i >= int(n.meta.keyCount) {
+		return errors.Errorf("key is out of range")
+	}
+	if len(key) != int(n.meta.keySize) {
+		return errors.Errorf("key was the wrong size")
+	}
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_KEYS != 0 {
+		return n.bigUpdateK(v, i, key)
+	} else {
+		copy(n.key(i), key)
+		return nil
+	}
+}
+
+func (n *internal) bigUpdateK(v *varchar.Varchar, i int, key []byte) (err error) {
+	old_key := n.key(i)
+	err = v.Deref(*slice.AsUint64(&old_key))
+	if err != nil {
+		return err
+	}
+	err = v.Ref(*slice.AsUint64(&key))
+	if err != nil {
+		return err
+	}
+	copy(old_key, key) // old_key is a pointer into the block
+	return nil
+}
+
+func (n *internal) putKP(v *varchar.Varchar, key []byte, p uint64) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
 	if n.full() {
 		return errors.Errorf("block is full")
 	}
-	err := n.putKey(v, key, func(i int) error {
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS != 0 {
+		err = v.Ref(*slice.AsUint64(&key))
+		if err != nil {
+			return err
+		}
+	}
+	err = n.putKey(v, key, func(i int) error {
 		ptrs := n.ptrs()
 		chunkSize := (int(n.meta.keyCount) - i) * ptrSize
 		s := i * ptrSize
@@ -171,12 +207,12 @@ func (n *internal) delKP(v *varchar.Varchar, key []byte) error {
 	} else if i >= int(n.meta.keyCount) {
 		return errors.Errorf("find returned a int > than len(keys)")
 	}
-	return n.delItemAt(i)
+	return n.delItemAt(v, i)
 }
 
-func (n *internal) delItemAt(i int) error {
+func (n *internal) delItemAt(v *varchar.Varchar, i int) error {
 	// remove the key
-	err := n.delKeyAt(i)
+	err := n.delKeyAt(v, i)
 	if err != nil {
 		return err
 	}
@@ -225,12 +261,19 @@ func (n *internal) putKeyAt(key []byte, i int) error {
 	return nil
 }
 
-func (n *internal) delKeyAt(i int) error {
+func (n *internal) delKeyAt(v *varchar.Varchar, i int) (err error) {
 	if n.meta.keyCount == 0 {
 		return errors.Errorf("The items slice is empty")
 	}
 	if i < 0 || i >= int(n.meta.keyCount) {
 		return errors.Errorf("i was not in range")
+	}
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS != 0 {
+		k := n.key(i)
+		err = v.Deref(*slice.AsUint64(&k))
+		if err != nil {
+			return err
+		}
 	}
 	for j := i; j+1 < int(n.meta.keyCount); j++ {
 		copy(n.key(j), n.key(j+1))

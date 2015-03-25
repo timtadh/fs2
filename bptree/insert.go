@@ -30,6 +30,15 @@ func (self *BpTree) checkValue(value []byte) ([]byte, error) {
 	return value, nil
 }
 
+/* notes on varchar
+
+Going down it is the actual key. Once it gets to the leaf it is
+converted to a pointer. The pointer then gets sent back up. Internal
+nodes only work with the pointer never with the actual key. That means
+when they want to do comparisons they need to indirect into the varchar
+store.
+*/
+
 // Add a key/value pair to the tree. There is a reason this isn't called
 // `Put`, this operation does not replace or modify any data in the
 // tree. It only adds this key. The B+ Tree supports duplicate keys and
@@ -131,8 +140,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	err = self.doInternal(n, func(m *internal) error {
 		*m.ptr(i) = p
 		err := self.firstKey(p, func(key []byte) error {
-			copy(m.key(i), key)
-			return nil
+			return m.updateK(self.varchar, i, key)
 		})
 		if err != nil {
 			return err
@@ -166,10 +174,6 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 }
 
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
-	return self.leafDoInsert(n, key, value)
-}
-
-func (self *BpTree) leafDoInsert(n uint64, key, value []byte) (a, b uint64, err error) {
 	var mustSplit bool = false
 	err = self.doLeaf(n, func(n *leaf) error {
 		if !n.fitsAnother() {
