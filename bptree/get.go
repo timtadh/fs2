@@ -224,7 +224,6 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 /* returns the key at the address and index or an error
  */
 func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
-	key = make([]byte, self.meta.keySize)
 	err = self.do(
 		a,
 		func(n *internal) error {
@@ -232,6 +231,7 @@ func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
 				return errors.Errorf("out of range")
 			}
 			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				key = make([]byte, len(k))
 				copy(key, k)
 				return nil
 			})
@@ -241,6 +241,7 @@ func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
 				return errors.Errorf("out of range")
 			}
 			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				key = make([]byte, len(k))
 				copy(key, k)
 				return nil
 			})

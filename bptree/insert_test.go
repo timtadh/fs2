@@ -11,7 +11,7 @@ import (
 
 func (t *T) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
-	bpt, err := New(bf, 8, -1)
+	bpt, err := New(bf, -1, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,8 @@ func (kvs KVS) Less(i, j int) bool {
 
 func (t *T) make_kv() *KV {
 	return &KV{
-		key: t.rand_key(), // t.rand_varchar(1, 127),
+		// key: t.rand_key(),
+		key: t.rand_varchar(1, 127),
 		value: t.rand_varchar(1, 127),
 	}
 }
@@ -192,9 +193,7 @@ func TestInsert3Level(x *testing.T) {
 		t.assert_nil(err)
 		k, err := bpt.keyAt(a, i)
 		t.assert_nil(err)
-		k1 := t.key(kv.key)
-		k2 := t.key(k)
-		t.assert(fmt.Sprintf("wrong key %v == %v", k1, k2), k1 == k2)
+		t.assert(fmt.Sprintf("wrong key %v == %v", kv.key, k), bytes.Equal(kv.key, k))
 		t.assert_nil(bpt.doLeaf(a, func(n *leaf) error {
 			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 			return nil

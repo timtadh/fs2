@@ -98,7 +98,6 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 	if keySize < 0 {
 		keySize = 8
 		flags = flags | consts.VARCHAR_KEYS
-		return nil, errors.Errorf("varchar keys not yet supported")
 	}
 	if valSize < 0 {
 		valSize = 8

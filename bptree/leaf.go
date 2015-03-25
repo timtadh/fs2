@@ -195,24 +195,12 @@ func (n *leaf) pure(v *varchar.Varchar) bool {
 	return true
 }
 
-func (n *leaf) newVarcharKey(v *varchar.Varchar, key []byte) ([]byte, error) {
-	k, err := v.Alloc(len(key))
-	if err != nil {
-		return nil, err
-	}
-	err = v.Do(k, func(data []byte) error {
-		copy(data, key)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return slice.Uint64AsSlice(&k), nil
-}
-
 func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")
+	}
+	if len(key) != int(n.meta.keySize) {
+		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount+1 >= n.meta.keyCap {
 		return errors.Errorf("block is full")
@@ -221,27 +209,9 @@ func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
 
-	idx, has, err := find(v, n, key)
+	idx, _, err := find(v, n, key)
 	if err != nil {
 		return err
-	}
-	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS != 0 {
-		if has {
-			key = n.key(idx)
-			err = v.Ref(*slice.AsUint64(&key))
-			if err != nil {
-				return err
-			}
-		} else {
-			k, err := n.newVarcharKey(v, key)
-			if err != nil {
-				return err
-			}
-			key = k
-		}
-	}
-	if len(key) != int(n.meta.keySize) {
-		return errors.Errorf("key was the wrong size")
 	}
 
 	keys := n.keys()

@@ -44,7 +44,7 @@ store.
 // tree. It only adds this key. The B+ Tree supports duplicate keys and
 // even duplicate keys with the same value!
 func (self *BpTree) Add(key, value []byte) error {
-	if len(key) != int(self.meta.keySize) {
+	if len(key) != int(self.meta.keySize) && consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS == 0 {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
 	value, err := self.checkValue(value)
@@ -173,20 +173,65 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	return a, b, nil
 }
 
+func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error) {
+	var has bool
+	err = self.doLeaf(n, func(n *leaf) error {
+		var idx int
+		idx, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
+		if has {
+			vkey = make([]byte, n.meta.keySize)
+			copy(vkey, n.key(idx))
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if has {
+		return vkey, nil
+	}
+	k, err := self.varchar.Alloc(len(key))
+	if err != nil {
+		return nil, err
+	}
+	err = self.varchar.Do(k, func(data []byte) error {
+		copy(data, key)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return slice.Uint64AsSlice(&k), nil
+}
+
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
 	var mustSplit bool = false
+	var vkey []byte = nil
+	if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+		vkey, err = self.newVarcharKey(n, key)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
 	err = self.doLeaf(n, func(n *leaf) error {
 		if !n.fitsAnother() {
 			mustSplit = true
 			return nil
 		}
-		return n.putKV(self.varchar, key, value)
+		if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+			return n.putKV(self.varchar, vkey, value)
+		} else {
+			return n.putKV(self.varchar, key, value)
+		}
 	})
 	if err != nil {
 		return 0, 0, err
 	}
 	if mustSplit {
-		return self.leafSplit(n, key, value)
+		return self.leafSplit(n, vkey, key, value)
 	}
 	return n, 0, nil
 }
@@ -243,7 +288,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
  * - the two blocks will be balanced with balanced_nodes
  * - if the key is less than b.keys[0] it will go in a else b
  */
-func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
 	var isPure bool = false
 	a = n
 	err = self.doLeaf(a, func(n *leaf) (err error) {
@@ -254,7 +299,7 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 		return 0, 0, err
 	}
 	if isPure {
-		a, b, err = self.pureLeafSplit(n, key, value)
+		a, b, err = self.pureLeafSplit(n, vkey, key, value)
 		return a, b, err
 	}
 	b, err = self.newLeaf()
@@ -273,9 +318,17 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
 			}
 			return m.doKeyAt(self.varchar, 0, func(mk []byte) error {
 				if bytes.Compare(key, mk) < 0 {
-					return n.putKV(self.varchar, key, value)
+					if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+						return n.putKV(self.varchar, vkey, value)
+					} else {
+						return n.putKV(self.varchar, key, value)
+					}
 				} else {
-					return m.putKV(self.varchar, key, value)
+					if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+						return m.putKV(self.varchar, vkey, value)
+					} else {
+						return m.putKV(self.varchar, key, value)
+					}
 				}
 			})
 		})
@@ -298,7 +351,7 @@ func (self *BpTree) leafSplit(n uint64, key, value []byte) (a, b uint64, err err
  *       and putting the new key there.
  *     - always return the current block as "a" and the new block as "b"
  */
-func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) pureLeafSplit(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
 	var unneeded bool = false
 	new_off, err := self.newLeaf() // this needs to be hoisted!!
 	if err != nil {
@@ -314,7 +367,11 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 					return err
 				}
 				return self.doLeaf(a, func(anode *leaf) (err error) {
-					return anode.putKV(self.varchar, key, value)
+					if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+						return anode.putKV(self.varchar, vkey, value)
+					} else {
+						return anode.putKV(self.varchar, key, value)
+					}
 				})
 			} else {
 				a = n
@@ -326,10 +383,18 @@ func (self *BpTree) pureLeafSplit(n uint64, key, value []byte) (a, b uint64, err
 					return m.doKeyAt(self.varchar, 0, func(m_key_0 []byte) error {
 						if m.fitsAnother() && bytes.Equal(key, m_key_0) {
 							unneeded = true
-							return m.putKV(self.varchar, key, value)
+							if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+								return m.putKV(self.varchar, vkey, value)
+							} else {
+								return m.putKV(self.varchar, key, value)
+							}
 						} else {
 							return self.doLeaf(new_off, func(o *leaf) (err error) {
-								err = o.putKV(self.varchar, key, value)
+								if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS != 0 {
+									err = o.putKV(self.varchar, vkey, value)
+								} else {
+									err = o.putKV(self.varchar, key, value)
+								}
 								if err != nil {
 									return err
 								}
