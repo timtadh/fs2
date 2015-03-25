@@ -196,6 +196,9 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
  * - Make a new block
  * - balance the two blocks.
  * - insert the new key/pointer combo into the correct block
+ *
+ * Note. in the varchar case, the key is not the key but a pointer to a
+ * key. This complicates the bytes.Compare line significantly.
  */
 func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64, err error) {
 	a = n
@@ -209,10 +212,22 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
 			if err != nil {
 				return err
 			}
-			if bytes.Compare(key, m.key(0)) < 0 {
-				return n.putKP(self.varchar, key, ptr)
+			if consts.Flag(self.meta.flags) & consts.VARCHAR_KEYS == 0 {
+				if bytes.Compare(key, m._key(0)) < 0 {
+					return n.putKP(self.varchar, key, ptr)
+				} else {
+					return m.putKP(self.varchar, key, ptr)
+				}
 			} else {
-				return m.putKP(self.varchar, key, ptr)
+				return self.varchar.Do(*slice.AsUint64(&key), func(k []byte) error {
+					return m.doKeyAt(self.varchar, 0, func(m_key_0 []byte) error {
+						if bytes.Compare(k, m_key_0) < 0 {
+							return n.putKP(self.varchar, key, ptr)
+						} else {
+							return m.putKP(self.varchar, key, ptr)
+						}
+					})
+				})
 			}
 		})
 	})

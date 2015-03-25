@@ -69,7 +69,7 @@ func (n *internal) String() string {
 		n.meta)
 }
 
-func (n *internal) key(i int) []byte {
+func (n *internal) _key(i int) []byte {
 	keySize := int(n.meta.keySize)
 	s := i * keySize
 	e := s + keySize
@@ -100,9 +100,9 @@ func (n *internal) keyCount() int {
 func (n *internal) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_KEYS != 0 {
-		return n.doBig(vc, n.key(i), do)
+		return n.doBig(vc, n._key(i), do)
 	} else {
-		return do(n.key(i))
+		return do(n._key(i))
 	}
 }
 
@@ -146,13 +146,13 @@ func (n *internal) updateK(v *varchar.Varchar, i int, key []byte) error {
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.bigUpdateK(v, i, key)
 	} else {
-		copy(n.key(i), key)
+		copy(n._key(i), key)
 		return nil
 	}
 }
 
 func (n *internal) bigUpdateK(v *varchar.Varchar, i int, key []byte) (err error) {
-	old_key := n.key(i)
+	old_key := n._key(i)
 	err = v.Deref(*slice.AsUint64(&old_key))
 	if err != nil {
 		return err
@@ -255,9 +255,9 @@ func (n *internal) putKeyAt(key []byte, i int) error {
 		return errors.Errorf("i was not in range")
 	}
 	for j := int(n.meta.keyCount) + 1; j > i; j-- {
-		copy(n.key(j), n.key(j-1))
+		copy(n._key(j), n._key(j-1))
 	}
-	copy(n.key(i), key)
+	copy(n._key(i), key)
 	return nil
 }
 
@@ -269,17 +269,17 @@ func (n *internal) delKeyAt(v *varchar.Varchar, i int) (err error) {
 		return errors.Errorf("i was not in range")
 	}
 	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS != 0 {
-		k := n.key(i)
+		k := n._key(i)
 		err = v.Deref(*slice.AsUint64(&k))
 		if err != nil {
 			return err
 		}
 	}
 	for j := i; j+1 < int(n.meta.keyCount); j++ {
-		copy(n.key(j), n.key(j+1))
+		copy(n._key(j), n._key(j+1))
 	}
 	// zero the old
-	fmap.MemClr(n.key(int(n.meta.keyCount - 1)))
+	fmap.MemClr(n._key(int(n.meta.keyCount - 1)))
 	return nil
 }
 

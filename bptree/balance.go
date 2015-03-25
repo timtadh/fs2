@@ -21,8 +21,8 @@ func (a *internal) balance(v *varchar.Varchar, b *internal) error {
 	var lim int = int(a.meta.keyCount) - m
 	for i := 0; i < lim; i++ {
 		j := m + i
-		copy(b.key(i), a.key(j))
-		fmap.MemClr(a.key(j))
+		copy(b._key(i), a._key(j))
+		fmap.MemClr(a._key(j))
 		*b.ptr(i) = *a.ptr(j)
 		*a.ptr(j) = 0
 	}

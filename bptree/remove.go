@@ -96,8 +96,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		err = self.doInternal(n, func(n *internal) error {
 			*n.ptr(i) = kid
 			return self.firstKey(kid, func(kid_key []byte) error {
-				copy(n.key(i), kid_key)
-				return nil
+				return n.updateK(self.varchar, i, kid_key)
 			})
 		})
 		if err != nil {

@@ -269,7 +269,7 @@ func TestInternalSplit(x *testing.T) {
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(p.key(j)) == t.key(kp.key))
+				t.assert("keys should equal", t.key(p._key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *p.ptr(j) == kp.ptr)
 			}
 			j, has, err := find(bpt.varchar, p, split_kp.key)
@@ -277,7 +277,7 @@ func TestInternalSplit(x *testing.T) {
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(p.key(j)) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(p._key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", *p.ptr(j) == split_kp.ptr)
 			found_split = true
 			return nil
@@ -290,7 +290,7 @@ func TestInternalSplit(x *testing.T) {
 				if !has {
 					break
 				}
-				t.assert("keys should equal", t.key(q.key(j)) == t.key(kp.key))
+				t.assert("keys should equal", t.key(q._key(j)) == t.key(kp.key))
 				t.assert("ptrs should equal", *q.ptr(j) == kp.ptr)
 			}
 			j, has, err := find(bpt.varchar, q, split_kp.key)
@@ -298,7 +298,7 @@ func TestInternalSplit(x *testing.T) {
 			if !has {
 				return nil
 			}
-			t.assert("split keys should equal", t.key(q.key(j)) == t.key(split_kp.key))
+			t.assert("split keys should equal", t.key(q._key(j)) == t.key(split_kp.key))
 			t.assert("split ptrs should equal", *q.ptr(j) == split_kp.ptr)
 			found_split = true
 			return nil
