@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"log"
 	"bytes"
 )
 
@@ -309,6 +310,13 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 	}
 	var next uint64 = 0
 	err = self.doLeaf(n, func(n *leaf) (err error) {
+		if n.meta.keyCount == 0 {
+			if n.meta.next != 0 {
+				next = n.meta.next
+				return nil
+			}
+			return errors.Errorf("Key not found")
+		}
 		var has bool
 		i, has, err = find(self.varchar, n, key)
 		if err != nil {
@@ -317,9 +325,8 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		if i >= int(n.meta.keyCount) && i > 0 {
 			i = int(n.meta.keyCount) - 1
 		}
+		log.Println(i, n.meta.keyCount)
 		return n.doKeyAt(self.varchar, i, func(k []byte) error {
-			if !has {
-			}
 			if !has && n.meta.next != 0 && bytes.Compare(k, key) < 0 {
 				next = n.meta.next
 			}

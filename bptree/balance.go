@@ -62,7 +62,7 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 
 func (n *internal) balancePoint(v *varchar.Varchar) (int, error) {
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(n, m)
+	return noSplitBalancePoint(v, n, m)
 }
 
 func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
@@ -70,9 +70,10 @@ func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
 		return 0, nil
 	}
 	m := int(n.meta.keyCount) / 2
-	return noSplitBalancePoint(n, m)
+	return noSplitBalancePoint(v, n, m)
 }
 
+/*
 func noSplitBalancePoint(keys keyed, m int) (int, error) {
 	for m < keys.keyCount() && bytes.Equal(keys.key(m-1), keys.key(m)) {
 		m++
@@ -85,8 +86,8 @@ func noSplitBalancePoint(keys keyed, m int) (int, error) {
 	}
 	return m, nil
 }
+*/
 
-/*
 func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 	var eq bool
 	for m < keys.keyCount() {
@@ -123,7 +124,7 @@ func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
 		}
 	}
 	return m, nil
-}*/
+}
 
 /*** outdated. Needs to be updated for doKeyAt
 

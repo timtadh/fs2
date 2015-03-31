@@ -11,11 +11,21 @@ import (
 
 import (
 	"github.com/timtadh/fs2/consts"
+	"github.com/timtadh/fs2/slice"
 )
 
 func (t *T) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
 	bpt, err := New(bf, -1, -1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return bpt, bf_clean
+}
+
+func (t *T) bptFixed() (*BpTree, func()) {
+	bf, bf_clean := t.blkfile()
+	bpt, err := New(bf, 8, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +54,7 @@ func (kvs KVS) Less(i, j int) bool {
 func (t *T) make_kv() *KV {
 	return &KV{
 		// key: t.rand_key(),
-		key: t.rand_varchar(1, 4),
+		key: t.rand_varchar(8, 17),
 		value: t.rand_varchar(1, 127),
 	}
 }
@@ -183,6 +193,7 @@ func TestInsert3Level(x *testing.T) {
 	for _, kv := range kvs {
 		// t.Log(i, len(kvs))
 		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert_has(bpt)(kv.key)
 	}
 	// t.Log("start existence check")
 	for _, kv := range kvs {
@@ -203,7 +214,7 @@ func TestInsert3Level(x *testing.T) {
 func TestEndOfPureRun(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < 1; TEST++ {
-		bpt, clean := t.bpt()
+		bpt, clean := t.bptFixed()
 		kvs := make([]*KV, 0, 2000)
 		start, err := bpt.newLeaf()
 		t.assert_nil(err)
@@ -236,10 +247,55 @@ func TestEndOfPureRun(x *testing.T) {
 	}
 }
 
+func TestEndOfPureRunVarchar(x *testing.T) {
+	t := (*T)(x)
+	for TEST := 0; TEST < 1; TEST++ {
+		bpt, clean := t.bpt()
+		k, err := bpt.varchar.Alloc(17)
+		t.assert_nil(err)
+		t.assert_nil(bpt.varchar.Do(k, func(data []byte) error {
+			copy(data, []byte{1, 0, 1, 0, 1, 0, 1, 0})
+			return nil
+		}))
+		KEY := slice.Uint64AsSlice(&k)
+		kvs := make([]*KV, 0, 2000)
+		start, err := bpt.newLeaf()
+		t.assert_nil(err)
+		cur := start
+		for i := 0; i < rand.Intn(500)+255; i++ {
+			kv := &KV{
+				key:   KEY,
+				value: t.rand_value(8),
+			}
+			kvs = append(kvs, kv)
+			var fits bool = false
+			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
+				fits = cur.fitsAnother()
+				return nil
+			}))
+			if !fits {
+				next, err := bpt.newLeaf()
+				t.assert_nil(err)
+				t.assert_nil(bpt.insertListNode(next, cur, 0))
+				cur = next
+			}
+			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
+				return cur.putKV(bpt.varchar, kv.key, kv.value)
+			}))
+		}
+		end, err := bpt.endOfPureRun(start)
+		t.assert_nil(err)
+		t.assert("end should be cur", end == cur)
+		clean()
+	}
+}
+
+
+
 func TestInternalSplit(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*10; TEST++ {
-		bpt, clean := t.bpt()
+		bpt, clean := t.bptFixed()
 		kps := make(KPS, 0, 254)
 		a, err := bpt.newInternal()
 		t.assert_nil(err)
@@ -310,7 +366,7 @@ func TestInternalInsertSplit(x *testing.T) {
 	t := (*T)(x)
 	LEAF_CAP := 253
 	for TEST := 0; TEST < TESTS; TEST++ {
-		bpt, clean := t.bpt()
+		bpt, clean := t.bptFixed()
 		kvs := make(KVS, 0, LEAF_CAP*2)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
