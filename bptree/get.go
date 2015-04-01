@@ -112,6 +112,7 @@ func (self *BpTree) Keys() (it Iterator, err error) {
 				return nil, nil, nil
 			}
 		}
+		pk = key
 		return key, nil, it
 	}
 	return it, nil
