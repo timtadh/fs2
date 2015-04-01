@@ -11,6 +11,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -61,15 +62,11 @@ func (t *T) rand_key() []byte {
 	return t.rand_bytes(8)
 }
 
-func (t *T) rand_value(max int) []byte {
-	bytes := t.rand_bytes(2)
-	s := slice.AsSlice(&bytes)
-	length := int(*(*uint16)(s.Array))
-	length = (length % (max)) + 1
-	return t.rand_bytes(length)
+func (t *T) rand_value(size int) []byte {
+	return t.rand_bytes(size)
 }
 
-func (t *T) rand_bigValue(min, max int) []byte {
+func (t *T) rand_varchar(min, max int) []byte {
 	bytes := t.rand_bytes(4)
 	s := slice.AsSlice(&bytes)
 	length := int(*(*uint32)(s.Array))
@@ -93,69 +90,68 @@ func (t *T) key(bytes []byte) uint64 {
 }
 
 func (t *T) newLeaf() *leaf {
-	n, err := newLeaf(testAlloc(), 8)
+	n, err := newLeaf(0, testAlloc(), 8, 8)
 	t.assert_nil(err)
 	return n
 }
 
 func TestPutKVRand(x *testing.T) {
 	t := (*T)(x)
-	bf, bf_clean := t.blkfile()
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
-		n, err := newLeaf(make([]byte, SIZE), 8)
+		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
-		do_put := func(kv *KV) {
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
-		}
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
-			if !n.fits(kv.value) {
+			if !n.fitsAnother() {
 				break
 			}
 			kvs = append(kvs, kv)
-			do_put(kv)
 			// t.Log(n)
+			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 	}
-	bf_clean()
 }
 
 func TestPutDelKVRand(x *testing.T) {
 	t := (*T)(x)
-	bf, bf_clean := t.blkfile()
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS*2; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
-		n, err := newLeaf(make([]byte, SIZE), 8)
+		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
 		t.assert_nil(err)
 		kvs := make([]*KV, 0, n.meta.keyCap/2)
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := t.make_kv()
-			if !n.fits(kv.value) {
+			if !n.fitsAnother() {
 				break
 			}
 			kvs = append(kvs, kv)
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -166,13 +162,13 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 		for _, kv := range kvs {
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(kv.key, kv.value))
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert("could not find key in leaf", n.Has(kv.key))
-			t.assert_value(kv.value)(n.first_value(bf, kv.key))
+			t.assert_value(kv.value)(n.firstValue(bpt.varchar, kv.key))
 		}
 		for _, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -184,7 +180,7 @@ func TestPutDelKVRand(x *testing.T) {
 				}
 			}
 			t.assert("found key in leaf", !n.Has(kv.key))
-			t.assert_nil(n.putKV(sMALL_VALUE, kv.key, kv.value))
+			t.assert_nil(n.putKV(kv.key, kv.value))
 		}
 		for i, kv := range kvs {
 			t.assert_nil(n.delKV(kv.key, func(b []byte) bool {
@@ -195,123 +191,104 @@ func TestPutDelKVRand(x *testing.T) {
 			}
 		}
 	}
-	bf_clean()
 }
 
 func TestPutKV(x *testing.T) {
 	t := (*T)(x)
-	bf, bf_clean := t.blkfile()
-	n, err := newLeaf(make([]byte, 256), 8)
+	bpt, clean := t.bpt()
+	defer clean()
+	n, err := newLeaf(0, make([]byte, 256), 8, 8)
 	t.assert_nil(err)
 	k1 := uint64(7)
-	v1 := []byte{7, 7, 7, 7, 7, 7, 7, 7}
+	v1 := t.rand_bytes(8)
 	k2 := uint64(3)
-	v2 := []byte{3, 3, 3}
+	v2 := t.rand_bytes(8)
 	k3 := uint64(12)
-	v3 := []byte{12, 12, 12, 12, 12, 12, 12, 12}
+	v3 := t.rand_bytes(8)
 	k4 := uint64(8)
-	v4 := []byte{8, 8}
+	v4 := t.rand_bytes(8)
 	k5 := uint64(5)
-	v5 := []byte{5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5}
-	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k1), v1))
+	v5 := t.rand_bytes(8)
+	t.assert_nil(n.putKV(t.bkey(&k1), v1))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
+	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
 
-	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k2), v2))
+	t.assert_nil(n.putKV(t.bkey(&k2), v2))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
+	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
 
-	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k3), v3))
+	t.assert_nil(n.putKV(t.bkey(&k3), v3))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
+	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
 
-	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k4), v4))
+	t.assert_nil(n.putKV(t.bkey(&k4), v4))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
+	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
 
-	t.assert_nil(n.putKV(sMALL_VALUE, t.bkey(&k5), v5))
+	t.assert_nil(n.putKV(t.bkey(&k5), v5))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
-	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
+	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k1)))
-	t.assert_value(v1)(n.first_value(bf, t.bkey(&k1)))
+	t.assert_value(v1)(n.firstValue(bpt.varchar, t.bkey(&k1)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k2)))
-	t.assert_value(v2)(n.first_value(bf, t.bkey(&k2)))
+	t.assert_value(v2)(n.firstValue(bpt.varchar, t.bkey(&k2)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k3)))
-	t.assert_value(v3)(n.first_value(bf, t.bkey(&k3)))
+	t.assert_value(v3)(n.firstValue(bpt.varchar, t.bkey(&k3)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k4)))
-	t.assert_value(v4)(n.first_value(bf, t.bkey(&k4)))
+	t.assert_value(v4)(n.firstValue(bpt.varchar, t.bkey(&k4)))
 	t.assert("could not find key in leaf", n.Has(t.bkey(&k5)))
-	t.assert_value(v5)(n.first_value(bf, t.bkey(&k5)))
-	bf_clean()
+	t.assert_value(v5)(n.firstValue(bpt.varchar, t.bkey(&k5)))
 }
 
 func TestNewLeaf(t *testing.T) {
-	n, err := newLeaf(testAlloc(), 16)
+	n, err := newLeaf(0, testAlloc(), 16, 12)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not a LEAF node")
 	}
 	if n.meta.keySize != 16 {
 		t.Error("keySize was not 16")
 	}
-	if n.meta.keyCap != 5 {
-		t.Error("keyCap was not 5")
+	if n.meta.valSize != 12 {
+		t.Error("valSize was not 12")
+	}
+	if n.meta.keyCap != 3 {
+		t.Error("keyCap was not 3")
 	}
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
 	}
-	for i := 0; i < int(n.meta.keyCap); i++ {
-		if *n.valueSize(i) != 0 {
-			t.Error("ptr was not zero")
-		}
-	}
 
-	*n.valueSize(0) = 1
-	*n.valueSize(1) = 21
-	*n.valueSize(2) = 23
-	*n.valueSize(3) = 125
-	*n.valueSize(int(n.meta.keyCap-1)) = 0xffff
-
-	valueSizes := []uint16{1, 21, 23, 125, 0xffff}
-
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {
 		t.Error("keySize was not 16")
 	}
-	if n.meta.keyCap != 5 {
-		t.Error("keyCap was not 5")
+	if n.meta.keyCap != 3 {
+		t.Error("keyCap was not 3")
+	}
+	if n.meta.valSize != 12 {
+		t.Error("valSize was not 12")
 	}
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
-	}
-
-	for i := 0; i < int(n.meta.keyCap); i++ {
-		if *n.valueSize(i) != valueSizes[i] {
-			t.Error("valueSize was not the correct value")
-		}
 	}
 }
 
 func TestLoadLeaf(t *testing.T) {
 	back := func() []byte {
-		n, err := newLeaf(testAlloc(), 16)
+		n, err := newLeaf(0, testAlloc(), 16, 12)
 		if err != nil {
 			t.Fatal(err)
 		}
-		*n.valueSize(0) = 1
-		*n.valueSize(1) = 21
-		*n.valueSize(2) = 23
-		*n.valueSize(3) = 125
-		*n.valueSize(int(n.meta.keyCap-1)) = 0xffff
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len: BLOCKSIZE,
-			Cap: BLOCKSIZE,
+			Len:   consts.BLOCKSIZE,
+			Cap:   consts.BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()
@@ -321,24 +298,19 @@ func TestLoadLeaf(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	valueSizes := []uint16{1, 21, 23, 125, 0xffff}
-
-	if n.meta.flags != lEAF {
+	if n.meta.flags != consts.LEAF {
 		t.Error("was not an leaf node")
 	}
 	if n.meta.keySize != 16 {
 		t.Error("keySize was not 16")
 	}
-	if n.meta.keyCap != 5 {
-		t.Error("keyCap was not 5")
+	if n.meta.valSize != 12 {
+		t.Error("valSize was not 12")
+	}
+	if n.meta.keyCap != 3 {
+		t.Error("keyCap was not 3")
 	}
 	if n.meta.keyCount != 0 {
 		t.Error("keyCount was not 0")
-	}
-
-	for i := 0; i < int(n.meta.keyCap); i++ {
-		if *n.valueSize(i) != valueSizes[i] {
-			t.Error("ptr was not the correct value")
-		}
 	}
 }

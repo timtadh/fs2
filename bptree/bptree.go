@@ -5,22 +5,28 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
+	"github.com/timtadh/fs2/varchar"
 )
 
 // The Ubiquitous B+ Tree
 type BpTree struct {
-	bf            *fmap.BlockFile
-	metaBack      []byte
-	meta          *bpTreeMeta
+	bf       *fmap.BlockFile
+	metaBack []byte
+	meta     *bpTreeMeta
+	varchar  *varchar.Varchar
 }
 
 type bpTreeMeta struct {
-	root    uint64
-	keySize uint16
-	itemCount uint64
+	root        uint64
+	itemCount   uint64
+	varcharCtrl uint64
+	keySize     uint16
+	valSize     uint16
+	flags       consts.Flag
 }
 
 var bpTreeMetaSize uintptr
@@ -30,15 +36,19 @@ func init() {
 	bpTreeMetaSize = reflect.TypeOf(*m).Size()
 }
 
-func newBpTreeMeta(bf *fmap.BlockFile, keySize uint16) ([]byte, *bpTreeMeta, error) {
+func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags consts.Flag) ([]byte, *bpTreeMeta, error) {
 	a, err := bf.Allocate()
 	if err != nil {
 		return nil, nil, err
 	}
 	err = bf.Do(a, 1, func(bytes []byte) error {
-		_, err := newLeaf(bytes, keySize)
+		_, err := newLeaf(flags, bytes, keySize, valSize)
 		return err
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err := bf.Allocate()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,7 +56,10 @@ func newBpTreeMeta(bf *fmap.BlockFile, keySize uint16) ([]byte, *bpTreeMeta, err
 	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
 	meta.root = a
 	meta.keySize = keySize
+	meta.valSize = valSize
+	meta.varcharCtrl = b
 	meta.itemCount = 0
+	meta.flags = flags
 	err = bf.SetControlData(data)
 	if err != nil {
 		return nil, nil, err
@@ -66,24 +79,44 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 	return data, meta, nil
 }
 
-// Create a new B+ Tree in the given BlockFile with the given key size
-// (in bytes).  The size of the key cannot change after creation. The
-// maximum size is about ~1350 bytes.
-func New(bf *fmap.BlockFile, keySize int) (*BpTree, error) {
-	if bf.BlockSize() != BLOCKSIZE {
-		return nil, errors.Errorf("The block size must be %v, got %v", BLOCKSIZE, bf.BlockSize())
+// Create a new B+ Tree in the given BlockFile.
+//
+// bf *BlockFile. Can be an anonymous map or a file backed map
+// keySize int. If this is negative it will use varchar keys
+// valSize int. If this is negative it will use varchar values
+func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
+	if bf.BlockSize() != consts.BLOCKSIZE {
+		return nil, errors.Errorf("The block size must be %v, got %v", consts.BLOCKSIZE, bf.BlockSize())
 	}
-	if keysPerInternal(int(bf.BlockSize()), keySize) < 3 {
+	if keysPerInternal(int(bf.BlockSize()), keySize + valSize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}
-	back, meta, err := newBpTreeMeta(bf, uint16(keySize))
+	if keySize == 0 {
+		return nil, errors.Errorf("keySize was 0")
+	}
+	var flags consts.Flag = 0
+	if keySize < 0 {
+		keySize = 8
+		flags = flags | consts.VARCHAR_KEYS
+		return nil, errors.Errorf("varchar keys not yet supported")
+	}
+	if valSize < 0 {
+		valSize = 8
+		flags = flags | consts.VARCHAR_VALS
+	}
+	back, meta, err := newBpTreeMeta(bf, uint16(keySize), uint16(valSize), flags)
+	if err != nil {
+		return nil, err
+	}
+	v, err := varchar.New(bf, meta.varcharCtrl)
 	if err != nil {
 		return nil, err
 	}
 	bpt := &BpTree{
-		bf:            bf,
-		metaBack:      back,
-		meta:          meta,
+		bf:       bf,
+		metaBack: back,
+		meta:     meta,
+		varchar:  v,
 	}
 	return bpt, nil
 }
@@ -95,10 +128,15 @@ func Open(bf *fmap.BlockFile) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
+	v, err := varchar.Open(bf, meta.varcharCtrl)
+	if err != nil {
+		return nil, err
+	}
 	bpt := &BpTree{
-		bf:            bf,
-		metaBack:      back,
-		meta:          meta,
+		bf:       bf,
+		metaBack: back,
+		meta:     meta,
+		varchar:  v,
 	}
 	return bpt, nil
 }
@@ -116,4 +154,3 @@ func (self *BpTree) KeySize() int {
 func (self *BpTree) Size() int {
 	return int(self.meta.itemCount)
 }
-

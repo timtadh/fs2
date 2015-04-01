@@ -9,6 +9,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/slice"
 )
 
@@ -86,8 +87,8 @@ func TestPutKPRand(x *testing.T) {
 	t := (*T)(x)
 	for TEST := 0; TEST < TESTS*5; TEST++ {
 		SIZE := 1027 + TEST*16
-		if SIZE > BLOCKSIZE {
-			SIZE = BLOCKSIZE
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
 		}
 		n, err := newInternal(make([]byte, SIZE), 8)
 		t.assert_nil(err)
@@ -161,7 +162,7 @@ func TestNewInternal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -184,18 +185,18 @@ func TestNewInternal(t *testing.T) {
 	}
 
 	n.key(0)[0] = 1
-	n.key(int(n.meta.keyCap-1))[15] = 0xf
+	n.key(int(n.meta.keyCap - 1))[15] = 0xf
 	*n.ptr(0) = 1
 	*n.ptr(1) = 21
 	*n.ptr(2) = 23
 	*n.ptr(3) = 125
-	*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
+	*n.ptr(int(n.meta.keyCap - 1)) = 0xffffffffffffffff
 
 	one := []byte{1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {
@@ -228,16 +229,16 @@ func TestLoadInternal(t *testing.T) {
 			t.Fatal(err)
 		}
 		n.key(0)[0] = 1
-		n.key(int(n.meta.keyCap-1))[15] = 0xf
+		n.key(int(n.meta.keyCap - 1))[15] = 0xf
 		*n.ptr(0) = 1
 		*n.ptr(1) = 21
 		*n.ptr(2) = 23
 		*n.ptr(3) = 125
-		*n.ptr(int(n.meta.keyCap-1)) = 0xffffffffffffffff
+		*n.ptr(int(n.meta.keyCap - 1)) = 0xffffffffffffffff
 		s := &slice.Slice{
 			Array: unsafe.Pointer(n),
-			Len: BLOCKSIZE,
-			Cap: BLOCKSIZE,
+			Len:   consts.BLOCKSIZE,
+			Cap:   consts.BLOCKSIZE,
 		}
 		return *s.AsBytes()
 	}()
@@ -251,7 +252,7 @@ func TestLoadInternal(t *testing.T) {
 	fifteen := []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15}
 	ptrs := []uint64{1, 21, 23, 0xffffffffffffffff}
 
-	if n.meta.flags != iNTERNAL {
+	if n.meta.flags != consts.INTERNAL {
 		t.Error("was not an internal node")
 	}
 	if n.meta.keySize != 16 {

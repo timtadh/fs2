@@ -7,13 +7,14 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
 
 type baseMeta struct {
-	flags    flag
+	flags    consts.Flag
 	keySize  uint16
 	keyCount uint16
 	keyCap   uint16
@@ -22,6 +23,7 @@ type baseMeta struct {
 const ptrSize = 8
 
 const baseMetaSize = 8
+
 var baseMetaSizeActual int
 
 func init() {
@@ -33,8 +35,8 @@ func init() {
 }
 
 type internal struct {
-	meta baseMeta
-	bytes [BLOCKSIZE-baseMetaSize]byte
+	meta  baseMeta
+	bytes [consts.BLOCKSIZE - baseMetaSize]byte
 }
 
 func loadBaseMeta(backing []byte) *baseMeta {
@@ -42,7 +44,7 @@ func loadBaseMeta(backing []byte) *baseMeta {
 	return (*baseMeta)(back.Array)
 }
 
-func (m *baseMeta) Init(flags flag, keySize, keyCap uint16) {
+func (m *baseMeta) Init(flags consts.Flag, keySize, keyCap uint16) {
 	m.flags = flags
 	m.keySize = keySize
 	m.keyCount = 0
@@ -72,7 +74,7 @@ func (n *internal) Has(key []byte) bool {
 
 func (n *internal) key(i int) []byte {
 	keySize := int(n.meta.keySize)
-	s := i*keySize
+	s := i * keySize
 	e := s + keySize
 	return n.bytes[s:e]
 }
@@ -89,7 +91,7 @@ func (n *internal) ptr(i int) *uint64 {
 func (n *internal) ptrs() []byte {
 	keySize := int(n.meta.keySize)
 	keyCap := int(n.meta.keyCap)
-	s := keyCap*keySize
+	s := keyCap * keySize
 	e := s + keyCap*ptrSize
 	return n.bytes[s:e]
 }
@@ -119,7 +121,7 @@ func (n *internal) putKP(key []byte, p uint64) error {
 	}
 	err := n.putKey(key, func(i int) error {
 		ptrs := n.ptrs()
-		chunkSize := (int(n.meta.keyCount) - i)*ptrSize
+		chunkSize := (int(n.meta.keyCount) - i) * ptrSize
 		s := i * ptrSize
 		from := ptrs[s : s+chunkSize]
 		to := ptrs[s+ptrSize : s+chunkSize+ptrSize]
@@ -154,12 +156,12 @@ func (n *internal) delItemAt(i int) error {
 	}
 	// remove the ptr
 	ptrs := n.ptrs()
-	chunkSize := (int(n.meta.keyCount) - i - 1)*ptrSize
+	chunkSize := (int(n.meta.keyCount) - i - 1) * ptrSize
 	s := i * ptrSize
 	from := ptrs[s+ptrSize : s+ptrSize+chunkSize]
 	to := ptrs[s : s+chunkSize]
 	copy(to, from)
-	*n.ptr(int(n.meta.keyCount-1)) = 0
+	*n.ptr(int(n.meta.keyCount - 1)) = 0
 	// do the book keeping
 	n.meta.keyCount--
 	return nil
@@ -205,13 +207,13 @@ func (n *internal) delKeyAt(i int) error {
 		copy(n.key(j), n.key(j+1))
 	}
 	// zero the old
-	fmap.MemClr(n.key(int(n.meta.keyCount-1)))
+	fmap.MemClr(n.key(int(n.meta.keyCount - 1)))
 	return nil
 }
 
 func loadInternal(backing []byte) (*internal, error) {
 	n := asInternal(backing)
-	if n.meta.flags&iNTERNAL == 0 {
+	if n.meta.flags&consts.INTERNAL == 0 {
 		return nil, errors.Errorf("Was not an internal node")
 	}
 	return n, nil
@@ -234,8 +236,7 @@ func newInternal(backing []byte, keySize uint16) (*internal, error) {
 	n := asInternal(backing)
 
 	keyCap := uint16(keysPerInternal(len(backing), int(keySize)))
-	n.meta.Init(iNTERNAL, keySize, keyCap)
+	n.meta.Init(consts.INTERNAL, keySize, keyCap)
 
 	return n, nil
 }
-

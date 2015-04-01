@@ -3,6 +3,7 @@ package bptree
 import ()
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/slice"
 )
@@ -35,17 +36,17 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 }
 
 func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
-	var flags flag
+	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = flag(bytes[0])
+		flags = consts.Flag(bytes[0])
 		return nil
 	})
 	if err != nil {
 		return 0, err
 	}
-	if flags&iNTERNAL != 0 {
+	if flags&consts.INTERNAL != 0 {
 		return self.internalRemove(n, sibling, key, where)
-	} else if flags&lEAF != 0 {
+	} else if flags&consts.LEAF != 0 {
 		return self.leafRemove(n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")
@@ -65,7 +66,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		}
 		kid = *n.ptr(i)
 		if i+1 < int(n.meta.keyCount) {
-			sibling = *n.ptr(i+1)
+			sibling = *n.ptr(i + 1)
 		} else if sibling != 0 {
 			return self.doInternal(sibling, func(m *internal) error {
 				sibling = *m.ptr(0)
@@ -148,7 +149,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		i := locs[x].i
 		err = self.doLeaf(a, func(n *leaf) error {
 			var remove bool = false
-			err = n.doValueAt(self.bf, i, func(value []byte) error {
+			err = n.doValueAt(self.varchar, i, func(value []byte) error {
 				remove = where(value)
 				return nil
 			})
@@ -156,15 +157,14 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if (*n.valueFlag(i))&bIG_VALUE != 0 {
-					val := n.val(i)
-					bv := (*bigValue)(slice.AsSlice(&val).Array)
-					err = self.removeBigValue(bv.offset, bv.size)
-					if err != nil {
-						return err
-					}
-				}
+				// TODO: Add logic to deref and remove big values and keys
+				v := n.val(i)
+				vi := *slice.AsUint64(&v)
 				err = n.delItemAt(i)
+				if err != nil {
+					return err
+				}
+				err = self.varchar.Deref(vi)
 				if err != nil {
 					return err
 				}
@@ -193,14 +193,3 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 	return b, nil
 }
 
-func (self *BpTree) removeBigValue(a uint64, size uint32) (err error) {
-	blksize := uint64(self.bf.BlockSize())
-	blks := uint64(blksNeeded(self.bf, int(size)))
-	for i := uint64(0); i < blks; i++ {
-		err = self.bf.Free(a + (blksize * i))
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}

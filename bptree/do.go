@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
@@ -13,7 +14,7 @@ func (self *BpTree) newInternal() (a uint64, err error) {
 
 func (self *BpTree) newLeaf() (a uint64, err error) {
 	return self.new(func(bytes []byte) error {
-		_, err := newLeaf(bytes, self.meta.keySize)
+		_, err := newLeaf(self.meta.flags, bytes, self.meta.keySize, self.meta.valSize)
 		return err
 	})
 }
@@ -59,7 +60,7 @@ func (self *BpTree) doKV(a uint64, i int, do func(key, value []byte) error) (err
 		if i >= int(n.meta.keyCount) {
 			return errors.Errorf("Index out of range")
 		}
-		return n.doValueAt(self.bf, i, func(value []byte) error {
+		return n.doValueAt(self.varchar, i, func(value []byte) error {
 			return do(n.key(i), value)
 		})
 	})
@@ -89,10 +90,10 @@ func (self *BpTree) do(
 	leafDo func(*leaf) error,
 ) error {
 	return self.bf.Do(a, 1, func(bytes []byte) error {
-		flags := flag(bytes[0])
-		if flags&iNTERNAL != 0 {
+		flags := consts.Flag(bytes[0])
+		if flags&consts.INTERNAL != 0 {
 			return internalDo(asInternal(bytes))
-		} else if flags&lEAF != 0 {
+		} else if flags&consts.LEAF != 0 {
 			return leafDo(asLeaf(bytes))
 		} else {
 			return errors.Errorf("Unknown block type")

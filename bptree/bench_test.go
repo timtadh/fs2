@@ -10,13 +10,12 @@ import (
 
 import (
 	"github.com/timtadh/fs2/fmap"
-	"github.com/timtadh/fs2/slice"
 )
 
 type B testing.B
 
 func (t *B) blkfile() (*fmap.BlockFile, func()) {
-	bf, err := fmap.CreateBlockFileCustomBlockSize(PATH, 4096)
+	bf, err := fmap.Anonymous(4096)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,16 +24,12 @@ func (t *B) blkfile() (*fmap.BlockFile, func()) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		err = bf.Remove()
-		if err != nil {
-			t.Fatal(err)
-		}
 	}
 }
 
 func (t *B) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
-	bpt, err := New(bf, 8)
+	bpt, err := New(bf, 8, 8)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,11 +73,7 @@ func (t *B) rand_key() []byte {
 	return t.rand_bytes(8)
 }
 
-func (t *B) rand_value(max int) []byte {
-	bytes := t.rand_bytes(2)
-	s := slice.AsSlice(&bytes)
-	length := int(*(*uint16)(s.Array))
-	length = (length % (max)) + 1
+func (t *B) rand_value(length int) []byte {
 	return t.rand_bytes(length)
 }
 
@@ -107,7 +98,7 @@ func BenchmarkBpTreeAddHasRemove(x *testing.B) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
 				key:   t.rand_key(),
-				value: t.rand_value(32),
+				value: t.rand_value(8),
 			}
 			kvs = append(kvs, kv)
 		}
@@ -141,7 +132,7 @@ func BenchmarkBpTreeAddHas(x *testing.B) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
 				key:   t.rand_key(),
-				value: t.rand_value(32),
+				value: t.rand_value(8),
 			}
 			kvs = append(kvs, kv)
 		}
@@ -170,7 +161,7 @@ func BenchmarkBpTreeAdd(x *testing.B) {
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
 				key:   t.rand_key(),
-				value: t.rand_value(32),
+				value: t.rand_value(8),
 			}
 			kvs = append(kvs, kv)
 		}
