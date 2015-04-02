@@ -269,7 +269,7 @@ func (self *BlockFile) Close() error {
 		return errors.Errorf("File is not open")
 	}
 	if self.outstanding > 0 {
-		return errors.Errorf("Tried to close file when there were outstanding pointers")
+		return errors.Errorf("Tried to close file when there were outstanding pointers (%d)", self.outstanding)
 	}
 	if self.file != nil {
 		if errno := C.destroy_mmap(self.mmap, C.int(self.file.Fd())); errno != 0 {
