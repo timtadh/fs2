@@ -2,7 +2,8 @@ package errors
 
 import (
 	"fmt"
-	"runtime/debug"
+	// "runtime/debug"
+	"runtime"
 )
 
 type Error struct {
@@ -11,9 +12,13 @@ type Error struct {
 }
 
 func Errorf(format string, args ...interface{}) error {
+	buf := make([]byte, 50000)
+	n := runtime.Stack(buf, true)
+	trace := make([]byte, n)
+	copy(trace, buf)
 	return &Error{
 		Err:   fmt.Errorf(format, args...),
-		Stack: debug.Stack(),
+		Stack: trace,
 	}
 }
 

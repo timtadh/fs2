@@ -3,6 +3,7 @@ package bptree
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"reflect"
 )
 
@@ -67,17 +68,23 @@ func (n *leaf) String() string {
 		n.meta, n.keys()[:n.meta.keyCount*n.meta.keySize], n.vals()[:n.meta.keyCount*n.meta.valSize])
 }
 
-func (n *leaf) Has(key []byte) bool {
-	_, has := find(n, key)
-	return has
-}
-
 func (n *leaf) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
+func (n *leaf) _has(v *varchar.Varchar, key []byte) bool {
+	_, has, err := find(v, n, key)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return has
+}
+
 func (n *leaf) firstValue(vc *varchar.Varchar, key []byte) ([]byte, error) {
-	i, has := find(n, key)
+	i, has, err := find(vc, n, key)
+	if err != nil {
+		return nil, err
+	}
 	if !has {
 		return nil, errors.Errorf("leaf does not have that key")
 	}
@@ -112,7 +119,7 @@ func (n *leaf) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error 
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(vc, n.key(i), do)
 	} else {
-		return do(n.val(i))
+		return do(n.key(i))
 	}
 }
 
@@ -159,25 +166,41 @@ func (n *leaf) fitsAnother() bool {
 	return n.meta.keyCount+1 < n.meta.keyCap
 }
 
-func (n *leaf) pure() bool {
+// this method is totally UNSAFE
+func (n *leaf) pure(v *varchar.Varchar) bool {
 	if n.meta.keyCount == 0 {
 		return true
 	}
-	key := n.key(0)
+	var firstKey []byte
+	err := n.doKeyAt(v, 0, func(k []byte) error {
+		firstKey = k
+		return nil
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 	for i := 1; i < int(n.meta.keyCount); i++ {
-		if !bytes.Equal(key, n.key(i)) {
+		var key_i []byte
+		err := n.doKeyAt(v, i, func(k []byte) error {
+			key_i = k
+			return nil
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		if !bytes.Equal(firstKey, key_i) {
 			return false
 		}
 	}
 	return true
 }
 
-func (n *leaf) putKV(key []byte, value []byte) (err error) {
-	if len(key) != int(n.meta.keySize) {
-		return errors.Errorf("key was the wrong size")
-	}
+func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")
+	}
+	if len(key) != int(n.meta.keySize) {
+		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount+1 >= n.meta.keyCap {
 		return errors.Errorf("block is full")
@@ -185,7 +208,20 @@ func (n *leaf) putKV(key []byte, value []byte) (err error) {
 	if !n.fitsAnother() {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
-	idx, _ := find(n, key)
+
+	var idx int
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+		idx, _, err = find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+			idx, _, err = find(v, n, key)
+			return err
+		})
+	}
+	if err != nil {
+		return err
+	}
+
 	keys := n.keys()
 	vals := n.vals()
 	keySize := int(n.meta.keySize)
@@ -230,25 +266,60 @@ func (n *leaf) putKV(key []byte, value []byte) (err error) {
 		val_slice := vals[s:e]
 		copy(val_slice, value)
 	}
+
+	var has bool
+	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+		idx, has, err = find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+			idx, has, err = find(v, n, key)
+			return nil
+		})
+	}
+	if err != nil {
+		return err
+	}
+	if !has {
+		return errors.Errorf("could not find key after put")
+	}
 	return nil
 }
 
-func (n *leaf) delKV(key []byte, which func([]byte) bool) error {
+func (n *leaf) delKV(v *varchar.Varchar, key []byte, which func([]byte) bool) error {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
 	if n.meta.keyCount <= 0 {
 		return errors.Errorf("block is empty")
 	}
-	idx, has := find(n, key)
+	idx, has, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
 	if !has {
 		return errors.Errorf("that key was not in the block")
 	}
 	for ; idx < int(n.meta.keyCount); idx++ {
-		if !bytes.Equal(key, n.key(idx)) {
+		var eq bool
+		err = n.doKeyAt(v, idx, func(k []byte) error {
+			eq = bytes.Equal(key, k)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if !eq {
 			return errors.Errorf("no key removed")
 		}
-		if which(n.val(idx)) {
+		var whichRes bool
+		err = n.doValueAt(v, idx, func(v []byte) error {
+			whichRes = which(v)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		if whichRes {
 			break
 		}
 	}
@@ -318,3 +389,4 @@ func newLeaf(flags consts.Flag, backing []byte, keySize, valSize uint16) (*leaf,
 	n.meta.Init(consts.LEAF|flags, keySize, uint16(keyCap), valSize)
 	return n, nil
 }
+

@@ -224,22 +224,27 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 /* returns the key at the address and index or an error
  */
 func (self *BpTree) keyAt(a uint64, i int) (key []byte, err error) {
-	key = make([]byte, self.meta.keySize)
 	err = self.do(
 		a,
 		func(n *internal) error {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("out of range")
 			}
-			copy(key, n.key(i))
-			return nil
+			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				key = make([]byte, len(k))
+				copy(key, k)
+				return nil
+			})
 		},
 		func(n *leaf) error {
 			if i >= int(n.meta.keyCount) {
 				return errors.Errorf("out of range")
 			}
-			copy(key, n.key(i))
-			return nil
+			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				key = make([]byte, len(k))
+				copy(key, k)
+				return nil
+			})
 		},
 	)
 	if err != nil {
@@ -280,7 +285,10 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 			kid = *n.ptr(0)
 			return nil
 		}
-		i, has := find(n, key)
+		i, has, err := find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if !has && i > 0 {
 			// if it doesn't have it and the index > 0 then we have the
 			// next block so we have to subtract one from the index.
@@ -300,17 +308,25 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		return n, 0, nil
 	}
 	var next uint64 = 0
-	err = self.doLeaf(n, func(n *leaf) error {
+	err = self.doLeaf(n, func(n *leaf) (err error) {
+		if n.meta.keyCount == 0 {
+			// this happens when the tree is empty!
+			return nil
+		}
 		var has bool
-		i, has = find(n, key)
+		i, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		}
 		if i >= int(n.meta.keyCount) && i > 0 {
 			i = int(n.meta.keyCount) - 1
 		}
-		if !has && n.meta.next != 0 && bytes.Compare(n.key(i), key) < 0 {
-			next = n.meta.next
+		return n.doKeyAt(self.varchar, i, func(k []byte) error {
+			if !has && n.meta.next != 0 && bytes.Compare(k, key) < 0 {
+				next = n.meta.next
+			}
 			return nil
-		}
-		return nil
+		})
 	})
 	if err != nil {
 		return 0, 0, err
@@ -346,8 +362,10 @@ func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, er
 		}
 		var less bool = false
 		err = self.doLeaf(a, func(n *leaf) error {
-			less = bytes.Compare(to, n.key(i)) < 0
-			return nil
+			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				less = bytes.Compare(to, k) < 0
+				return nil
+			})
 		})
 		if err != nil {
 			return 0, 0, err, nil

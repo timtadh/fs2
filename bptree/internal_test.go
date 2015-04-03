@@ -18,7 +18,7 @@ func testAlloc() []byte {
 }
 
 func (t *T) newInternal() *internal {
-	n, err := newInternal(testAlloc(), 8)
+	n, err := newInternal(0, testAlloc(), 8)
 	t.assert_nil(err)
 	return n
 }
@@ -32,65 +32,69 @@ func (t *T) assert_ptr(expect uint64) func(ptr uint64, err error) {
 
 func TestPutDelKPRand(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS; TEST++ {
-		n, err := newInternal(make([]byte, 1027+TEST*16), 8)
+		n, err := newInternal(0, make([]byte, 1027+TEST*16), 8)
 		t.assert_nil(err)
 		kps := make([]*KP, 0, n.meta.keyCap-1)
 		for i := 0; i < cap(kps); i++ {
 			kp := t.make_kp()
 			kps = append(kps, kp)
-			t.assert_nil(n.putKP(kp.key, kp.ptr))
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert_nil(n.putKP(bpt.varchar, kp.key, kp.ptr))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for i, kp := range kps {
-			t.assert_nil(n.delKP(kp.key))
+			t.assert_nil(n.delKP(bpt.varchar, kp.key))
 			for _, kp2 := range kps[:i+1] {
-				t.assert("found key in internal", !n.Has(kp2.key))
+				t.assert("found key in internal", !n._has(bpt.varchar, kp2.key))
 			}
 		}
 		for _, kp := range kps {
-			t.assert_nil(n.putKP(kp.key, kp.ptr))
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert_nil(n.putKP(bpt.varchar, kp.key, kp.ptr))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for i, kp := range kps {
-			t.assert_nil(n.delKP(kp.key))
-			t.assert("found key in internal", !n.Has(kp.key))
+			t.assert_nil(n.delKP(bpt.varchar, kp.key))
+			t.assert("found key in internal", !n._has(bpt.varchar, kp.key))
 			for j, kp2 := range kps {
 				if j != i {
-					t.assert("could not find key in internal", n.Has(kp2.key))
+					t.assert("could not find key in internal", n._has(bpt.varchar, kp2.key))
 				}
 			}
-			t.assert_nil(n.putKP(kp.key, kp.ptr))
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert_nil(n.putKP(bpt.varchar, kp.key, kp.ptr))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert_nil(n.delKP(kp.key))
+			t.assert_nil(n.delKP(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert("found key in internal", !n.Has(kp.key))
+			t.assert("found key in internal", !n._has(bpt.varchar, kp.key))
 		}
 	}
 }
 
 func TestPutKPRand(x *testing.T) {
 	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
 	for TEST := 0; TEST < TESTS*5; TEST++ {
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {
 			SIZE = consts.BLOCKSIZE
 		}
-		n, err := newInternal(make([]byte, SIZE), 8)
+		n, err := newInternal(0, make([]byte, SIZE), 8)
 		t.assert_nil(err)
 		type KP struct {
 			key []byte
@@ -106,13 +110,13 @@ func TestPutKPRand(x *testing.T) {
 		for i := 0; i < cap(kps); i++ {
 			kp := make_kp()
 			kps = append(kps, kp)
-			t.assert_nil(n.putKP(kp.key, kp.ptr))
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert_nil(n.putKP(bpt.varchar, kp.key, kp.ptr))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 		for _, kp := range kps {
-			t.assert("could not find key in internal", n.Has(kp.key))
-			t.assert_ptr(kp.ptr)(n.findPtr(kp.key))
+			t.assert("could not find key in internal", n._has(bpt.varchar, kp.key))
+			t.assert_ptr(kp.ptr)(n.findPtr(bpt.varchar, kp.key))
 		}
 	}
 }
@@ -120,45 +124,47 @@ func TestPutKPRand(x *testing.T) {
 func TestPutKP(x *testing.T) {
 	t := (*T)(x)
 	n := t.newInternal()
+	bpt, clean := t.bpt()
+	defer clean()
 	k1 := uint64(7)
 	k2 := uint64(3)
 	k3 := uint64(12)
 	k4 := uint64(8)
 	k5 := uint64(5)
-	t.assert_nil(n.putKP(t.bkey(&k1), k1))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
-	t.assert_ptr(k1)(n.findPtr(t.bkey(&k1)))
+	t.assert_nil(n.putKP(bpt.varchar, t.bkey(&k1), k1))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k1)))
+	t.assert_ptr(k1)(n.findPtr(bpt.varchar, t.bkey(&k1)))
 
-	t.assert_nil(n.putKP(t.bkey(&k2), k2))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
-	t.assert_ptr(k2)(n.findPtr(t.bkey(&k2)))
+	t.assert_nil(n.putKP(bpt.varchar, t.bkey(&k2), k2))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k2)))
+	t.assert_ptr(k2)(n.findPtr(bpt.varchar, t.bkey(&k2)))
 
-	t.assert_nil(n.putKP(t.bkey(&k3), k3))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
-	t.assert_ptr(k3)(n.findPtr(t.bkey(&k3)))
+	t.assert_nil(n.putKP(bpt.varchar, t.bkey(&k3), k3))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k3)))
+	t.assert_ptr(k3)(n.findPtr(bpt.varchar, t.bkey(&k3)))
 
-	t.assert_nil(n.putKP(t.bkey(&k4), k4))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
-	t.assert_ptr(k4)(n.findPtr(t.bkey(&k4)))
+	t.assert_nil(n.putKP(bpt.varchar, t.bkey(&k4), k4))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k4)))
+	t.assert_ptr(k4)(n.findPtr(bpt.varchar, t.bkey(&k4)))
 
-	t.assert_nil(n.putKP(t.bkey(&k5), k5))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
-	t.assert_ptr(k5)(n.findPtr(t.bkey(&k5)))
+	t.assert_nil(n.putKP(bpt.varchar, t.bkey(&k5), k5))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k5)))
+	t.assert_ptr(k5)(n.findPtr(bpt.varchar, t.bkey(&k5)))
 
-	t.assert("could not find key in internal", n.Has(t.bkey(&k1)))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k2)))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k3)))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k4)))
-	t.assert("could not find key in internal", n.Has(t.bkey(&k5)))
-	t.assert_ptr(k1)(n.findPtr(t.bkey(&k1)))
-	t.assert_ptr(k2)(n.findPtr(t.bkey(&k2)))
-	t.assert_ptr(k3)(n.findPtr(t.bkey(&k3)))
-	t.assert_ptr(k4)(n.findPtr(t.bkey(&k4)))
-	t.assert_ptr(k5)(n.findPtr(t.bkey(&k5)))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k1)))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k2)))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k3)))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k4)))
+	t.assert("could not find key in internal", n._has(bpt.varchar, t.bkey(&k5)))
+	t.assert_ptr(k1)(n.findPtr(bpt.varchar, t.bkey(&k1)))
+	t.assert_ptr(k2)(n.findPtr(bpt.varchar, t.bkey(&k2)))
+	t.assert_ptr(k3)(n.findPtr(bpt.varchar, t.bkey(&k3)))
+	t.assert_ptr(k4)(n.findPtr(bpt.varchar, t.bkey(&k4)))
+	t.assert_ptr(k5)(n.findPtr(bpt.varchar, t.bkey(&k5)))
 }
 
 func TestNewInternal(t *testing.T) {
-	n, err := newInternal(testAlloc(), 16)
+	n, err := newInternal(0, testAlloc(), 16)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +230,7 @@ func TestNewInternal(t *testing.T) {
 
 func TestLoadInternal(t *testing.T) {
 	back := func() []byte {
-		n, err := newInternal(testAlloc(), 16)
+		n, err := newInternal(0, testAlloc(), 16)
 		if err != nil {
 			t.Fatal(err)
 		}
