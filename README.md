@@ -42,16 +42,19 @@ of in memory version in my
 ## B+ Tree
 
 This is a disk backed low level "key-value store". The closest thing similar to
-what it offers is [Bolt DB](https://github.com/boltdb/bolt). My [blog
-post](http://hackthology.com/lessons-learned-while-implementing-a-btree.html) is
-a great place to start to learn more about the ubiquitous B+ Tree.
+what it offers is [Bolt DB](https://github.com/boltdb/bolt).  My [blog
+post](http://hackthology.com/lessons-learned-while-implementing-a-btree.html)
+is a great place to start to learn more about the ubiquitous B+ Tree.
 
 ### Features
 
-1. Fixed size key. Set at B+ Tree creation. Key resizes mean the tree needs to
-   be recreated.
+1. Variable length size key or fixed sized keys. Fixed sized keys should be kept
+   relatively short, less than 1024 bytes (the shorter the better). Variable
+   length keys can be up to 2^31 - 1 bytes long.
 
-2. Variable length values. They can very from 0 bytes to 2^32 - 1 bytes.
+2. Variable length values or fixed sized values. Fixed sized values should also
+   be kept short, less than 1024 bytes. Variable length values can be up to 2^31
+   - 1 bytes long.
 
 3. Duplicate key support. Duplicates are kept out of the index and only occur in
    the leaves.
@@ -61,14 +64,19 @@ a great place to start to learn more about the ubiquitous B+ Tree.
 
 5. Simple (but low level) interface.
 
+6. Can operate in either a anonymous memory map or in a file backed memory map.
+   If you plan to have a very large tree (even one that never needs to be
+   persisted) it is recommend you use a file backed memory map. The OS treats
+   pages in the file cache different than pages which are not backed by files.
+
 ### Limitations
 
 1. Not thread safe and therefore no transactions which you only need with
    multiple threads.
 
-2. Maximum value size is 2^32 - 1
+2. Maximum fixed key/value size is ~1350 bytes.
 
-3. Maximum key size is ~1350 bytes.
+3. Maximum variable length key/value size is 2^31 - 1
 
 4. This is not a database. You could make it into a database or build a database
    on top of it.
@@ -84,14 +92,14 @@ Importing
 		"github.com/timtadh/fs2/fmap"
 	)
 
-Creating a new B+ Tree
+Creating a new B+ Tree (fixed key size, variable length value size).
 
 	bf, err := fmap.CreateBlockFile("/path/to/file")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer bf.Close()
-	bpt, err := bptree.New(bf, 8)
+	bpt, err := bptree.New(bf, 8, -1)
 	if err != nil {
 		log.Fatal(err)
 	}
