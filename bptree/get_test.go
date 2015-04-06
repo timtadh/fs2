@@ -3,6 +3,7 @@ package bptree
 import "testing"
 
 import (
+	"fmt"
 	"bytes"
 	"sort"
 )
@@ -65,6 +66,38 @@ func TestIterate(x *testing.T) {
 					return nil
 				}))
 			t.assert("i == len(kvs)", i == len(kvs))
+		}
+		clean()
+	}
+}
+
+func TestIterateBackward(x *testing.T) {
+	t := (*T)(x)
+	LEAF_CAP := 190
+	for TEST := 0; TEST < TESTS; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make(KVS, 0, LEAF_CAP*2)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key:   t.rand_key(),
+				value: t.rand_key(),
+			}
+			kvs = append(kvs, kv)
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		sort.Sort(kvs)
+		{
+			i := len(kvs) - 1
+			t.assert_nil(bpt.DoBackward(
+				func(key, value []byte) error {
+					t.assert("key should equals kvs[i].key", bytes.Equal(key, kvs[i].key))
+					t.assert("values should equals kvs[i].value", bytes.Equal(value, kvs[i].value))
+					i--
+					return nil
+				}))
+			t.assert(fmt.Sprintf("i, %v == -1", i), i == -1)
 		}
 		clean()
 	}

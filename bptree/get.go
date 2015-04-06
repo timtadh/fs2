@@ -175,6 +175,26 @@ func (self *BpTree) Count(key []byte) (count int, err error) {
 	return count, nil
 }
 
+// Iterate over all of the key/values pairs in reverse. See DoIterate()
+// for usage details.
+func (self *BpTree) DoBackward(do func(key, value []byte) error) error {
+	return doIter(
+		func() (KVIterator, error) { return self.Backward() },
+		do,
+	)
+}
+
+// Iterate over all of the key/values pairs in reverse. See Iterate()
+// for usage details.
+func (self *BpTree) Backward() (kvi KVIterator, err error) {
+	var bi bpt_iterator
+	bi, err = self.backward(nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return self._range(bi)
+}
+
 // Iterate over all of the key/values pairs between [from, to]
 // inclusive. See DoIterate() for usage details.
 func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) error {
@@ -191,11 +211,15 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	if bytes.Compare(from, to) <= 0 {
 		bi, err = self.forward(from, to)
 	} else {
-		bi, err = self.forward(to, from)
+		bi, err = self.backward(from, to)
 	}
 	if err != nil {
 		return nil, err
 	}
+	return self._range(bi)
+}
+
+func (self *BpTree) _range(bi bpt_iterator) (kvi KVIterator, err error) {
 	kvi = func() (key, value []byte, e error, it KVIterator) {
 		var a uint64
 		var i int
@@ -337,6 +361,98 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 	return n, i, nil
 }
 
+func (self *BpTree) lastKey(n uint64) (a uint64, i int, err error) {
+	var flags consts.Flag
+	err = self.bf.Do(n, 1, func(bytes []byte) error {
+		flags = consts.Flag(bytes[0])
+		return nil
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	if flags&consts.INTERNAL != 0 {
+		return self.internalLastKey(n)
+	} else if flags&consts.LEAF != 0 {
+		return self.leafLastKey(n)
+	} else {
+		return 0, 0, errors.Errorf("Unknown block type")
+	}
+}
+
+func (self *BpTree) internalLastKey(n uint64) (a uint64, i int, err error) {
+	var kid uint64
+	err = self.doInternal(n, func(n *internal) error {
+		kid = *n.ptr(int(n.meta.keyCount - 1))
+		return nil
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	return self.lastKey(kid)
+}
+
+func (self *BpTree) leafLastKey(n uint64) (a uint64, i int, err error) {
+	var next uint64 = 0
+	err = self.doLeaf(n, func(n *leaf) (err error) {
+		if n.meta.keyCount == 0 {
+			// this happens when the tree is empty!
+			return nil
+		}
+		i = int(n.meta.keyCount) - 1
+		return n.doKeyAt(self.varchar, i, func(k []byte) error {
+			if n.meta.next != 0 {
+				next = n.meta.next
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	if next != 0 {
+		return self.leafLastKey(next)
+	}
+	return n, i, nil
+}
+
+/* returns the (addr, idx) of the leaf block and the index of the key in
+ * the block which is either the first key greater than the search key
+ * or the last key equal to the search key.
+ */
+func (self *BpTree) getEnd(key []byte) (a uint64, i int, err error) {
+	if key == nil {
+		a, i, err = self.lastKey(self.meta.root)
+	} else {
+		a, i, err = self._getStart(self.meta.root, key)
+	}
+	if err != nil {
+		return 0, 0, err
+	}
+	var equal bool = true
+	for equal {
+		b, j, end, err := self.nextLoc(a, i)
+		if err != nil {
+			return 0, 0, err
+		}
+		if end {
+			return a, i, nil
+		}
+		err = self.doLeaf(b, func(n *leaf) (err error) {
+			return n.doKeyAt(self.varchar, j, func(k []byte) error {
+				equal = bytes.Equal(key, k)
+				return nil
+			})
+		})
+		if err != nil {
+			return 0, 0, err
+		}
+		if equal {
+			a, i = b, j
+		}
+	}
+	return a, i, err
+}
+
 func (self *BpTree) forward(from, to []byte) (bi bpt_iterator, err error) {
 	a, i, err := self.getStart(from)
 	if err != nil {
@@ -371,6 +487,47 @@ func (self *BpTree) forwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, er
 			return 0, 0, err, nil
 		}
 		if less {
+			return 0, 0, nil, nil
+		}
+		return a, i, nil, bi
+	}
+	return bi, nil
+}
+
+func (self *BpTree) backward(from, to []byte) (bi bpt_iterator, err error) {
+	a, i, err := self.getEnd(from)
+	if err != nil {
+		return nil, err
+	}
+	return self.backwardFrom(a, i, to)
+}
+
+func (self *BpTree) backwardFrom(a uint64, i int, to []byte) (bi bpt_iterator, err error) {
+	i++
+	bi = func() (uint64, int, error, bpt_iterator) {
+		var err error
+		var end bool
+		a, i, end, err = self.prevLoc(a, i)
+		if err != nil {
+			return 0, 0, err, nil
+		}
+		if end {
+			return 0, 0, nil, nil
+		}
+		if to == nil {
+			return a, i, nil, bi
+		}
+		var more bool = false
+		err = self.doLeaf(a, func(n *leaf) error {
+			return n.doKeyAt(self.varchar, i, func(k []byte) error {
+				more = bytes.Compare(to, k) > 0
+				return nil
+			})
+		})
+		if err != nil {
+			return 0, 0, err, nil
+		}
+		if more {
 			return 0, 0, nil, nil
 		}
 		return a, i, nil, bi
