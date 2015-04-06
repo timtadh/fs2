@@ -164,7 +164,7 @@ func TestFree(x *testing.T) {
 		return nil
 	}))
 	for i, av := range avs {
-		t.assert_nil(v.Free(av.a))
+		t.assert_nil(v.Deref(av.a))
 		for _, av := range avs[i+1:] {
 			t.assert_nil(v.Do(av.a, func(data []byte) error {
 				t.assert("data == r", bytes.Equal(data, av.value))
