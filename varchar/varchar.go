@@ -62,6 +62,8 @@ func assert_len(bytes []byte, length int) {
 	}
 }
 
+const minChunkSize = 128
+
 func init() {
 	var vc varCtrl
 	var vf varFree
