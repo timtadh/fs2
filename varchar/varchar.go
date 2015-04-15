@@ -18,12 +18,17 @@ type Varchar struct {
 }
 
 type varCtrl struct {
-	flags    consts.Flag
-	freeLen  uint32
-	freeHead uint64
+	flags   consts.Flag
+	posList listHead
+	lists   [254]listHead
 }
 
-const varCtrlSize = 16
+type listHead struct {
+	head uint64
+	len  uint32
+}
+
+const varCtrlSize = 4088
 
 type listNode struct {
 	prev uint64
@@ -35,10 +40,11 @@ type nodeDoer func(uint64, func(*listNode) error) error
 type varFree struct {
 	flags consts.Flag
 	length uint32
-	list listNode
+	posList listNode
+	sizeList listNode
 }
 
-const varFreeSize = 24
+const varFreeSize = 40
 
 const maxArraySize uint32 = 0x7fffffff
 
@@ -72,10 +78,10 @@ func init() {
 	vf_size := reflect.TypeOf(vf).Size()
 	vr_size := reflect.TypeOf(vr).Size()
 	if vc_size != varCtrlSize {
-		panic("the varCtrl was an unexpected size")
+		panic(errors.Errorf("the varCtrl was an unexpected size %v", vc_size))
 	}
 	if vf_size != varFreeSize {
-		panic("the varFree was an unexpected size")
+		panic(errors.Errorf("the varFree was an unexpected size %v", vf_size))
 	}
 	if vr_size != varRunMetaSize {
 		panic("the varFree was an unexpected size")
@@ -84,8 +90,12 @@ func init() {
 
 func (vc *varCtrl) Init() {
 	vc.flags = consts.VARCHAR_CTRL
-	vc.freeLen = 0
-	vc.freeHead = 0
+	vc.posList.len = 0
+	vc.posList.head = 0
+	for i := range vc.lists {
+		vc.lists[i].len = 0
+		vc.lists[i].head = 0
+	}
 }
 
 func (vrm *varRunMeta) Init(length, extra int) {
@@ -140,37 +150,41 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 	newAlloc := false
 	fullLength := v.allocAmt(length)
 	err = v.doCtrl(func(ctrl *varCtrl) error {
-		if ctrl.freeLen == 0 {
+		/*
+		lstIdx := fullLength / 256
+		if lstIdx >= len(ctrl.lists) {
+			lstIdx = len(ctrl.lists) - 1
+		}
+		for lstIdx < len(ctrl.lists) && ctrl.lists[lstIdx].len == 0 {
+			lstIdx++
+		}
+		if lstIdx >= len(ctrl.lists) || ctrl.lists[lstIdx].len == 0 {
 			newAlloc = true
 			return nil
 		}
+		list := &ctrl.lists[lstIdx]
+		*/
 		found := false
-		cur := ctrl.freeHead
-		for i := 0; i < int(ctrl.freeLen); i++ {
-			err = v.doFree(cur, func(n *varFree) error {
-				if fullLength <= int(n.length) {
-					found = true
-					a = cur
-					if cur == ctrl.freeHead {
-						ctrl.freeHead = n.list.next
-					}
-					ctrl.freeLen--
-					err = v.listRemove(cur, v.doFreeNode)
-					if err != nil {
-						return err
-					}
-					return v.newRun(cur, length, fullLength, int(n.length))
+		err = v.doIter(&ctrl.posList, v.doPosList, func(c uint64, n *varFree) (_break, _continue bool, err error) {
+			if fullLength <= int(n.length) {
+				found = true
+				a = c
+				if c == ctrl.posList.head {
+					ctrl.posList.head = n.posList.next
 				}
-				cur = n.list.next
-				return nil
-			})
-			if err != nil {
-				return err
+				ctrl.posList.len--
+				err = v.listRemove(c, v.doPosList)
+				if err != nil {
+					return false, false, err
+				}
+				err = v.newRun(a, length, fullLength, int(n.length))
+				if err != nil {
+					return false, false, err
+				}
+				return true, false, nil
 			}
-			if found {
-				break
-			}
-		}
+			return false, false, nil
+		})
 		if !found {
 			newAlloc = true
 		}
@@ -261,33 +275,32 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 	}
 	return v.doCtrl(func(ctrl *varCtrl) error {
 		var prev, cur uint64
-		cur = ctrl.freeHead
-		listLen := int(ctrl.freeLen)
-		found := false
-		for i := 0; i < listLen; i++ {
-			err = v.doFree(cur, func(p *varFree) error {
-				if a < cur {
-					found = true
-					return nil
-				}
-				prev = cur
-				cur = p.list.next
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-			if found {
-				break
-			}
+		/*
+		lstIdx := length / 256
+		if lstIdx >= len(ctrl.lists) {
+			lstIdx = len(ctrl.lists) - 1
 		}
-		ctrl.freeLen++
-		err = v.listInsert(a, prev, cur, v.doFreeNode)
+		list := &ctrl.lists[lstIdx]
+		*/
+		cur = ctrl.posList.head
+		err = v.doIter(&ctrl.posList, v.doPosList, func(c uint64, p *varFree) (bool, bool, error) {
+			if a < c {
+				return true, false, nil
+			}
+			prev = cur
+			cur = p.posList.next
+			return false, false, nil
+		})
+		if err != nil {
+			return err
+		}
+		ctrl.posList.len++
+		err = v.listInsert(a, prev, cur, v.doPosList)
 		if err != nil {
 			return err
 		}
 		if prev == 0 {
-			ctrl.freeHead = a
+			ctrl.posList.head = a
 		}
 		return v.coallesce(ctrl, a)
 	})
@@ -297,16 +310,16 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 // block after this function returns.
 func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
 	return v.doFree(a, func(c *varFree) error {
-		if c.list.next != 0 && a + uint64(c.length) == c.list.next {
+		if c.posList.next != 0 && a + uint64(c.length) == c.posList.next {
 			err = v.joinNext(ctrl, a)
 			if err != nil {
 				return err
 			}
 		}
-		if c.list.prev != 0 {
-			return v.doFree(c.list.prev, func(p *varFree) error {
-				if c.list.prev + uint64(p.length) == a {
-					return v.joinNext(ctrl, c.list.prev)
+		if c.posList.prev != 0 {
+			return v.doFree(c.posList.prev, func(p *varFree) error {
+				if c.posList.prev + uint64(p.length) == a {
+					return v.joinNext(ctrl, c.posList.prev)
 					// the block at the previous "a" no longer exists.
 					// freeHead should not need to be adjusted because
 					// 1. the old "a" could not have been the head 
@@ -327,12 +340,12 @@ func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
 // no effect on the freeHead.
 func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
 	return v.doFree(a, func(c *varFree) error {
-		next := c.list.next
+		next := c.posList.next
 		if next == 0 || a + uint64(c.length) != next {
 			return errors.Errorf("invalid joinNext call")
 		}
-		ctrl.freeLen--
-		err = v.listRemove(next, v.doFreeNode)
+		ctrl.posList.len--
+		err = v.listRemove(next, v.doPosList)
 		if err != nil {
 			return err
 		}
@@ -523,8 +536,10 @@ func (v *Varchar) newFree(a uint64, length int) error {
 	return v.doAsFree(a, func(m *varFree) error {
 		m.flags = consts.VARCHAR_FREE
 		m.length = uint32(length)
-		m.list.prev = 0
-		m.list.next = 0
+		m.posList.prev = 0
+		m.posList.next = 0
+		m.sizeList.prev = 0
+		m.sizeList.next = 0
 		return nil
 	})
 }
@@ -567,10 +582,45 @@ func (v *Varchar) newRun(a uint64, length, fullLength, segLength int) (err error
 	})
 }
 
-func (v *Varchar) doFreeNode(a uint64, do func(*listNode) error) error {
+func (v *Varchar) doPosList(a uint64, do func(*listNode) error) error {
 	return v.doFree(a, func(m *varFree) error {
-		return do(&m.list)
+		return do(&m.posList)
 	})
+}
+
+func (v *Varchar) doSizeList(a uint64, do func(*listNode) error) error {
+	return v.doFree(a, func(m *varFree) error {
+		return do(&m.sizeList)
+	})
+}
+
+func (v *Varchar) doIter(list *listHead, doNode nodeDoer, do func(a uint64, n *varFree) (_break, _continue bool, err error)) (err error) {
+	listLen := int(list.len)
+	cur := list.head
+	for i := 0; i < listLen; i++ {
+		var _break, _continue bool
+		err = v.doFree(cur, func(n *varFree) error {
+			_break, _continue, err = do(cur, n)
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if _break {
+			break
+		}
+		if _continue {
+			continue
+		}
+		err = doNode(cur, func(n *listNode) error {
+			cur = n.next
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (v *Varchar) listInsert(node, prev, next uint64, doNode nodeDoer) error {

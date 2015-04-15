@@ -160,7 +160,7 @@ func TestFree(x *testing.T) {
 	}
 	var freeLen int
 	t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
-		freeLen = int(ctrl.freeLen)
+		freeLen = int(ctrl.posList.len)
 		return nil
 	}))
 	for i, av := range avs {
@@ -173,7 +173,7 @@ func TestFree(x *testing.T) {
 		}
 	}
 	t.assert_nil(v.doCtrl(func(ctrl *varCtrl) error {
-		t.assert(fmt.Sprintf("freeLen, %v, <= 1", ctrl.freeLen), ctrl.freeLen <= 1)
+		t.assert(fmt.Sprintf("freeLen, %v, <= 1", ctrl.posList.len), ctrl.posList.len <= 1)
 		return nil
 		/*
 		return v.doFree(ctrl.freeHead, func(m *varFree) error {
