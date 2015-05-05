@@ -15,6 +15,7 @@ import (
 type Varchar struct {
 	bf *fmap.BlockFile
 	posTree *BpTree
+	sizeTree *BpTree
 	a uint64
 	blkSize int
 }
@@ -22,9 +23,10 @@ type Varchar struct {
 type varCtrl struct {
 	flags    consts.Flag
 	posTree  uint64
+	sizeTree uint64
 }
 
-const varCtrlSize = 16
+const varCtrlSize = 24
 
 type listNode struct {
 	prev uint64
@@ -83,9 +85,10 @@ func init() {
 	}
 }
 
-func (vc *varCtrl) Init(posTree uint64) {
+func (vc *varCtrl) Init(posTree, sizeTree uint64) {
 	vc.flags = consts.VARCHAR_CTRL
 	vc.posTree = posTree
+	vc.sizeTree = sizeTree
 }
 
 func (vrm *varRunMeta) Init(length, extra int) {
@@ -101,8 +104,18 @@ func makeBKey(key uint64) []byte {
 	return k
 }
 
+func makeBSize(size int) []byte {
+	k := make([]byte, 4)
+	binary.BigEndian.PutUint32(k, uint32(size))
+	return k
+}
+
 func makeKey(bkey []byte) uint64 {
 	return binary.BigEndian.Uint64(bkey)
+}
+
+func makeSize(bsize []byte) int {
+	return int(binary.BigEndian.Uint32(bsize))
 }
 
 
@@ -120,15 +133,24 @@ func NewVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	if err != nil {
 		return nil, err
 	}
+	szOff, err := bf.Allocate()
+	if err != nil {
+		return nil, err
+	}
+	sizeTree, err := NewAt(bf, szOff, 4, 8)
+	if err != nil {
+		return nil, err
+	}
 	v = &Varchar{
 		bf: bf,
 		posTree: posTree,
+		sizeTree: sizeTree,
 		a: a,
 		blkSize: bf.BlockSize(),
 	}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
-		ctrl.Init(ptOff)
+		ctrl.Init(ptOff, szOff)
 		return nil
 	})
 	if err != nil {
@@ -167,26 +189,24 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 		return 0, errors.Errorf("Size is too large. Cannon allocate an array that big")
 	}
 	fullLength := v.allocAmt(length)
-	keys, err := v.posTree.Keys()
+	next, err := v.sizeTree.Range(makeBSize(fullLength), nil)
 	if err != nil {
 		return 0, err
 	}
 	var bkey []byte
+	var bsize []byte
 	var found = false
-	for bkey, err, keys = keys(); keys != nil; bkey, err, keys = keys() {
-		key := makeKey(bkey)
-		err = v.doFree(key, func(free *varFree) error {
-			if fullLength < int(free.length) {
-				found = true
-				a = key
-				return v.newRun(key, length, fullLength, int(free.length))
+	var a_length int
+	for bsize, bkey, err, next = next(); next != nil; bsize, bkey, err, next = next() {
+		size := makeSize(bsize)
+		if fullLength < size {
+			found = true
+			a = makeKey(bkey)
+			a_length = size
+			err = v.newRun(a, length, fullLength, a_length)
+			if err != nil {
+				return 0, err
 			}
-			return nil
-		})
-		if err != nil {
-			return 0, err
-		}
-		if found {
 			break
 		}
 	}
@@ -195,6 +215,10 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 	}
 	if !found {
 		return v.allocNew(length, fullLength)
+	}
+	err = v.szDel(a_length, a)
+	if err != nil {
+		return 0, err
 	}
 	err = v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
 	if err != nil {
@@ -315,8 +339,10 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		if err != nil {
 			return err
 		}
+		var next_length int
 		err = v.doFree(a, func(cur *varFree) error {
 			return v.doFree(next_a, func(next *varFree) error {
+				next_length = int(next.length)
 				cur.length += next.length
 				next.length = 0
 				next.flags = 0xff
@@ -326,14 +352,22 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		if err != nil {
 			return err
 		}
+		err = v.szDel(next_length, next_a)
+		if err != nil {
+			return err
+		}
 	}
 	var mustInsert bool = true
 	if prev_a != 0 {
+		var prev_length int
+		var new_length int
 		err = v.doFree(prev_a, func(prev *varFree) error {
 			if prev_a + uint64(prev.length) == a {
 				mustInsert = false
 				return v.doFree(a, func(cur *varFree) error {
+					prev_length = int(prev.length)
 					prev.length += cur.length
+					new_length = int(prev.length)
 					cur.length = 0
 					cur.flags = 0xff
 					return nil
@@ -341,11 +375,40 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 			}
 			return nil
 		})
+		if !mustInsert {
+			err = v.szDel(prev_length, prev_a)
+			if err != nil {
+				return err
+			}
+			return v.szAdd(new_length, prev_a)
+		}
 	}
 	if mustInsert {
+		var a_length int
+		err = v.doFree(a, func(cur *varFree) error {
+			a_length = int(cur.length)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+		err = v.szAdd(a_length, a)
+		if err != nil {
+			return err
+		}
 		return v.posTree.Add(makeBKey(a), make([]byte, 0))
 	}
 	return nil
+}
+
+func (v *Varchar) szAdd(length int, a uint64) error {
+	return v.sizeTree.Add(makeBSize(length), makeBKey(a))
+}
+
+func (v *Varchar) szDel(length int, a uint64) error {
+	return v.sizeTree.Remove(makeBSize(length), func(bytes []byte) bool {
+		return a == makeKey(bytes)
+	})
 }
 
 // Interact with the contents of the varchar. The bytes passed into the
