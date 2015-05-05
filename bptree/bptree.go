@@ -9,13 +9,12 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
-	"github.com/timtadh/fs2/varchar"
 )
 
 // The Ubiquitous B+ Tree
 type BpTree struct {
 	bf      *fmap.BlockFile
-	varchar *varchar.Varchar
+	varchar *Varchar
 	metaOff uint64
 	meta    *bpTreeMeta
 }
@@ -153,9 +152,12 @@ func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, e
 	if err != nil {
 		return nil, err
 	}
-	v, err := varchar.New(bf, meta.varcharCtrl)
-	if err != nil {
-		return nil, err
+	var v *Varchar
+	if keySize < 0 || valSize < 0 {
+		v, err = NewVarchar(bf, meta.varcharCtrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 	bpt := &BpTree{
 		bf:       bf,
@@ -168,12 +170,12 @@ func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, e
 
 // Open an existing B+Tree (it knows its key size so you do not have to
 // supply that).
-func Open(bf *fmap.BlockFile, metaOff uint64) (*BpTree, error) {
+func Open(bf *fmap.BlockFile) (*BpTree, error) {
 	data, err := bf.ControlData()
 	if err != nil {
 		return nil, err
 	}
-	metaOff = *slice.AsUint64(&data)
+	metaOff := *slice.AsUint64(&data)
 	return OpenAt(bf, metaOff)
 }
 
@@ -182,9 +184,12 @@ func OpenAt(bf *fmap.BlockFile, metaOff uint64) (*BpTree, error) {
 	if err != nil {
 		return nil, err
 	}
-	v, err := varchar.Open(bf, meta.varcharCtrl)
-	if err != nil {
-		return nil, err
+	var v *Varchar
+	if meta.keySize < 0 || meta.valSize < 0 {
+		v, err = NewVarchar(bf, meta.varcharCtrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 	bpt := &BpTree{
 		bf:       bf,

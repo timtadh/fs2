@@ -12,7 +12,6 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
-	"github.com/timtadh/fs2/varchar"
 )
 
 type leafMeta struct {
@@ -72,7 +71,7 @@ func (n *leaf) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
-func (n *leaf) _has(v *varchar.Varchar, key []byte) bool {
+func (n *leaf) _has(v *Varchar, key []byte) bool {
 	_, has, err := find(v, n, key)
 	if err != nil {
 		log.Fatal(err)
@@ -80,7 +79,7 @@ func (n *leaf) _has(v *varchar.Varchar, key []byte) bool {
 	return has
 }
 
-func (n *leaf) firstValue(vc *varchar.Varchar, key []byte) ([]byte, error) {
+func (n *leaf) firstValue(vc *Varchar, key []byte) ([]byte, error) {
 	i, has, err := find(vc, n, key)
 	if err != nil {
 		return nil, err
@@ -105,7 +104,7 @@ func (n *leaf) firstValue(vc *varchar.Varchar, key []byte) ([]byte, error) {
 	}
 }
 
-func (n *leaf) doValueAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
+func (n *leaf) doValueAt(vc *Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_VALS != 0 {
 		return n.doBig(vc, n.val(i), do)
@@ -114,7 +113,7 @@ func (n *leaf) doValueAt(vc *varchar.Varchar, i int, do func([]byte) error) erro
 	}
 }
 
-func (n *leaf) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
+func (n *leaf) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(vc, n.key(i), do)
@@ -123,7 +122,7 @@ func (n *leaf) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error 
 	}
 }
 
-func (n *leaf) doBig(vc *varchar.Varchar, v []byte, do func([]byte) error) error {
+func (n *leaf) doBig(vc *Varchar, v []byte, do func([]byte) error) error {
 	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
 		return do(bytes)
 	})
@@ -167,7 +166,7 @@ func (n *leaf) fitsAnother() bool {
 }
 
 // this method is totally UNSAFE
-func (n *leaf) pure(v *varchar.Varchar) bool {
+func (n *leaf) pure(v *Varchar) bool {
 	if n.meta.keyCount == 0 {
 		return true
 	}
@@ -195,7 +194,7 @@ func (n *leaf) pure(v *varchar.Varchar) bool {
 	return true
 }
 
-func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
+func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")
 	}
@@ -285,7 +284,7 @@ func (n *leaf) putKV(v *varchar.Varchar, key []byte, value []byte) (err error) {
 	return nil
 }
 
-func (n *leaf) delKV(v *varchar.Varchar, key []byte, which func([]byte) bool) error {
+func (n *leaf) delKV(v *Varchar, key []byte, which func([]byte) bool) error {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}

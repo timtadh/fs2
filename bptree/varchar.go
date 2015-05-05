@@ -1,6 +1,7 @@
-package varchar
+package bptree
 
 import (
+	"encoding/binary"
 	"reflect"
 )
 
@@ -13,14 +14,14 @@ import (
 
 type Varchar struct {
 	bf *fmap.BlockFile
+	posTree *BpTree
 	a uint64
 	blkSize int
 }
 
 type varCtrl struct {
 	flags    consts.Flag
-	freeLen  uint32
-	freeHead uint64
+	posTree  uint64
 }
 
 const varCtrlSize = 16
@@ -82,10 +83,9 @@ func init() {
 	}
 }
 
-func (vc *varCtrl) Init() {
+func (vc *varCtrl) Init(posTree uint64) {
 	vc.flags = consts.VARCHAR_CTRL
-	vc.freeLen = 0
-	vc.freeHead = 0
+	vc.posTree = posTree
 }
 
 func (vrm *varRunMeta) Init(length, extra int) {
@@ -95,17 +95,40 @@ func (vrm *varRunMeta) Init(length, extra int) {
 	vrm.refs = 1
 }
 
+func makeBKey(key uint64) []byte {
+	k := make([]byte, 8)
+	binary.BigEndian.PutUint64(k, key)
+	return k
+}
+
+func makeKey(bkey []byte) uint64 {
+	return binary.BigEndian.Uint64(bkey)
+}
+
 
 // Create a new varchar structure. This takes a blockfile and an offset
 // of an allocated block. The block becomes the control block for the
 // varchar file (storing the free list for the allocator). It is
 // important for the parent structure to track the location of this
 // control block.
-func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
-	v = &Varchar{bf: bf, a: a, blkSize: bf.BlockSize()}
+func NewVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
+	ptOff, err := bf.Allocate()
+	if err != nil {
+		return nil, err
+	}
+	posTree, err := NewAt(bf, ptOff, 8, 0)
+	if err != nil {
+		return nil, err
+	}
+	v = &Varchar{
+		bf: bf,
+		posTree: posTree,
+		a: a,
+		blkSize: bf.BlockSize(),
+	}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
-		ctrl.Init()
+		ctrl.Init(ptOff)
 		return nil
 	})
 	if err != nil {
@@ -117,15 +140,21 @@ func New(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 // Open a varchar structure in the given blockfile with the given offset
 // as the control block. This function will confirm that the control
 // block is indeed a properly formated control block.
-func Open(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
+func OpenVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	v = &Varchar{bf: bf, a: a, blkSize: bf.BlockSize()}
+	var ptOff uint64
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
 		if ctrl.flags&consts.VARCHAR_CTRL == 0 {
 			return errors.Errorf("Expected a Varchar control block")
 		}
+		ptOff = ctrl.posTree
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	v.posTree, err = OpenAt(bf, ptOff)
 	if err != nil {
 		return nil, err
 	}
@@ -137,50 +166,39 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 	if uint32(length) >= maxArraySize {
 		return 0, errors.Errorf("Size is too large. Cannon allocate an array that big")
 	}
-	newAlloc := false
 	fullLength := v.allocAmt(length)
-	err = v.doCtrl(func(ctrl *varCtrl) error {
-		if ctrl.freeLen == 0 {
-			newAlloc = true
-			return nil
-		}
-		found := false
-		cur := ctrl.freeHead
-		for i := 0; i < int(ctrl.freeLen); i++ {
-			err = v.doFree(cur, func(n *varFree) error {
-				if fullLength <= int(n.length) {
-					found = true
-					a = cur
-					if cur == ctrl.freeHead {
-						ctrl.freeHead = n.list.next
-					}
-					ctrl.freeLen--
-					err = v.listRemove(cur, v.doFreeNode)
-					if err != nil {
-						return err
-					}
-					return v.newRun(cur, length, fullLength, int(n.length))
-				}
-				cur = n.list.next
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-			if found {
-				break
-			}
-		}
-		if !found {
-			newAlloc = true
-		}
-		return nil
-	})
+	keys, err := v.posTree.Keys()
 	if err != nil {
 		return 0, err
 	}
-	if newAlloc {
+	var bkey []byte
+	var found = false
+	for bkey, err, keys = keys(); keys != nil; bkey, err, keys = keys() {
+		key := makeKey(bkey)
+		err = v.doFree(key, func(free *varFree) error {
+			if fullLength < int(free.length) {
+				found = true
+				a = key
+				return v.newRun(key, length, fullLength, int(free.length))
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		if found {
+			break
+		}
+	}
+	if err != nil {
+		return 0, err
+	}
+	if !found {
 		return v.allocNew(length, fullLength)
+	}
+	err = v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
+	if err != nil {
+		return 0, err
 	}
 	return a, nil
 }
@@ -259,90 +277,75 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 	if err != nil {
 		return err
 	}
-	return v.doCtrl(func(ctrl *varCtrl) error {
-		var prev, cur uint64
-		cur = ctrl.freeHead
-		listLen := int(ctrl.freeLen)
-		found := false
-		for i := 0; i < listLen; i++ {
-			err = v.doFree(cur, func(p *varFree) error {
-				if a < cur {
-					found = true
-					return nil
-				}
-				prev = cur
-				cur = p.list.next
-				return nil
-			})
-			if err != nil {
-				return err
-			}
-			if found {
-				break
-			}
-		}
-		ctrl.freeLen++
-		err = v.listInsert(a, prev, cur, v.doFreeNode)
-		if err != nil {
-			return err
-		}
-		if prev == 0 {
-			ctrl.freeHead = a
-		}
-		return v.coallesce(ctrl, a)
-	})
-}
-
-// coallesce blocks centered around "a". The address "a" may not be a
-// block after this function returns.
-func (v *Varchar) coallesce(ctrl *varCtrl, a uint64) (err error) {
-	return v.doFree(a, func(c *varFree) error {
-		if c.list.next != 0 && a + uint64(c.length) == c.list.next {
-			err = v.joinNext(ctrl, a)
-			if err != nil {
-				return err
-			}
-		}
-		if c.list.prev != 0 {
-			return v.doFree(c.list.prev, func(p *varFree) error {
-				if c.list.prev + uint64(p.length) == a {
-					return v.joinNext(ctrl, c.list.prev)
-					// the block at the previous "a" no longer exists.
-					// freeHead should not need to be adjusted because
-					// 1. the old "a" could not have been the head 
-					//    since prev != 0
-					// 2. if c.list.prev was the head, joinNext will not
-					//    change that
-				}
-				return nil
-			})
-		}
+	blk, i, err := v.posTree.getStart(makeBKey(a))
+	if err != nil {
+		return err
+	}
+	var bnext_a []byte = make([]byte, 8)
+	err = v.posTree.doLeaf(blk, func(n *leaf) error {
+		copy(bnext_a, n.key(i))
 		return nil
 	})
-}
-
-
-// joins the block at "a" to the next block. The next block is removed
-// from the free list and freeLen is decremented. Note, this will have
-// no effect on the freeHead.
-func (v *Varchar) joinNext(ctrl *varCtrl, a uint64) (err error) {
-	return v.doFree(a, func(c *varFree) error {
-		next := c.list.next
-		if next == 0 || a + uint64(c.length) != next {
-			return errors.Errorf("invalid joinNext call")
-		}
-		ctrl.freeLen--
-		err = v.listRemove(next, v.doFreeNode)
+	if err != nil {
+		return err
+	}
+	next_a := makeKey(bnext_a)
+	var prev_a uint64
+	if next_a < a {
+		prev_a = next_a
+	} else {
+		var bprev_a []byte = make([]byte, 8)
+		pblk, pi, end, err := v.posTree.prevLoc(blk, i)
 		if err != nil {
 			return err
 		}
-		return v.doFree(next, func(n *varFree) error {
-			c.length += n.length
-			n.flags = 0xff
-			n.length = 0
+		if !end {
+			err = v.posTree.doLeaf(pblk, func(n *leaf) error {
+				copy(bprev_a, n.key(pi))
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+		prev_a = makeKey(bprev_a)
+	}
+	if next_a > a && a + uint64(length) == next_a {
+		err = v.posTree.Remove(bnext_a, func(_ []byte) bool { return true })
+		if err != nil {
+			return err
+		}
+		err = v.doFree(a, func(cur *varFree) error {
+			return v.doFree(next_a, func(next *varFree) error {
+				cur.length += next.length
+				next.length = 0
+				next.flags = 0xff
+				return nil
+			})
+		})
+		if err != nil {
+			return err
+		}
+	}
+	var mustInsert bool = true
+	if prev_a != 0 {
+		err = v.doFree(prev_a, func(prev *varFree) error {
+			if prev_a + uint64(prev.length) == a {
+				mustInsert = false
+				return v.doFree(a, func(cur *varFree) error {
+					prev.length += cur.length
+					cur.length = 0
+					cur.flags = 0xff
+					return nil
+				})
+			}
 			return nil
 		})
-	})
+	}
+	if mustInsert {
+		return v.posTree.Add(makeBKey(a), make([]byte, 0))
+	}
+	return nil
 }
 
 // Interact with the contents of the varchar. The bytes passed into the

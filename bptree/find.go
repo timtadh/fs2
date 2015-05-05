@@ -5,16 +5,15 @@ import (
 )
 
 import (
-	"github.com/timtadh/fs2/varchar"
 )
 
 type keyed interface {
 	key(i int) []byte
-	doKeyAt(v *varchar.Varchar, i int, do func(key []byte) error) error
+	doKeyAt(v *Varchar, i int, do func(key []byte) error) error
 	keyCount() int
 }
 
-func find(v *varchar.Varchar, keys keyed, key []byte) (int, bool, error) {
+func find(v *Varchar, keys keyed, key []byte) (int, bool, error) {
 	var l int = 0
 	var r int = keys.keyCount() - 1
 	var m int

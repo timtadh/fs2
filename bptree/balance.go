@@ -7,10 +7,9 @@ import (
 import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
-	"github.com/timtadh/fs2/varchar"
 )
 
-func (a *internal) balance(v *varchar.Varchar, b *internal) error {
+func (a *internal) balance(v *Varchar, b *internal) error {
 	if b.meta.keyCount != 0 {
 		return errors.Errorf("b was not empty")
 	}
@@ -31,7 +30,7 @@ func (a *internal) balance(v *varchar.Varchar, b *internal) error {
 	return nil
 }
 
-func (a *leaf) balance(v *varchar.Varchar, b *leaf) error {
+func (a *leaf) balance(v *Varchar, b *leaf) error {
 	if b.meta.keyCount != 0 {
 		return errors.Errorf("b was not empty")
 	}
@@ -60,12 +59,12 @@ func (a *leaf) balanceAt(b *leaf, m int) error {
 	return nil
 }
 
-func (n *internal) balancePoint(v *varchar.Varchar) (int, error) {
+func (n *internal) balancePoint(v *Varchar) (int, error) {
 	m := int(n.meta.keyCount) / 2
 	return noSplitBalancePoint(v, n, m)
 }
 
-func (n *leaf) balancePoint(v *varchar.Varchar) (int, error) {
+func (n *leaf) balancePoint(v *Varchar) (int, error) {
 	if n.meta.keyCount == 0 {
 		return 0, nil
 	}
@@ -88,7 +87,7 @@ func noSplitBalancePoint(keys keyed, m int) (int, error) {
 }
 */
 
-func noSplitBalancePoint(v *varchar.Varchar, keys keyed, m int) (int, error) {
+func noSplitBalancePoint(v *Varchar, keys keyed, m int) (int, error) {
 	var eq bool
 	for m < keys.keyCount() {
 		err := keys.doKeyAt(v, m-1, func(a []byte) error {
