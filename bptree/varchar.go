@@ -203,10 +203,6 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 			found = true
 			a = makeKey(bkey)
 			a_length = size
-			err = v.newRun(a, length, fullLength, a_length)
-			if err != nil {
-				return 0, err
-			}
 			break
 		}
 	}
@@ -221,6 +217,10 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 		return 0, err
 	}
 	err = v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
+	if err != nil {
+		return 0, err
+	}
+	err = v.newRun(a, length, fullLength, a_length)
 	if err != nil {
 		return 0, err
 	}
@@ -375,6 +375,9 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 			}
 			return nil
 		})
+		if err != nil {
+			return err
+		}
 		if !mustInsert {
 			err = v.szDel(prev_length, prev_a)
 			if err != nil {
