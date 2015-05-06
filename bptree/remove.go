@@ -149,8 +149,9 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 	for x := len(locs) - 1; x >= 0; x-- {
 		a := locs[x].a
 		i := locs[x].i
+		var vi uint64
+		var remove bool = false
 		err = self.doLeaf(a, func(n *leaf) error {
-			var remove bool = false
 			err = n.doValueAt(self.varchar, i, func(value []byte) error {
 				remove = where(value)
 				return nil
@@ -162,11 +163,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				// TODO: Add logic to deref and remove big values and keys
 				if self.meta.flags & consts.VARCHAR_VALS != 0 {
 					v := n.val(i)
-					vi := *slice.AsUint64(&v)
-					err = self.varchar.Deref(vi)
-					if err != nil {
-						return err
-					}
+					vi = *slice.AsUint64(&v)
 				}
 				err = n.delItemAt(i)
 				if err != nil {
@@ -192,6 +189,12 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		})
 		if err != nil {
 			return 0, err
+		}
+		if remove && vi != 0 && self.meta.flags & consts.VARCHAR_VALS != 0 {
+			err = self.varchar.Deref(vi)
+			if err != nil {
+				return 0, err
+			}
 		}
 	}
 	return b, nil
