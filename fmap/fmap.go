@@ -573,7 +573,7 @@ func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 	if (offset + length) > uint64(self.size) {
 		return nil, errors.Errorf("Get outside of the file, (%d) %d + %d > %d", offset+length, offset, length, self.size)
 	}
-	self.outstanding += int(blocks)
+	self.outstanding += 1
 	slice := &slice.Slice{
 		Array: unsafe.Pointer(uintptr(self.mmap) + uintptr(offset)),
 		Len:   int(length),
@@ -586,10 +586,7 @@ func (self *BlockFile) Get(offset, blocks uint64) ([]byte, error) {
 // not allocated from the mapping. But why take chances, you probably
 // want to use the Do interface instead.
 func (self *BlockFile) Release(bytes []byte) error {
-	slice := slice.AsSlice(&bytes)
-	length := uint64(slice.Len)
-	blocks := length / uint64(self.blksize)
-	self.outstanding -= int(blocks)
+	self.outstanding -= 1
 	return nil
 }
 

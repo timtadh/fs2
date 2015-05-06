@@ -237,11 +237,11 @@ func (v *Varchar) allocNew(length, fullLength int) (a uint64, err error) {
 	if err != nil {
 		return 0, err
 	}
-	err = v.newRun(a, length, fullLength, blks * int(v.bf.BlockSize()))
+	err = v.free(a, blks*int(v.bf.BlockSize()))
 	if err != nil {
 		return 0, err
 	}
-	return a, nil
+	return v.Alloc(length)
 }
 
 func (v *Varchar) allocAmt(length int) int {
