@@ -122,6 +122,16 @@ func (n *leaf) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
 	}
 }
 
+func (n *leaf) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_KEYS != 0 {
+		k := n.key(i)
+		return vc.UnsafeGet(*slice.AsUint64(&k))
+	} else {
+		return n.key(i), nil
+	}
+}
+
 func (n *leaf) doBig(vc *Varchar, v []byte, do func([]byte) error) error {
 	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
 		return do(bytes)

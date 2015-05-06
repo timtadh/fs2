@@ -462,6 +462,42 @@ func (v *Varchar) Do(a uint64, do func([]byte) error) (err error) {
 	})
 }
 
+func (v *Varchar) UnsafeGet(a uint64) (bytes []byte, err error) {
+	rbytes, err := v.unsafeGet(a)
+	if err != nil {
+		return nil, err
+	}
+	m := asRunMeta(rbytes)
+	fullLength := v.allocAmt(int(m.length))
+	blks := uint64(v.blksNeeded(fullLength))
+	offset, start, _ := v.startOffsetBlks(a)
+	for offset + uint64(fullLength) >= blks * uint64(v.bf.BlockSize()) {
+		blks++
+	}
+	size, err := v.bf.Size()
+	if err != nil {
+		return nil, err
+	}
+	for start + blks * uint64(v.bf.BlockSize()) > uint64(size) {
+		blks--
+	}
+	allBytes, err := v.bf.Get(start, blks)
+	if err != nil {
+		return nil, err
+	}
+	err = v.bf.Release(allBytes)
+	if err != nil {
+		return nil, err
+	}
+	bytes = allBytes[offset:]
+	flags := consts.Flag(bytes[0])
+	if flags & consts.VARCHAR_RUN == 0 {
+		return nil, errors.Errorf("bad address, was not a run block")
+	}
+	r := asRun(bytes)
+	return r.bytes[:r.meta.length], nil
+}
+
 // Ref increments the ref field of the block. It starts out as one (when
 // allocated). Each call to ref will add 1 to that.
 func (v *Varchar) Ref(a uint64) (err error) {
@@ -573,6 +609,19 @@ func (v *Varchar) do(
 			return errors.Errorf("Unknown block type, %v", flags)
 		}
 	})
+}
+
+func (v *Varchar) unsafeGet(a uint64) ([]byte, error) {
+	offset, start, blks := v.startOffsetBlks(a)
+	bytes, err := v.bf.Get(start, blks)
+	if err != nil {
+		return nil, err
+	}
+	err = v.bf.Release(bytes)
+	if err != nil {
+		return nil, err
+	}
+	return bytes[offset:], nil
 }
 
 // This is for making new free segments. You probably (most definitely)
