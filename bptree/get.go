@@ -605,7 +605,7 @@ func (self *BpTree) prevLoc(a uint64, i int) (uint64, int, bool, error) {
 	}
 	var end bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
-		if j < 0 {
+		if j < 0 || j >= int(n.meta.keyCount) {
 			end = true
 		}
 		return nil
