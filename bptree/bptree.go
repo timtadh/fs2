@@ -9,15 +9,14 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
-	"github.com/timtadh/fs2/varchar"
 )
 
 // The Ubiquitous B+ Tree
 type BpTree struct {
-	bf       *fmap.BlockFile
-	metaBack []byte
-	meta     *bpTreeMeta
-	varchar  *varchar.Varchar
+	bf      *fmap.BlockFile
+	varchar *Varchar
+	metaOff uint64
+	meta    *bpTreeMeta
 }
 
 type bpTreeMeta struct {
@@ -36,48 +35,79 @@ func init() {
 	bpTreeMetaSize = reflect.TypeOf(*m).Size()
 }
 
-func newBpTreeMeta(bf *fmap.BlockFile, keySize, valSize uint16, flags consts.Flag) ([]byte, *bpTreeMeta, error) {
+func newBpTreeMeta(bf *fmap.BlockFile, metaOff uint64, keySize, valSize uint16, flags consts.Flag) (*bpTreeMeta, error) {
 	a, err := bf.Allocate()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	err = bf.Do(a, 1, func(bytes []byte) error {
 		_, err := newLeaf(flags, bytes, keySize, valSize)
 		return err
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	b, err := bf.Allocate()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	data := make([]byte, bpTreeMetaSize)
-	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
-	meta.root = a
-	meta.keySize = keySize
-	meta.valSize = valSize
-	meta.varcharCtrl = b
-	meta.itemCount = 0
-	meta.flags = flags
-	err = bf.SetControlData(data)
-	if err != nil {
-		return nil, nil, err
+	meta := &bpTreeMeta{
+		root: a,
+		itemCount: 0,
+		varcharCtrl: b,
+		keySize: keySize,
+		valSize: valSize,
+		flags: flags,
 	}
-	return data, meta, nil
+	return meta, nil
 }
 
-func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
-	data, err := bf.ControlData()
+func loadBpTreeMeta(bf *fmap.BlockFile, metaOff uint64) (meta *bpTreeMeta, err error) {
+	err = bf.Do(metaOff, 1, func(data []byte) error {
+		m := (*bpTreeMeta)(slice.AsSlice(&data).Array)
+		meta = m.Clone()
+		return nil
+	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
-	if meta.root == 0 || meta.keySize == 0 {
-		return nil, nil, errors.Errorf("Meta was not properly initialized. Can't load tree")
-	}
-	return data, meta, nil
+	return meta, nil
 }
+
+func (m *bpTreeMeta) Clone() *bpTreeMeta {
+	return &bpTreeMeta{
+		root: m.root,
+		itemCount: m.itemCount,
+		varcharCtrl: m.varcharCtrl,
+		keySize: m.keySize,
+		valSize: m.valSize,
+		flags: m.flags,
+	}
+}
+
+func (m *bpTreeMeta) CopyInto(o *bpTreeMeta) {
+	o.root = m.root
+	o.itemCount = m.itemCount
+	o.varcharCtrl = m.varcharCtrl
+	o.keySize = m.keySize
+	o.valSize = m.valSize
+	o.flags = m.flags
+}
+
+func (b *BpTree) doMeta(do func(*bpTreeMeta) error) error {
+	return b.bf.Do(b.metaOff, 1, func(data []byte) error {
+		meta := (*bpTreeMeta)(slice.AsSlice(&data).Array)
+		return do(meta)
+	})
+}
+
+func (b *BpTree) writeMeta() error {
+	return b.doMeta(func(m *bpTreeMeta) error {
+		b.meta.CopyInto(m)
+		return nil
+	})
+}
+
 
 // Create a new B+ Tree in the given BlockFile.
 //
@@ -85,6 +115,21 @@ func loadBpTreeMeta(bf *fmap.BlockFile) ([]byte, *bpTreeMeta, error) {
 // keySize int. If this is negative it will use varchar keys
 // valSize int. If this is negative it will use varchar values
 func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
+	metaOff, err := bf.Allocate()
+	if err != nil {
+		return nil, err
+	}
+	data := make([]byte, 8)
+	moff := slice.AsUint64(&data)
+	*moff = metaOff
+	err = bf.SetControlData(data)
+	if err != nil {
+		return nil, err
+	}
+	return NewAt(bf, metaOff, keySize, valSize)
+}
+
+func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, error) {
 	if bf.BlockSize() != consts.BLOCKSIZE {
 		return nil, errors.Errorf("The block size must be %v, got %v", consts.BLOCKSIZE, bf.BlockSize())
 	}
@@ -103,17 +148,20 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 		valSize = 8
 		flags = flags | consts.VARCHAR_VALS
 	}
-	back, meta, err := newBpTreeMeta(bf, uint16(keySize), uint16(valSize), flags)
+	meta, err := newBpTreeMeta(bf, metaOff, uint16(keySize), uint16(valSize), flags)
 	if err != nil {
 		return nil, err
 	}
-	v, err := varchar.New(bf, meta.varcharCtrl)
-	if err != nil {
-		return nil, err
+	var v *Varchar
+	if flags & (consts.VARCHAR_KEYS | consts.VARCHAR_VALS) != 0 {
+		v, err = NewVarchar(bf, meta.varcharCtrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 	bpt := &BpTree{
 		bf:       bf,
-		metaBack: back,
+		metaOff:  metaOff,
 		meta:     meta,
 		varchar:  v,
 	}
@@ -123,33 +171,41 @@ func New(bf *fmap.BlockFile, keySize, valSize int) (*BpTree, error) {
 // Open an existing B+Tree (it knows its key size so you do not have to
 // supply that).
 func Open(bf *fmap.BlockFile) (*BpTree, error) {
-	back, meta, err := loadBpTreeMeta(bf)
+	data, err := bf.ControlData()
 	if err != nil {
 		return nil, err
 	}
-	v, err := varchar.Open(bf, meta.varcharCtrl)
+	metaOff := *slice.AsUint64(&data)
+	return OpenAt(bf, metaOff)
+}
+
+func OpenAt(bf *fmap.BlockFile, metaOff uint64) (*BpTree, error) {
+	meta, err := loadBpTreeMeta(bf, metaOff)
 	if err != nil {
 		return nil, err
+	}
+	var v *Varchar
+	if meta.keySize < 0 || meta.valSize < 0 {
+		v, err = OpenVarchar(bf, meta.varcharCtrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 	bpt := &BpTree{
 		bf:       bf,
-		metaBack: back,
+		metaOff:  metaOff,
 		meta:     meta,
 		varchar:  v,
 	}
 	return bpt, nil
 }
 
-func (b *BpTree) writeMeta() error {
-	return b.bf.SetControlDataNoSync(b.metaBack)
-}
-
 // What is the key size of this tree?
-func (self *BpTree) KeySize() int {
-	return int(self.meta.keySize)
+func (b *BpTree) KeySize() int {
+	return int(b.meta.keySize)
 }
 
 // How many items are in the tree?
-func (self *BpTree) Size() int {
-	return int(self.meta.itemCount)
+func (b *BpTree) Size() int {
+	return int(b.meta.itemCount)
 }

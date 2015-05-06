@@ -12,7 +12,6 @@ import (
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
-	"github.com/timtadh/fs2/varchar"
 )
 
 type baseMeta struct {
@@ -109,7 +108,7 @@ func (n *internal) keyCount() int {
 	return int(n.meta.keyCount)
 }
 
-func (n *internal) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) error {
+func (n *internal) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
 	flags := consts.Flag(n.meta.flags)
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(vc, n.key(i), do)
@@ -118,7 +117,17 @@ func (n *internal) doKeyAt(vc *varchar.Varchar, i int, do func([]byte) error) er
 	}
 }
 
-func (n *internal) doBig(vc *varchar.Varchar, v []byte, do func([]byte) error) error {
+func (n *internal) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {
+	flags := consts.Flag(n.meta.flags)
+	if flags&consts.VARCHAR_KEYS != 0 {
+		k := n.key(i)
+		return vc.UnsafeGet(*slice.AsUint64(&k))
+	} else {
+		return n.key(i), nil
+	}
+}
+
+func (n *internal) doBig(vc *Varchar, v []byte, do func([]byte) error) error {
 	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
 		return do(bytes)
 	})
@@ -128,7 +137,7 @@ func (n *internal) full() bool {
 	return n.meta.keyCount+1 >= n.meta.keyCap
 }
 
-func (n *internal) findPtr(v *varchar.Varchar, key []byte) (uint64, error) {
+func (n *internal) findPtr(v *Varchar, key []byte) (uint64, error) {
 	i, has, err := find(v, n, key)
 	if err != nil {
 		return 0, err
@@ -139,7 +148,7 @@ func (n *internal) findPtr(v *varchar.Varchar, key []byte) (uint64, error) {
 	return *n.ptr(i), nil
 }
 
-func (n *internal) _has(v *varchar.Varchar, key []byte) bool {
+func (n *internal) _has(v *Varchar, key []byte) bool {
 	_, has, err := find(v, n, key)
 	if err != nil {
 		log.Fatal(err)
@@ -147,7 +156,7 @@ func (n *internal) _has(v *varchar.Varchar, key []byte) bool {
 	return has
 }
 
-func (n *internal) updateK(v *varchar.Varchar, i int, key []byte) error {
+func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	if i < 0 || i >= int(n.meta.keyCount) {
 		return errors.Errorf("key is out of range")
 	}
@@ -163,7 +172,7 @@ func (n *internal) updateK(v *varchar.Varchar, i int, key []byte) error {
 	}
 }
 
-func (n *internal) bigUpdateK(v *varchar.Varchar, i int, key []byte) (err error) {
+func (n *internal) bigUpdateK(v *Varchar, i int, key []byte) (err error) {
 	old_key := n.key(i)
 	err = v.Deref(*slice.AsUint64(&old_key))
 	if err != nil {
@@ -177,7 +186,7 @@ func (n *internal) bigUpdateK(v *varchar.Varchar, i int, key []byte) (err error)
 	return nil
 }
 
-func (n *internal) putKP(v *varchar.Varchar, key []byte, p uint64) (err error) {
+func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
@@ -207,7 +216,7 @@ func (n *internal) putKP(v *varchar.Varchar, key []byte, p uint64) (err error) {
 	return nil
 }
 
-func (n *internal) delKP(v *varchar.Varchar, key []byte) error {
+func (n *internal) delKP(v *Varchar, key []byte) error {
 	i, has, err := find(v, n, key)
 	if err != nil {
 		return err
@@ -222,7 +231,7 @@ func (n *internal) delKP(v *varchar.Varchar, key []byte) error {
 	return n.delItemAt(v, i)
 }
 
-func (n *internal) delItemAt(v *varchar.Varchar, i int) error {
+func (n *internal) delItemAt(v *Varchar, i int) error {
 	// remove the key
 	err := n.delKeyAt(v, i)
 	if err != nil {
@@ -241,7 +250,7 @@ func (n *internal) delItemAt(v *varchar.Varchar, i int) error {
 	return nil
 }
 
-func (n *internal) putKey(v *varchar.Varchar, key []byte, put func(i int) error) (err error) {
+func (n *internal) putKey(v *Varchar, key []byte, put func(i int) error) (err error) {
 	if n.keyCount()+1 >= int(n.meta.keyCap) {
 		return errors.Errorf("Block is full.")
 	}
@@ -284,7 +293,7 @@ func (n *internal) putKeyAt(key []byte, i int) error {
 	return nil
 }
 
-func (n *internal) delKeyAt(v *varchar.Varchar, i int) (err error) {
+func (n *internal) delKeyAt(v *Varchar, i int) (err error) {
 	if n.meta.keyCount == 0 {
 		return errors.Errorf("The items slice is empty")
 	}

@@ -5,26 +5,23 @@ import (
 )
 
 import (
-	"github.com/timtadh/fs2/varchar"
 )
 
 type keyed interface {
 	key(i int) []byte
-	doKeyAt(v *varchar.Varchar, i int, do func(key []byte) error) error
+	doKeyAt(v *Varchar, i int, do func(key []byte) error) error
+	unsafeKeyAt(v *Varchar, i int) ([]byte, error)
 	keyCount() int
 }
 
-func find(v *varchar.Varchar, keys keyed, key []byte) (int, bool, error) {
+func find(v *Varchar, keys keyed, key []byte) (int, bool, error) {
 	var l int = 0
 	var r int = keys.keyCount() - 1
 	var m int
 	for l <= r {
-		var cmp int
 		m = ((r - l) >> 1) + l
-		err := keys.doKeyAt(v, m, func(key_m []byte) error {
-			cmp = bytes.Compare(key, key_m)
-			return nil
-		})
+		key_m, err := keys.unsafeKeyAt(v, m)
+		cmp := bytes.Compare(key, key_m)
 		if err != nil {
 			return 0, false, err
 		}
@@ -35,11 +32,8 @@ func find(v *varchar.Varchar, keys keyed, key []byte) (int, bool, error) {
 				if j == 0 {
 					return j, true, nil
 				}
-				var cmp int
-				err := keys.doKeyAt(v, j-1, func(key_j_1 []byte) error {
-					cmp = bytes.Compare(key, key_j_1)
-					return nil
-				})
+				key_j_1, err := keys.unsafeKeyAt(v, j-1)
+				cmp := bytes.Compare(key, key_j_1)
 				if err != nil {
 					return 0, false, err
 				}

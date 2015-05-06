@@ -208,7 +208,9 @@ func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) e
 // inclusive. See Iterate() for usage details.
 func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	var bi bpt_iterator
-	if bytes.Compare(from, to) <= 0 {
+	if from != nil && to == nil {
+		bi, err = self.forward(from, to)
+	} else if bytes.Compare(from, to) <= 0 {
 		bi, err = self.forward(from, to)
 	} else {
 		bi, err = self.backward(from, to)
@@ -603,7 +605,7 @@ func (self *BpTree) prevLoc(a uint64, i int) (uint64, int, bool, error) {
 	}
 	var end bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
-		if j < 0 {
+		if j < 0 || j >= int(n.meta.keyCount) {
 			end = true
 		}
 		return nil
