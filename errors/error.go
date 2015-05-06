@@ -13,7 +13,7 @@ type Error struct {
 
 func Errorf(format string, args ...interface{}) error {
 	buf := make([]byte, 50000)
-	n := runtime.Stack(buf, true)
+	n := runtime.Stack(buf, false)
 	trace := make([]byte, n)
 	copy(trace, buf)
 	return &Error{

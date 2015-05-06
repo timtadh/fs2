@@ -189,7 +189,7 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 		return 0, errors.Errorf("Size is too large. Cannon allocate an array that big")
 	}
 	fullLength := v.allocAmt(length)
-	next, err := v.sizeTree.Range(makeBSize(fullLength), nil)
+	next, err := v.sizeTree.UnsafeRange(makeBSize(fullLength), nil)
 	if err != nil {
 		return 0, err
 	}

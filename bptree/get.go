@@ -165,10 +165,14 @@ func (self *BpTree) Find(key []byte) (kvi KVIterator, err error) {
 
 // How many key/value pairs are there with the given key.
 func (self *BpTree) Count(key []byte) (count int, err error) {
-	err = self.DoFind(key, func(k, v []byte) error {
+	kvi, err := self.UnsafeRange(key, key)
+	if err != nil {
+		return 0, err
+	}
+	count = 0
+	for _, _, err, kvi = kvi(); kvi != nil; _, _, err, kvi = kvi() {
 		count++
-		return nil
-	})
+	}
 	if err != nil {
 		return 0, err
 	}
@@ -204,10 +208,7 @@ func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) e
 	)
 }
 
-// Iterate over all of the key/values pairs between [from, to]
-// inclusive. See Iterate() for usage details.
-func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
-	var bi bpt_iterator
+func (self *BpTree) rangeIterator(from, to []byte) (bi bpt_iterator, err error) {
 	if from != nil && to == nil {
 		bi, err = self.forward(from, to)
 	} else if bytes.Compare(from, to) <= 0 {
@@ -215,13 +216,54 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	} else {
 		bi, err = self.backward(from, to)
 	}
+	return bi, err
+}
+
+// Iterate over all of the key/values pairs between [from, to]
+// inclusive. See Iterate() for usage details.
+func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
+	bi, err := self.rangeIterator(from, to)
 	if err != nil {
 		return nil, err
 	}
 	return self._range(bi)
 }
 
+func (self *BpTree) UnsafeRange(from, to []byte) (kvi KVIterator, err error) {
+	bi, err := self.rangeIterator(from, to)
+	if err != nil {
+		return nil, err
+	}
+	return self._rangeUnsafe(bi)
+}
+
 func (self *BpTree) _range(bi bpt_iterator) (kvi KVIterator, err error) {
+	unsafeKvi, err := self._rangeUnsafe(bi)
+	if err != nil {
+		return nil, err
+	}
+	// fmt.Println(errors.Errorf("called _range"))
+	kvi = func() (key, value []byte, e error, it KVIterator) {
+		var k []byte
+		var v []byte
+		k, v, err, unsafeKvi = unsafeKvi()
+		if err != nil {
+			return nil, nil, err, nil
+		}
+		if unsafeKvi == nil {
+			return nil, nil, nil, nil
+		}
+		key = make([]byte, len(k))
+		copy(key, k)
+		value = make([]byte, len(v))
+		// fmt.Println(errors.Errorf("copy"))
+		copy(value, v)
+		return key, value, nil, kvi
+	}
+	return kvi, nil
+}
+
+func (self *BpTree) _rangeUnsafe(bi bpt_iterator) (kvi KVIterator, err error) {
 	kvi = func() (key, value []byte, e error, it KVIterator) {
 		var a uint64
 		var i int
@@ -233,10 +275,8 @@ func (self *BpTree) _range(bi bpt_iterator) (kvi KVIterator, err error) {
 			return nil, nil, nil, nil
 		}
 		err = self.doKV(a, i, func(k, v []byte) error {
-			key = make([]byte, len(k))
-			copy(key, k)
-			value = make([]byte, len(v))
-			copy(value, v)
+			key = k
+			value = v
 			return nil
 		})
 		if err != nil {
