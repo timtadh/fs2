@@ -118,15 +118,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 }
 
 func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
-	var i int
-	err = self.doLeaf(a, func(n *leaf) (err error) {
-		var has bool
-		i, has, err = find(self.varchar, n, key)
-		if !has {
-			return errors.Errorf("key was not in tree")
-		}
-		return nil
-	})
+	a, i, err := self.leafGetStart(a, key)
 	if err != nil {
 		return 0, err
 	}
