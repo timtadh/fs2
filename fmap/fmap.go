@@ -364,9 +364,6 @@ func (self *BlockFile) BlockSize() int {
 }
 
 func (self *BlockFile) Size() (uint64, error) {
-	if self.file != nil {
-		return self.fileSize()
-	}
 	return self.size, nil
 }
 
