@@ -3,6 +3,7 @@ package mmlist
 import "testing"
 
 import (
+	"bytes"
 	"os"
 	"runtime/debug"
 )
@@ -32,6 +33,11 @@ func (t *T) mmlist() (*List, func()) {
 	l, err := New(bf)
 	t.assert_nil(err)
 	return l, clean
+}
+
+func (t *T) Log(msgs ...interface{}) {
+	x := (*testing.T)(t)
+	x.Log(msgs...)
 }
 
 func (t *T) assert(msg string, oks ...bool) {
@@ -67,4 +73,40 @@ func (t *T) rand_bytes(length int) []byte {
 	panic("unreachable")
 }
 
+func TestNew(x *testing.T) {
+	t := (*T)(x)
+	bf, clean := t.blkfile()
+	l, err := New(bf)
+	t.assert_nil(err)
+	t.Log(l)
+	clean()
+}
+
+func TestAppend(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	d, err := l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+}
+
+func TestSet(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	d, err := l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	t.assert_nil(l.Set(i, []byte("goodbye")))
+	d, err = l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+}
 
