@@ -1,6 +1,10 @@
 package consts
 
-type Flag uint8
+import (
+	"github.com/timtadh/fs2/slice"
+)
+
+type Flag uint16
 
 const BLOCKSIZE = 4096
 
@@ -12,4 +16,12 @@ const (
 	VARCHAR_RUN
 	VARCHAR_KEYS
 	VARCHAR_VALS
+	LIST_CTRL
+	LIST_IDX
 )
+
+func AsFlag(bytes []byte) Flag {
+	back := slice.AsSlice(&bytes)
+	return *(*Flag)(back.Array)
+}
+

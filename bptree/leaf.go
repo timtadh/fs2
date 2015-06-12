@@ -105,7 +105,7 @@ func (n *leaf) firstValue(vc *Varchar, key []byte) ([]byte, error) {
 }
 
 func (n *leaf) doValueAt(vc *Varchar, i int, do func([]byte) error) error {
-	flags := consts.Flag(n.meta.flags)
+	flags := n.meta.flags
 	if flags&consts.VARCHAR_VALS != 0 {
 		return n.doBig(vc, n.val(i), do)
 	} else {
@@ -114,7 +114,7 @@ func (n *leaf) doValueAt(vc *Varchar, i int, do func([]byte) error) error {
 }
 
 func (n *leaf) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
-	flags := consts.Flag(n.meta.flags)
+	flags := n.meta.flags
 	if flags&consts.VARCHAR_KEYS != 0 {
 		return n.doBig(vc, n.key(i), do)
 	} else {
@@ -123,7 +123,7 @@ func (n *leaf) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
 }
 
 func (n *leaf) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {
-	flags := consts.Flag(n.meta.flags)
+	flags := n.meta.flags
 	if flags&consts.VARCHAR_KEYS != 0 {
 		k := n.key(i)
 		return vc.UnsafeGet(*slice.AsUint64(&k))
@@ -219,7 +219,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	var idx int
-	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+	if n.meta.flags & consts.VARCHAR_KEYS == 0 {
 		idx, _, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
@@ -277,7 +277,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	var has bool
-	if consts.Flag(n.meta.flags) & consts.VARCHAR_KEYS == 0 {
+	if n.meta.flags & consts.VARCHAR_KEYS == 0 {
 		idx, has, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {

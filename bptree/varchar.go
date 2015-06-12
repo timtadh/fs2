@@ -452,7 +452,7 @@ func (v *Varchar) Do(a uint64, do func([]byte) error) (err error) {
 		}
 		return v.bf.Do(start, blks, func(bytes []byte) error {
 			bytes = bytes[offset:]
-			flags := consts.Flag(bytes[0])
+			flags := consts.AsFlag(bytes)
 			if flags & consts.VARCHAR_RUN == 0 {
 				return errors.Errorf("bad address, was not a run block")
 			}
@@ -490,7 +490,7 @@ func (v *Varchar) UnsafeGet(a uint64) (bytes []byte, err error) {
 		return nil, err
 	}
 	bytes = allBytes[offset:]
-	flags := consts.Flag(bytes[0])
+	flags := consts.AsFlag(bytes)
 	if flags & consts.VARCHAR_RUN == 0 {
 		return nil, errors.Errorf("bad address, was not a run block")
 	}
@@ -598,7 +598,7 @@ func (v *Varchar) do(
 	offset, start, blks := v.startOffsetBlks(a)
 	return v.bf.Do(start, blks, func(bytes []byte) error {
 		bytes = bytes[offset:]
-		flags := consts.Flag(bytes[0])
+		flags := consts.AsFlag(bytes)
 		if flags == consts.VARCHAR_CTRL {
 			return ctrlDo(asCtrl(bytes))
 		} else if flags == consts.VARCHAR_FREE {

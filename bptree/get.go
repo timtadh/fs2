@@ -329,7 +329,7 @@ func (self *BpTree) getStart(key []byte) (a uint64, i int, err error) {
 func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = consts.Flag(bytes[0])
+		flags = consts.AsFlag(bytes)
 		return nil
 	})
 	if err != nil {
@@ -406,7 +406,7 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 func (self *BpTree) lastKey(n uint64) (a uint64, i int, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = consts.Flag(bytes[0])
+		flags = consts.AsFlag(bytes)
 		return nil
 	})
 	if err != nil {

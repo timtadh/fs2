@@ -38,7 +38,7 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
-		flags = consts.Flag(bytes[0])
+		flags = consts.AsFlag(bytes)
 		return nil
 	})
 	if err != nil {

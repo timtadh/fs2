@@ -96,7 +96,7 @@ func (self *BpTree) do(
 	leafDo func(*leaf) error,
 ) error {
 	return self.bf.Do(a, 1, func(bytes []byte) error {
-		flags := consts.Flag(bytes[0])
+		flags := consts.AsFlag(bytes)
 		if flags&consts.INTERNAL != 0 {
 			return internalDo(asInternal(bytes))
 		} else if flags&consts.LEAF != 0 {
