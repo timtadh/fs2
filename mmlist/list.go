@@ -30,10 +30,12 @@ type ctrlBlk struct {
 
 const ctrlBlkSize = 32
 
+const itemsPerIdx = (consts.BLOCKSIZE/8)-1
+
 type idxBlk struct {
 	flags consts.Flag
 	count uint16
-	items [(consts.BLOCKSIZE/8)-1]uint64
+	items [itemsPerIdx]uint64
 }
 
 const idxBlkSize = consts.BLOCKSIZE
@@ -166,11 +168,27 @@ func Open(bf *fmap.BlockFile) (*List, error) {
 }
 
 func OpenAt(bf *fmap.BlockFile, ctrl_a uint64) (*List, error) {
-	panic("halp")
+	l := &List{bf: bf, a: ctrl_a}
+	err := l.doCtrl(l.a, func(ctrl *ctrlBlk) (err error) {
+		l.varchar, err = bptree.OpenVarchar(bf, ctrl.varchar)
+		if err != nil {
+			return err
+		}
+		l.idxTree, err = bptree.OpenAt(bf, ctrl.idxTree)
+		if err != nil {
+			return err
+		}
+		l.count = ctrl.count
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return l, nil
 }
 
-func (l *List) Size() int {
-	return int(l.count)
+func (l *List) Size() uint64 {
+	return l.count
 }
 
 func (l *List) Append(item []byte) (i uint64, err error) {
@@ -203,13 +221,47 @@ func (l *List) Append(item []byte) (i uint64, err error) {
 	return i, nil
 }
 
-func (l *List) Pop() ([]byte, error) {
-	panic("halp")
+func (l *List) Pop() (item []byte, err error) {
+	if l.count == 0 {
+		return nil, errors.Errorf("Cannot pop an empty list")
+	}
+	var a uint64
+	err = l.lastBlk(func(idx *idxBlk) (err error) {
+		a, err = idx.Pop()
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = l.varchar.Do(a, func(data []byte) error {
+		item = make([]byte, len(data))
+		copy(item, data)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = l.varchar.Free(a)
+	if err != nil {
+		return nil, err
+	}
+	err = l.doCtrl(l.a, func(ctrl *ctrlBlk) error {
+		ctrl.count--
+		l.count = ctrl.count
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return item, nil
 }
 
 func (l *List) Get(i uint64) (item []byte, err error) {
+	if i >= l.count {
+		return nil, errors.Errorf("index out of range")
+	}
 	err = l.blk(uint64(i), func(idx *idxBlk) error {
-		a, err := idx.Get(uint16(i & 0x7))
+		a, err := idx.Get(uint16(i % itemsPerIdx))
 		if err != nil {
 			return err
 		}
@@ -226,9 +278,12 @@ func (l *List) Get(i uint64) (item []byte, err error) {
 }
 
 func (l *List) Set(i uint64, item []byte) (err error) {
+	if i >= l.count {
+		return errors.Errorf("index out of range")
+	}
 	var old_a uint64
 	err = l.blk(uint64(i), func(idx *idxBlk) (err error) {
-		old_a, err = idx.Get(uint16(i & 0x7))
+		old_a, err = idx.Get(uint16(i % itemsPerIdx))
 		return err
 	})
 	if err != nil {
@@ -250,7 +305,7 @@ func (l *List) Set(i uint64, item []byte) (err error) {
 		return err
 	}
 	return l.blk(uint64(i), func(idx *idxBlk) (err error) {
-		err = idx.Set(uint16(i & 0x7), a)
+		err = idx.Set(uint16(i % itemsPerIdx), a)
 		if err != nil {
 			return err
 		}
@@ -259,14 +314,20 @@ func (l *List) Set(i uint64, item []byte) (err error) {
 }
 
 func (l *List) idxKey(i uint64) (key []byte) {
-	idx := uint64(i >> 3)
+	idx := i / itemsPerIdx
 	key = make([]byte, 8)
 	binary.LittleEndian.PutUint64(key, idx)
 	return key
 }
 
 func (l *List) lastBlk(do func(*idxBlk) error) error {
-	return l.blk(l.count - 1, do)
+	if l.count < itemsPerIdx {
+		return l.blk(0, do)
+	} else if l.count % itemsPerIdx == 0 {
+		return l.blk(l.count - 1, do)
+	} else {
+		return l.blk(l.count, do)
+	}
 }
 
 func (l *List) nextBlk(do func(*idxBlk) error) error {
@@ -285,9 +346,6 @@ func (l *List) nextBlk(do func(*idxBlk) error) error {
 }
 
 func (l *List) blk(i uint64, do func(*idxBlk) error) error {
-	if i >= l.count {
-		return errors.Errorf("index out of range")
-	}
 	key := l.idxKey(i)
 	return l.idxTree.DoFind(key, func(_, value []byte) error {
 		a := *slice.AsUint64(&value)

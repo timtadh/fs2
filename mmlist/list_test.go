@@ -4,6 +4,9 @@ import "testing"
 
 import (
 	"bytes"
+	"encoding/binary"
+	"fmt"
+	"math/rand"
 	"os"
 	"runtime/debug"
 )
@@ -13,6 +16,20 @@ import (
 )
 
 type T testing.T
+
+
+
+func init() {
+	if urandom, err := os.Open("/dev/urandom"); err != nil {
+		panic(err)
+	} else {
+		seed := make([]byte, 8)
+		if _, err := urandom.Read(seed); err == nil {
+			rand.Seed(int64(binary.BigEndian.Uint64(seed)))
+		}
+		urandom.Close()
+	}
+}
 
 
 func (t *T) blkfile() (*fmap.BlockFile, func()) {
@@ -76,9 +93,8 @@ func (t *T) rand_bytes(length int) []byte {
 func TestNew(x *testing.T) {
 	t := (*T)(x)
 	bf, clean := t.blkfile()
-	l, err := New(bf)
+	_, err := New(bf)
 	t.assert_nil(err)
-	t.Log(l)
 	clean()
 }
 
@@ -108,5 +124,101 @@ func TestSet(x *testing.T) {
 	d, err = l.Get(i)
 	t.assert_nil(err)
 	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+}
+
+func TestOpen(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	d, err := l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	t.assert_nil(l.Set(i, []byte("goodbye")))
+	l, err = Open(l.bf)
+	t.assert_nil(err)
+	d, err = l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+}
+
+func TestOpenFail(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	l, err = OpenAt(l.bf, 4096*2)
+	if err == nil {
+		t.Error("should not have been able to Open", l)
+	}
+}
+
+func TestPop(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	d, err := l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	d, err = l.Pop()
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	t.assert("size == 0", l.Size() == 0)
+	_, err = l.Get(i)
+	if err == nil {
+		t.Fatal("should have not been able to get a popped item")
+	}
+}
+
+func TestAppendPopCycle(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	items := make([][]byte, 0, itemsPerIdx*25)
+	for i := 0; i < cap(items); i++ {
+		items = append(items, t.rand_bytes(rand.Intn(8192)))
+	}
+	for i, item := range items {
+		j, err := l.Append(item)
+		t.assert_nil(err)
+		t.assert("i == j", uint64(i) == j)
+		j, err = l.Append(item)
+		t.assert_nil(err)
+		j, err = l.Append(item)
+		t.assert_nil(err)
+		d, err := l.Pop()
+		t.assert_nil(err)
+		t.assert(fmt.Sprintf("items[i] == d, %d, %d", len(items[i]), len(d)), bytes.Equal(items[i], d))
+		d, err = l.Pop()
+		t.assert_nil(err)
+		t.assert(fmt.Sprintf("items[i] == d, %d, %d", len(items[i]), len(d)), bytes.Equal(items[i], d))
+	}
+	t.assert("len(items) == l.Size()", len(items) == int(l.Size()))
+	for i := uint64(0); i < l.Size(); i++ {
+		d, err := l.Get(i)
+		t.assert_nil(err)
+		t.assert("items[i] == d", bytes.Equal(items[i], d))
+	}
+	for i := uint64(0); i < l.Size(); i++ {
+		d, err := l.Get(i)
+		t.assert_nil(err)
+		t.assert("items[i] == d", bytes.Equal(items[i], d))
+	}
+	t.Log("len(items) == l.Size()", len(items), l.Size(), len(items) == int(l.Size()))
+	t.Log(l.Size())
+	for i := int(l.Size()) - 1; i >= 0; i-- {
+		d, err := l.Pop()
+		t.assert_nil(err)
+		t.assert(fmt.Sprintf("items[i] == d, %d, %d", len(items[i]), len(d)), bytes.Equal(items[i], d))
+		t.assert("size == i", int(l.Size()) == i)
+	}
+	t.assert("size == 0", l.Size() == 0)
 }
 
