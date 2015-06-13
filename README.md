@@ -7,8 +7,10 @@ need another licensing option please contact me directly.
 
 ### What is this?
 
-A [B+ Tree](#b-tree) implementation and a platform for implementing memory
-mapped high performance file structures in Go.
+1. A [B+ Tree](#b-tree) implementation
+2. A [list](#mmlist) implemenation supporting O(1) Append, Pop, Get and Set operations.
+3. A [platform](#fmap) for implementing memory mapped high performance file
+   structures in Go.
 
 ### Why did you make this?
 
@@ -40,6 +42,8 @@ of in memory version in my
 [data-structures repository](https://github.com/timtadh/data-structures).
 
 ## B+ Tree
+
+[docs](https://godoc.org/github.com/timtadh/fs2/bptree)
 
 This is a disk backed low level "key-value store". The closest thing similar to
 what it offers is [Bolt DB](https://github.com/boltdb/bolt).  My [blog
@@ -87,54 +91,62 @@ is a great place to start to learn more about the ubiquitous B+ Tree.
 
 Importing
 
-	import (
-		"github.com/timtadh/fs2/bptree"
-		"github.com/timtadh/fs2/fmap"
-	)
+```go
+import (
+	"github.com/timtadh/fs2/bptree"
+	"github.com/timtadh/fs2/fmap"
+)
+```
 
 Creating a new B+ Tree (fixed key size, variable length value size).
 
-	bf, err := fmap.CreateBlockFile("/path/to/file")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer bf.Close()
-	bpt, err := bptree.New(bf, 8, -1)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// do stuff with bpt
+```go
+bf, err := fmap.CreateBlockFile("/path/to/file")
+if err != nil {
+	log.Fatal(err)
+}
+defer bf.Close()
+bpt, err := bptree.New(bf, 8, -1)
+if err != nil {
+	log.Fatal(err)
+}
+// do stuff with bpt
+```
 
 Opening a B+ Tree
 
-	bf, err := fmap.OpenBlockFile("/path/to/file")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer bf.Close()
-	bpt, err := bptree.Open(bf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// do stuff with bpt
+```go
+bf, err := fmap.OpenBlockFile("/path/to/file")
+if err != nil {
+	log.Fatal(err)
+}
+defer bf.Close()
+bpt, err := bptree.Open(bf)
+if err != nil {
+	log.Fatal(err)
+}
+// do stuff with bpt
+```
 
 Add a key/value pair. Note, since this is low level you have to serialize your
 keys and values. The length of the []byte representing the key must exactly
 match the key size of the B+ Tree. You can find out what that was set to by
 called `bpt.KeySize()`
 
-	import (
-		"encoding/binary"
-	)
+```go
+import (
+	"encoding/binary"
+)
 
-	var key uint64 = 12
-	value := "hello world"
-	kBytes := make([]byte, 8)
-	binary.PutUvarint(kBytes, key)
-	err := bpt.Add(kBytes, []byte(value))
-	if err != nil {
-		log.Fatal(err)
-	}
+var key uint64 = 12
+value := "hello world"
+kBytes := make([]byte, 8)
+binary.PutUvarint(kBytes, key)
+err := bpt.Add(kBytes, []byte(value))
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 As you can see it can be a little verbose to serialize and de-serialize your
 keys and values. So be sure to wrap that up in utility functions or even to wrap
@@ -145,31 +157,35 @@ Since a B+Tree is a "multi-map" meaning there may be more than one value per
 key. There is no "Get" method. To retrieve the values associated with a key use
 the `Find` method.
 
-	{
-		var key, value []byte
-		kvi, err := bpt.Find(kBytes)
-		if err != nil {
-			log.Fatal(err)
-		}
-		for key, value, err, kvi = kvi(); kvi != nil; key, value, err, kvi = kvi() {
-			// do stuff with the keys and values
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
+```go
+{
+	var key, value []byte
+	kvi, err := bpt.Find(kBytes)
+	if err != nil {
+		log.Fatal(err)
 	}
+	for key, value, err, kvi = kvi(); kvi != nil; key, value, err, kvi = kvi() {
+		// do stuff with the keys and values
+	}
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+```
 
 That interface is easy to misuse if you do not check the error values as show in
 the example above. An easier interface is provided for all of the iterators
 (Range, Find, Keys, Values, Iterate) called the Do interface.
 
-	err = bpt.DoFind(kBytes, func(key, value []byte) error {
-		// do stuff with the keys and values
-		return nil
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+```go
+err = bpt.DoFind(kBytes, func(key, value []byte) error {
+	// do stuff with the keys and values
+	return nil
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 It is recommended that you always use the Do\* interfaces. The other is provided
 if the cost of extra method calls is too high.
@@ -177,21 +193,25 @@ if the cost of extra method calls is too high.
 Removal is also slightly more complicated due to the duplicate keys.  This
 example will remove all key/value pairs associated with the given key:
 
-	err = bpt.Remove(kBytes, func(value []byte) bool {
-		return true
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+```go
+err = bpt.Remove(kBytes, func(value []byte) bool {
+	return true
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 to remove just the one I added earlier do:
 
-	err = bpt.Remove(kBytes, func(v []byte) bool {
-		return bytes.Equal(v, []byte(value))
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+```go
+err = bpt.Remove(kBytes, func(v []byte) bool {
+	return bytes.Equal(v, []byte(value))
+})
+if err != nil {
+	log.Fatal(err)
+}
+```
 
 That wraps up the basic usage. If you want to ensure that the bytes you have
 written are in fact on disk you have 2 options
@@ -201,6 +221,102 @@ written are in fact on disk you have 2 options
    there soon.
 
 2. call bf.Close()
+
+## MMList
+
+[docs](https://godoc.org/github.com/timtadh/fs2/mmlist)
+
+A Memory Mapped List. This list works more like a stack and less like a queue.
+It is not a good thing to build a job queue on. It is a good thing to build a
+large set of items which can be efficiently randomly sampled. It uses the same
+`varchar` system that the B+Tree uses so it can store variably sized items up to
+2^31 - 1 bytes long.
+
+Operations
+
+1. `Size` O(1)
+2. `Append` O(1)
+3. `Pop` O(1)
+4. `Get` O(1)
+5. `Set` O(1)
+
+I will consider implementing a `Delete` method. However, it will be `O(n)` since
+this is implemented a bit like an `ArrayList` under the hood. The actual way it
+works is there is a B+Tree which indexes to list index blocks. The list index
+blocks hold pointers (511 of them) to varchar locations. I considered having a
+restricted 2 level index but that would have limited the size of the list to a
+maximum of ~1 billion items which was uncomfortably small to me. In the future
+the implementation may change to use something more like an ISAM index which
+will be a bit more compact for this use case.
+
+### Quickstart
+
+```go
+package main
+
+import (
+	"binary"
+	"log"
+)
+
+import (
+	"github.com/timtadh/fs2/fmap"
+	"github.com/timtadh/fs2/mmlist"
+)
+
+func main() {
+	file, err := fmap.CreateBlockFile("/tmp/file")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	list, err := mmlist.New(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	idx, err := list.Append([]byte("hello"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	if d, err := list.Get(idx); err != nil {
+		log.Fatal(err)
+	} else if !bytes.Equal([]byte("hello"), d) {
+		log.Fatal("bytes where not hello")
+	}
+	if err := list.Set(idx, "bye!"); err != nil {
+		log.Fatal(err)
+	}
+	if d, err := list.Get(idx); err != nil {
+		log.Fatal(err)
+	} else if !bytes.Equal([]byte("bye!"), d) {
+		log.Fatal("bytes where not bye!")
+	}
+	if d, err := list.Pop(); err != nil {
+		log.Fatal(err)
+	} else if !bytes.Equal([]byte("bye!"), d) {
+		log.Fatal("bytes where not bye!")
+	}
+}
+```
+
+## FMap
+
+[docs](https://godoc.org/github.com/timtadh/fs2/fmap)
+
+FMap provides a block oriented interface for implementing memory mapped file
+structures. It is block oriented because memory mapped structures **should** be
+block aligned. By making the interface block oriented, the programmer is forced
+to write the structures in a block oriented fashion. I use it with
+[fs2/slice](https://godoc.org/github.com/timtadh/fs2/slice) which provides a
+simple way to cast []byte to other types of pointers. You can accomplish a
+similar thing with just using the `reflect` package but you might find
+`fs2/slice` more convenient.
+
+FMap provides an interface for creating both anonymous and file backed memory
+maps. It supports resizing the memory maps dynamically via allocation and free
+methods. Note, when an allocation occurs the underlying file and memory map
+**may** resize using `mremap` with the flag `MREMAP_MAYMOVE`. So don't let
+pointers escape your memory map! Keep everything as file offsets and be happy!
 
 ## Memory Mapped IO versus Read/Write
 

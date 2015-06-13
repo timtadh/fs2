@@ -1,3 +1,17 @@
+// A Memory Mapped List. This list works more like a stack and less like a
+// queue.  It is not a good thing to build a job queue on. It is a good thing to
+// build a large set of items which can be efficiently randomly sampled. It uses
+// the same `varchar` system that the B+Tree uses so it can store variably sized
+// items up to 2^31 - 1 bytes long.
+// 
+// Operations
+// 
+// 1. `Size` O(1)
+// 2. `Append` O(1)
+// 3. `Pop` O(1)
+// 4. `Get` O(1)
+// 5. `Set` O(1)
+//
 package mmlist
 
 import (
