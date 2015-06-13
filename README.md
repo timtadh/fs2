@@ -57,8 +57,8 @@ is a great place to start to learn more about the ubiquitous B+ Tree.
    length keys can be up to 2^31 - 1 bytes long.
 
 2. Variable length values or fixed sized values. Fixed sized values should also
-   be kept short, less than 1024 bytes. Variable length values can be up to 2^31
-   - 1 bytes long.
+   be kept short, less than 1024 bytes. Variable length values can be up to
+   2^31 - 1 bytes long.
 
 3. Duplicate key support. Duplicates are kept out of the index and only occur in
    the leaves.
