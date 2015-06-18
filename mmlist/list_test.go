@@ -177,6 +177,38 @@ func TestPop(x *testing.T) {
 	}
 }
 
+func TestSwap(x *testing.T) {
+	t := (*T)(x)
+	l, clean := t.mmlist()
+	defer clean()
+	i, err := l.Append([]byte("hello"))
+	t.assert_nil(err)
+	t.assert("i == 0", i == 0)
+	d, err := l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	j, err := l.Append([]byte("goodbye"))
+	t.assert_nil(err)
+	t.assert("j == 1", j == 1)
+	d, err = l.Get(j)
+	t.assert_nil(err)
+	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+	t.assert_nil(l.Swap(i, j))
+	d, err = l.Get(i)
+	t.assert_nil(err)
+	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+	d, err = l.Get(j)
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	d, err = l.SwapDelete(i)
+	t.assert_nil(err)
+	t.assert("d == goodbye", bytes.Equal(d, []byte("goodbye")))
+	d, err = l.Pop()
+	t.assert_nil(err)
+	t.assert("d == hello", bytes.Equal(d, []byte("hello")))
+	t.assert("size == 0", l.Size() == 0)
+}
+
 func TestAppendPopCycle(x *testing.T) {
 	t := (*T)(x)
 	l, clean := t.mmlist()

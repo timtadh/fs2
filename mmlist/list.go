@@ -3,14 +3,22 @@
 // build a large set of items which can be efficiently randomly sampled. It uses
 // the same `varchar` system that the B+Tree uses so it can store variably sized
 // items up to 2^31 - 1 bytes long.
-// 
+//
 // Operations
-// 
+//
 // 1. `Size` O(1)
+//
 // 2. `Append` O(1)
+//
 // 3. `Pop` O(1)
+//
 // 4. `Get` O(1)
+//
 // 5. `Set` O(1)
+//
+// 6. `Swap` O(1)
+//
+// 7. `SwapDelete` O(1)
 //
 package mmlist
 
@@ -296,7 +304,7 @@ func (l *List) Set(i uint64, item []byte) (err error) {
 		return errors.Errorf("index out of range")
 	}
 	var old_a uint64
-	err = l.blk(uint64(i), func(idx *idxBlk) (err error) {
+	err = l.blk(i, func(idx *idxBlk) (err error) {
 		old_a, err = idx.Get(uint16(i % itemsPerIdx))
 		return err
 	})
@@ -318,13 +326,50 @@ func (l *List) Set(i uint64, item []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	return l.blk(uint64(i), func(idx *idxBlk) (err error) {
+	return l.blk(i, func(idx *idxBlk) (err error) {
 		err = idx.Set(uint16(i % itemsPerIdx), a)
 		if err != nil {
 			return err
 		}
 		return 
 	})
+}
+
+func (l *List) Swap(i, j uint64) (err error) {
+	if i >= l.count {
+		return errors.Errorf("index, i, out of range")
+	} else if j >= l.count {
+		return errors.Errorf("index, j, out of range")
+	}
+	return l.blk(i, func(iIdx *idxBlk) (err error) {
+		var ia uint64
+		var I uint16 = uint16(i % itemsPerIdx)
+		ia, err = iIdx.Get(I)
+		if err != nil {
+			return err
+		}
+		return l.blk(j, func(jIdx *idxBlk) (err error) {
+			var ja uint64
+			var J uint16 = uint16(j % itemsPerIdx)
+			ja, err = jIdx.Get(J)
+			if err != nil {
+				return err
+			}
+			err = iIdx.Set(I, ja)
+			if err != nil {
+				return err
+			}
+			return jIdx.Set(J, ia)
+		})
+	})
+}
+
+func (l *List) SwapDelete(i uint64) (item []byte, err error) {
+	err = l.Swap(i, l.count-1)
+	if err != nil {
+		return nil, err
+	}
+	return l.Pop()
 }
 
 func (l *List) idxKey(i uint64) (key []byte) {

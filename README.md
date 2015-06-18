@@ -239,6 +239,8 @@ Operations
 3. `Pop` O(1)
 4. `Get` O(1)
 5. `Set` O(1)
+6. `Swap` O(1)
+7. `SwapDelete` O(1)
 
 I will consider implementing a `Delete` method. However, it will be `O(n)` since
 this is implemented a bit like an `ArrayList` under the hood. The actual way it
