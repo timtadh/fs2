@@ -28,31 +28,31 @@ import (
 )
 
 import (
-	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/bptree"
+	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 	"github.com/timtadh/fs2/fmap"
 	"github.com/timtadh/fs2/slice"
 )
 
 type List struct {
-	bf *fmap.BlockFile
+	bf      *fmap.BlockFile
 	varchar *bptree.Varchar
 	idxTree *bptree.BpTree
-	a uint64
-	count uint64
+	a       uint64
+	count   uint64
 }
 
 type ctrlBlk struct {
-	flags    consts.Flag
-	varchar  uint64
-	idxTree  uint64
-	count    uint64
+	flags   consts.Flag
+	varchar uint64
+	idxTree uint64
+	count   uint64
 }
 
 const ctrlBlkSize = 32
 
-const itemsPerIdx = (consts.BLOCKSIZE/8)-1
+const itemsPerIdx = (consts.BLOCKSIZE / 8) - 1
 
 type idxBlk struct {
 	flags consts.Flag
@@ -96,8 +96,8 @@ func (b *idxBlk) Init() {
 	}
 }
 
-func (b *idxBlk) Append(a uint64) (error) {
-	if b.count + 1 > uint16(len(b.items)) {
+func (b *idxBlk) Append(a uint64) error {
+	if b.count+1 > uint16(len(b.items)) {
 		return errors.Errorf("Could not append to idxBlk, blk full")
 	}
 	b.items[b.count] = a
@@ -122,7 +122,7 @@ func (b *idxBlk) Get(i uint16) (uint64, error) {
 	return b.items[i], nil
 }
 
-func (b *idxBlk) Set(i uint16, a uint64) (error) {
+func (b *idxBlk) Set(i uint16, a uint64) error {
 	if i < 0 || i >= b.count {
 		return errors.Errorf("Idx out of range for Set")
 	}
@@ -163,11 +163,11 @@ func NewAt(bf *fmap.BlockFile, ctrl_a uint64) (*List, error) {
 		return nil, err
 	}
 	l := &List{
-		bf: bf,
+		bf:      bf,
 		varchar: v,
 		idxTree: it,
-		a: ctrl_a,
-		count: 0,
+		a:       ctrl_a,
+		count:   0,
 	}
 	err = l.bf.Do(ctrl_a, 1, func(bytes []byte) error {
 		c := l.asCtrl(bytes)
@@ -327,11 +327,11 @@ func (l *List) Set(i uint64, item []byte) (err error) {
 		return err
 	}
 	return l.blk(i, func(idx *idxBlk) (err error) {
-		err = idx.Set(uint16(i % itemsPerIdx), a)
+		err = idx.Set(uint16(i%itemsPerIdx), a)
 		if err != nil {
 			return err
 		}
-		return 
+		return
 	})
 }
 
@@ -382,8 +382,8 @@ func (l *List) idxKey(i uint64) (key []byte) {
 func (l *List) lastBlk(do func(*idxBlk) error) error {
 	if l.count < itemsPerIdx {
 		return l.blk(0, do)
-	} else if l.count % itemsPerIdx == 0 {
-		return l.blk(l.count - 1, do)
+	} else if l.count%itemsPerIdx == 0 {
+		return l.blk(l.count-1, do)
 	} else {
 		return l.blk(l.count, do)
 	}
@@ -472,4 +472,3 @@ func (l *List) do(
 		}
 	})
 }
-

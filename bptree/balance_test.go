@@ -95,7 +95,7 @@ func TestBalanceLeaf(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key: t.rand_key(),
+				key:   t.rand_key(),
 				value: t.rand_key(),
 			}
 			if !n.fitsAnother() {

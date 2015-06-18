@@ -3,8 +3,8 @@ package bptree
 import "testing"
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 	"sort"
 )
 

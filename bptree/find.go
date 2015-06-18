@@ -4,8 +4,7 @@ import (
 	"bytes"
 )
 
-import (
-)
+import ()
 
 type keyed interface {
 	key(i int) []byte

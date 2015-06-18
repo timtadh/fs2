@@ -159,9 +159,9 @@ func TestAddRemoveRand(x *testing.T) {
 			t.assert_nil(bpt.Add(kv.key, kv.value))
 			t.assert_has(bpt)(kv.key)
 		}
-			for _, kv := range kvs {
-				t.assert_has(bpt)(kv.key)
-			}
+		for _, kv := range kvs {
+			t.assert_has(bpt)(kv.key)
+		}
 		for _, kv := range kvs {
 			t.assert_nil(bpt.Remove(kv.key, func(b []byte) bool {
 				return bytes.Equal(b, kv.value)

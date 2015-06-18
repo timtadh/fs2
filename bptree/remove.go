@@ -152,7 +152,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 				return err
 			}
 			if remove {
-				if self.meta.flags & consts.VARCHAR_VALS != 0 {
+				if self.meta.flags&consts.VARCHAR_VALS != 0 {
 					v := n.val(i)
 					vi = *slice.AsUint64(&v)
 				}
@@ -181,7 +181,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 		if err != nil {
 			return 0, err
 		}
-		if remove && vi != 0 && self.meta.flags & consts.VARCHAR_VALS != 0 {
+		if remove && vi != 0 && self.meta.flags&consts.VARCHAR_VALS != 0 {
 			err = self.varchar.Deref(vi)
 			if err != nil {
 				return 0, err
@@ -190,4 +190,3 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 	}
 	return b, nil
 }
-

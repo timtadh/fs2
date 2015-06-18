@@ -193,7 +193,7 @@ func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 	if n.full() {
 		return errors.Errorf("block is full")
 	}
-	if n.meta.flags & consts.VARCHAR_KEYS != 0 {
+	if n.meta.flags&consts.VARCHAR_KEYS != 0 {
 		err = v.Ref(*slice.AsUint64(&key))
 		if err != nil {
 			return err
@@ -257,7 +257,7 @@ func (n *internal) putKey(v *Varchar, key []byte, put func(i int) error) (err er
 
 	var i int
 	var has bool
-	if n.meta.flags & consts.VARCHAR_KEYS == 0 {
+	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
 		i, has, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
@@ -300,7 +300,7 @@ func (n *internal) delKeyAt(v *Varchar, i int) (err error) {
 	if i < 0 || i >= int(n.meta.keyCount) {
 		return errors.Errorf("i was not in range")
 	}
-	if n.meta.flags & consts.VARCHAR_KEYS != 0 {
+	if n.meta.flags&consts.VARCHAR_KEYS != 0 {
 		k := n.key(i)
 		err = v.Deref(*slice.AsUint64(&k))
 		if err != nil {

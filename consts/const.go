@@ -24,4 +24,3 @@ func AsFlag(bytes []byte) Flag {
 	back := slice.AsSlice(&bytes)
 	return *(*Flag)(back.Array)
 }
-

@@ -12,7 +12,7 @@ import (
 )
 
 type AV struct {
-	a uint64
+	a     uint64
 	value []byte
 }
 
@@ -109,7 +109,7 @@ func TestVarcharFree(x *testing.T) {
 	t.assert_nil(v.posTree.DoKeys(func(bkey []byte) error {
 		key := makeKey(bkey)
 		return v.doFree(key, func(free *varFree) error {
-			t.Log(bkey, key, free.length, key + uint64(free.length))
+			t.Log(bkey, key, free.length, key+uint64(free.length))
 			return nil
 		})
 	}))
@@ -130,4 +130,3 @@ func TestVarcharFree(x *testing.T) {
 		}))
 	}
 }
-

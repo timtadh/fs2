@@ -37,6 +37,7 @@ type ctrldata struct {
 }
 
 const ctrldataSize = 16
+
 var ctrldataSizeActual int
 
 func init() {
@@ -53,7 +54,7 @@ func (cd *ctrldata) Size() uintptr {
 
 type ctrlblk struct {
 	meta ctrldata
-	user [BLOCKSIZE-ctrldataSize]byte
+	user [BLOCKSIZE - ctrldataSize]byte
 }
 
 func load_ctrlblk(bytes []byte) (cb *ctrlblk, err error) {
@@ -85,7 +86,7 @@ type BlockFile struct {
 	blksize     int
 	file        *os.File
 	mmap        unsafe.Pointer
-	outstanding int   "total outstanding pointers"
+	outstanding int "total outstanding pointers"
 }
 
 // Zero the bytes of the passed in slice. It uses the length not the
@@ -169,7 +170,7 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		file:    f,
 		mmap:    mmap,
 		opened:  true,
-		blksize: BLOCKSIZE,                 // set the initial block size to a safe size
+		blksize: BLOCKSIZE, // set the initial block size to a safe size
 	}
 	bf.size, err = bf.Size()
 	if err != nil {

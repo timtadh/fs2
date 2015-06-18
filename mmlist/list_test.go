@@ -17,8 +17,6 @@ import (
 
 type T testing.T
 
-
-
 func init() {
 	if urandom, err := os.Open("/dev/urandom"); err != nil {
 		panic(err)
@@ -30,7 +28,6 @@ func init() {
 		urandom.Close()
 	}
 }
-
 
 func (t *T) blkfile() (*fmap.BlockFile, func()) {
 	bf, err := fmap.Anonymous(fmap.BLOCKSIZE)
@@ -253,4 +250,3 @@ func TestAppendPopCycle(x *testing.T) {
 	}
 	t.assert("size == 0", l.Size() == 0)
 }
-

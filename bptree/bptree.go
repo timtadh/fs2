@@ -52,12 +52,12 @@ func newBpTreeMeta(bf *fmap.BlockFile, metaOff uint64, keySize, valSize uint16, 
 		return nil, err
 	}
 	meta := &bpTreeMeta{
-		root: a,
-		itemCount: 0,
+		root:        a,
+		itemCount:   0,
 		varcharCtrl: b,
-		keySize: keySize,
-		valSize: valSize,
-		flags: flags,
+		keySize:     keySize,
+		valSize:     valSize,
+		flags:       flags,
 	}
 	return meta, nil
 }
@@ -76,12 +76,12 @@ func loadBpTreeMeta(bf *fmap.BlockFile, metaOff uint64) (meta *bpTreeMeta, err e
 
 func (m *bpTreeMeta) Clone() *bpTreeMeta {
 	return &bpTreeMeta{
-		root: m.root,
-		itemCount: m.itemCount,
+		root:        m.root,
+		itemCount:   m.itemCount,
 		varcharCtrl: m.varcharCtrl,
-		keySize: m.keySize,
-		valSize: m.valSize,
-		flags: m.flags,
+		keySize:     m.keySize,
+		valSize:     m.valSize,
+		flags:       m.flags,
 	}
 }
 
@@ -108,7 +108,6 @@ func (b *BpTree) writeMeta() error {
 	})
 }
 
-
 // Create a new B+ Tree in the given BlockFile.
 //
 // bf *BlockFile. Can be an anonymous map or a file backed map
@@ -133,7 +132,7 @@ func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, e
 	if bf.BlockSize() != consts.BLOCKSIZE {
 		return nil, errors.Errorf("The block size must be %v, got %v", consts.BLOCKSIZE, bf.BlockSize())
 	}
-	if keysPerInternal(int(bf.BlockSize()), keySize + valSize) < 3 {
+	if keysPerInternal(int(bf.BlockSize()), keySize+valSize) < 3 {
 		return nil, errors.Errorf("Key is too large (fewer than 3 keys per internal node)")
 	}
 	if keySize == 0 {
@@ -153,17 +152,17 @@ func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, e
 		return nil, err
 	}
 	var v *Varchar
-	if flags & (consts.VARCHAR_KEYS | consts.VARCHAR_VALS) != 0 {
+	if flags&(consts.VARCHAR_KEYS|consts.VARCHAR_VALS) != 0 {
 		v, err = NewVarchar(bf, meta.varcharCtrl)
 		if err != nil {
 			return nil, err
 		}
 	}
 	bpt := &BpTree{
-		bf:       bf,
-		metaOff:  metaOff,
-		meta:     meta,
-		varchar:  v,
+		bf:      bf,
+		metaOff: metaOff,
+		meta:    meta,
+		varchar: v,
 	}
 	return bpt, nil
 }
@@ -192,10 +191,10 @@ func OpenAt(bf *fmap.BlockFile, metaOff uint64) (*BpTree, error) {
 		}
 	}
 	bpt := &BpTree{
-		bf:       bf,
-		metaOff:  metaOff,
-		meta:     meta,
-		varchar:  v,
+		bf:      bf,
+		metaOff: metaOff,
+		meta:    meta,
+		varchar: v,
 	}
 	return bpt, nil
 }

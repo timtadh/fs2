@@ -21,4 +21,3 @@ func (self *BpTree) firstKey(a uint64, do func(key []byte) error) error {
 		},
 	)
 }
-

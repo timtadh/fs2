@@ -88,7 +88,7 @@ func (n *leaf) firstValue(vc *Varchar, key []byte) ([]byte, error) {
 		return nil, errors.Errorf("leaf does not have that key")
 	}
 	v := n.val(i)
-	if n.meta.flags & consts.VARCHAR_VALS != 0 {
+	if n.meta.flags&consts.VARCHAR_VALS != 0 {
 		var value []byte
 		err := vc.Do(*slice.AsUint64(&v), func(vbytes []byte) error {
 			value = make([]byte, len(vbytes))
@@ -219,7 +219,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	var idx int
-	if n.meta.flags & consts.VARCHAR_KEYS == 0 {
+	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
 		idx, _, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
@@ -277,7 +277,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	var has bool
-	if n.meta.flags & consts.VARCHAR_KEYS == 0 {
+	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
 		idx, has, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
@@ -398,4 +398,3 @@ func newLeaf(flags consts.Flag, backing []byte, keySize, valSize uint16) (*leaf,
 	n.meta.Init(consts.LEAF|flags, keySize, uint16(keyCap), valSize)
 	return n, nil
 }
-

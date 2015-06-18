@@ -54,7 +54,7 @@ func (kvs KVS) Less(i, j int) bool {
 func (t *T) make_kv() *KV {
 	return &KV{
 		// key: t.rand_key(),
-		key: t.rand_varchar(8, 17),
+		key:   t.rand_varchar(8, 17),
 		value: t.rand_varchar(1, 127),
 	}
 }
@@ -289,8 +289,6 @@ func TestEndOfPureRunVarchar(x *testing.T) {
 		clean()
 	}
 }
-
-
 
 func TestInternalSplit(x *testing.T) {
 	t := (*T)(x)

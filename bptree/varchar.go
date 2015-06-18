@@ -13,11 +13,11 @@ import (
 )
 
 type Varchar struct {
-	bf *fmap.BlockFile
-	posTree *BpTree
+	bf       *fmap.BlockFile
+	posTree  *BpTree
 	sizeTree *BpTree
-	a uint64
-	blkSize int
+	a        uint64
+	blkSize  int
 }
 
 type varCtrl struct {
@@ -36,9 +36,9 @@ type listNode struct {
 type nodeDoer func(uint64, func(*listNode) error) error
 
 type varFree struct {
-	flags consts.Flag
+	flags  consts.Flag
 	length uint32
-	list listNode
+	list   listNode
 }
 
 const varFreeSize = 24
@@ -118,7 +118,6 @@ func makeSize(bsize []byte) int {
 	return int(binary.BigEndian.Uint32(bsize))
 }
 
-
 // Create a new varchar structure. This takes a blockfile and an offset
 // of an allocated block. The block becomes the control block for the
 // varchar file (storing the free list for the allocator). It is
@@ -142,11 +141,11 @@ func NewVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 		return nil, err
 	}
 	v = &Varchar{
-		bf: bf,
-		posTree: posTree,
+		bf:       bf,
+		posTree:  posTree,
 		sizeTree: sizeTree,
-		a: a,
-		blkSize: bf.BlockSize(),
+		a:        a,
+		blkSize:  bf.BlockSize(),
 	}
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
@@ -286,7 +285,7 @@ func (v *Varchar) blksNeeded(length int) int {
 func (v *Varchar) Free(a uint64) (err error) {
 	var length int
 	err = v.doRun(a, func(m *varRunMeta) error {
-		length = int(m.length + m.extra) + varRunMetaSize
+		length = int(m.length+m.extra) + varRunMetaSize
 		return nil
 	})
 	if err != nil {
@@ -334,7 +333,7 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		}
 		prev_a = makeKey(bprev_a)
 	}
-	if next_a > a && a + uint64(length) == next_a {
+	if next_a > a && a+uint64(length) == next_a {
 		err = v.posTree.Remove(bnext_a, func(_ []byte) bool { return true })
 		if err != nil {
 			return err
@@ -362,7 +361,7 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		var prev_length int
 		var new_length int
 		err = v.doFree(prev_a, func(prev *varFree) error {
-			if prev_a + uint64(prev.length) == a {
+			if prev_a+uint64(prev.length) == a {
 				mustInsert = false
 				return v.doFree(a, func(cur *varFree) error {
 					prev_length = int(prev.length)
@@ -440,20 +439,20 @@ func (v *Varchar) Do(a uint64, do func([]byte) error) (err error) {
 		fullLength := v.allocAmt(int(m.length))
 		blks := uint64(v.blksNeeded(fullLength))
 		offset, start, _ := v.startOffsetBlks(a)
-		for offset + uint64(fullLength) >= blks * uint64(v.bf.BlockSize()) {
+		for offset+uint64(fullLength) >= blks*uint64(v.bf.BlockSize()) {
 			blks++
 		}
 		size, err := v.bf.Size()
 		if err != nil {
 			return err
 		}
-		for start + blks * uint64(v.bf.BlockSize()) > uint64(size) {
+		for start+blks*uint64(v.bf.BlockSize()) > uint64(size) {
 			blks--
 		}
 		return v.bf.Do(start, blks, func(bytes []byte) error {
 			bytes = bytes[offset:]
 			flags := consts.AsFlag(bytes)
-			if flags & consts.VARCHAR_RUN == 0 {
+			if flags&consts.VARCHAR_RUN == 0 {
 				return errors.Errorf("bad address, was not a run block")
 			}
 			r := asRun(bytes)
@@ -471,14 +470,14 @@ func (v *Varchar) UnsafeGet(a uint64) (bytes []byte, err error) {
 	fullLength := v.allocAmt(int(m.length))
 	blks := uint64(v.blksNeeded(fullLength))
 	offset, start, _ := v.startOffsetBlks(a)
-	for offset + uint64(fullLength) >= blks * uint64(v.bf.BlockSize()) {
+	for offset+uint64(fullLength) >= blks*uint64(v.bf.BlockSize()) {
 		blks++
 	}
 	size, err := v.bf.Size()
 	if err != nil {
 		return nil, err
 	}
-	for start + blks * uint64(v.bf.BlockSize()) > uint64(size) {
+	for start+blks*uint64(v.bf.BlockSize()) > uint64(size) {
 		blks--
 	}
 	allBytes, err := v.bf.Get(start, blks)
@@ -491,7 +490,7 @@ func (v *Varchar) UnsafeGet(a uint64) (bytes []byte, err error) {
 	}
 	bytes = allBytes[offset:]
 	flags := consts.AsFlag(bytes)
-	if flags & consts.VARCHAR_RUN == 0 {
+	if flags&consts.VARCHAR_RUN == 0 {
 		return nil, errors.Errorf("bad address, was not a run block")
 	}
 	r := asRun(bytes)
@@ -583,7 +582,7 @@ func (v *Varchar) startOffsetBlks(a uint64) (offset, start, blks uint64) {
 	offset = a % blkSize
 	start = a - offset
 	blks = 1
-	if offset + varFreeSize > blkSize {
+	if offset+varFreeSize > blkSize {
 		blks = 2
 	}
 	return offset, start, blks
@@ -667,7 +666,7 @@ func (v *Varchar) newRun(a uint64, length, fullLength, segLength int) (err error
 		return errors.Errorf("tried to alloc in a segment smaller than the requested run")
 	}
 	err = v.doAsRun(a, func(m *varRunMeta) error {
-		m.Init(length, fullLength - length - varRunMetaSize)
+		m.Init(length, fullLength-length-varRunMetaSize)
 		return nil
 	})
 	if err != nil {
@@ -755,4 +754,3 @@ func (v *Varchar) listRemove(node uint64, doNode nodeDoer) error {
 		return nil
 	})
 }
-
