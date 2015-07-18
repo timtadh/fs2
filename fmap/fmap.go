@@ -172,7 +172,7 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 		opened:  true,
 		blksize: BLOCKSIZE, // set the initial block size to a safe size
 	}
-	bf.size, err = bf.Size()
+	bf.size, err = bf.fileSize()
 	if err != nil {
 		return nil, err
 	}
