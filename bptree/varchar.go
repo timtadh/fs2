@@ -164,18 +164,24 @@ func NewVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 func OpenVarchar(bf *fmap.BlockFile, a uint64) (v *Varchar, err error) {
 	v = &Varchar{bf: bf, a: a, blkSize: bf.BlockSize()}
 	var ptOff uint64
+	var szOff uint64
 	err = v.bf.Do(v.a, 1, func(bytes []byte) error {
 		ctrl := asCtrl(bytes)
 		if ctrl.flags&consts.VARCHAR_CTRL == 0 {
 			return errors.Errorf("Expected a Varchar control block")
 		}
 		ptOff = ctrl.posTree
+		szOff = ctrl.sizeTree
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
 	v.posTree, err = OpenAt(bf, ptOff)
+	if err != nil {
+		return nil, err
+	}
+	v.sizeTree, err = OpenAt(bf, szOff)
 	if err != nil {
 		return nil, err
 	}

@@ -184,7 +184,7 @@ func OpenAt(bf *fmap.BlockFile, metaOff uint64) (*BpTree, error) {
 		return nil, err
 	}
 	var v *Varchar
-	if meta.keySize < 0 || meta.valSize < 0 {
+	if meta.flags&(consts.VARCHAR_KEYS|consts.VARCHAR_VALS) != 0 {
 		v, err = OpenVarchar(bf, meta.varcharCtrl)
 		if err != nil {
 			return nil, err
