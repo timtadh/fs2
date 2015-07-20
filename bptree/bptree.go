@@ -164,7 +164,7 @@ func NewAt(bf *fmap.BlockFile, metaOff uint64, keySize, valSize int) (*BpTree, e
 		meta:    meta,
 		varchar: v,
 	}
-	return bpt, nil
+	return bpt, bpt.writeMeta()
 }
 
 // Open an existing B+Tree (it knows its key size so you do not have to
