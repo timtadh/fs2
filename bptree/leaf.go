@@ -295,10 +295,12 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	if !has {
 		return errors.Errorf("could not find key after put")
 	}
-	if !bytes.Equal(value, n.val(idx)) {
-		return errors.Errorf("could not find value after put")
+	for ; idx < int(n.meta.keyCount); idx++ {
+		if bytes.Equal(value, n.val(idx)) {
+			return nil
+		}
 	}
-	return nil
+	return errors.Errorf("could not find value after put")
 }
 
 func (n *leaf) delKV(v *Varchar, key []byte, which func([]byte) bool) error {
