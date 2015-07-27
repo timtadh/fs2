@@ -276,20 +276,27 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		copy(val_slice, value)
 	}
 
+	idx = 0
 	var has bool
 	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
 		idx, has, err = find(v, n, key)
+		if err != nil {
+			return err
+		}
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
 			idx, has, err = find(v, n, key)
 			return err
 		})
-	}
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 	if !has {
 		return errors.Errorf("could not find key after put")
+	}
+	if !bytes.Equal(value, n.val(idx)) {
+		return errors.Errorf("could not find value after put")
 	}
 	return nil
 }
