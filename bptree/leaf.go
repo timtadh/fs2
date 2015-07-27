@@ -282,7 +282,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
 			idx, has, err = find(v, n, key)
-			return nil
+			return err
 		})
 	}
 	if err != nil {
