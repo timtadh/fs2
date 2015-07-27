@@ -184,6 +184,7 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 		if has {
 			vkey = make([]byte, n.meta.keySize)
 			copy(vkey, n.key(idx))
+			return self.varchar.Ref(*slice.AsUint64(&vkey))
 		}
 		return nil
 	})
