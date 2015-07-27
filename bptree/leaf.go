@@ -275,17 +275,20 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		val_slice := vals[s:e]
 		copy(val_slice, value)
 	}
+	if !bytes.Equal(value, n.val(idx)) {
+		return errors.Errorf("value not there after put")
+	}
 
-	idx = 0
+	fidx := 0
 	var has bool
 	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
-		idx, has, err = find(v, n, key)
+		fidx, has, err = find(v, n, key)
 		if err != nil {
 			return err
 		}
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
-			idx, has, err = find(v, n, key)
+			fidx, has, err = find(v, n, key)
 			return err
 		})
 		if err != nil {
@@ -293,14 +296,14 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		}
 	}
 	if !has {
-		return errors.Errorf("could not find key after put")
+		return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
 	}
-	for ; idx < int(n.meta.keyCount); idx++ {
-		if bytes.Equal(value, n.val(idx)) {
+	for ; fidx < int(n.meta.keyCount); fidx++ {
+		if bytes.Equal(value, n.val(fidx)) {
 			return nil
 		}
 	}
-	return errors.Errorf("could not find value after put")
+	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
 }
 
 func (n *leaf) delKV(v *Varchar, key []byte, which func([]byte) bool) error {
