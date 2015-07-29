@@ -203,7 +203,7 @@ func TestPutRepKVRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
 	defer clean()
-	for TEST := 0; TEST < TESTS*100; TEST++ {
+	for TEST := 0; TEST < TESTS*10; TEST++ {
 		KEYS := (TEST % 7) + 1
 		SIZE := 1027 + TEST*16
 		if SIZE > consts.BLOCKSIZE {

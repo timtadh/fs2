@@ -174,11 +174,18 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	}
 	flags := n.meta.flags
 	if flags&consts.VARCHAR_KEYS != 0 {
-		return n.bigUpdateK(v, i, key)
+		err := n.bigUpdateK(v, i, key)
+		if err != nil {
+			return err
+		}
 	} else {
 		copy(n.key(i), key)
-		return nil
 	}
+	err := checkOrder(v, n)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (n *internal) bigUpdateK(v *Varchar, i int, key []byte) (err error) {
@@ -222,6 +229,10 @@ func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 		return err
 	}
 	n.meta.keyCount++
+	err = checkOrder(v, n)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

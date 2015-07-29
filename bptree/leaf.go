@@ -311,6 +311,11 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		return errors.Errorf("value not there after put")
 	}
 
+	err = checkOrder(v, n)
+	if err != nil {
+		return err
+	}
+
 	fidx := 0
 	var has bool
 	if n.meta.flags&consts.VARCHAR_KEYS == 0 {

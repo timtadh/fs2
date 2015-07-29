@@ -1,15 +1,35 @@
 package bptree
 
 import (
+	"bytes"
 )
 
-import ()
+import (
+	"github.com/timtadh/fs2/errors"
+)
 
 type keyed interface {
 	key(i int) []byte
 	doKeyAt(v *Varchar, i int, do func(key []byte) error) error
 	cmpKeyAt(v *Varchar, i int, key []byte) (int, error)
 	keyCount() int
+}
+
+func checkOrder(v *Varchar, n keyed) error {
+	for i := 1; i < n.keyCount(); i++ {
+		err := n.doKeyAt(v, i-1, func(k_0 []byte) error {
+			return n.doKeyAt(v, i, func(k_1 []byte) error {
+				if bytes.Compare(k_0, k_1) > 0 {
+					return errors.Errorf("leaf was out of order %v %v %v", i-1, i, bytes.Compare(k_0, k_1))
+				}
+				return nil
+			})
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func find(v *Varchar, keys keyed, key []byte) (int, bool, error) {
