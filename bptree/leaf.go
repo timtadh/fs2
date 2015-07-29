@@ -310,6 +310,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		copy(val_slice, value)
 	}
 	if !bytes.Equal(value, n.val(idx)) {
+		log.Println(n)
 		return errors.Errorf("value not there after put")
 	}
 
@@ -332,10 +333,12 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 			return err
 		})
 		if err != nil {
+			log.Println(n)
 			return err
 		}
 	}
 	if !has {
+		log.Println(n)
 		return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
 	}
 	for ; fidx < int(n.meta.keyCount); fidx++ {
@@ -343,6 +346,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 			return nil
 		}
 	}
+	log.Println(n)
 	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
 }
 
