@@ -154,6 +154,7 @@ func (n *leaf) cmpKeyAt(vc *Varchar, i int, key []byte) (cmp int, err error) {
 	return cmp, err
 }
 
+/*
 func (n *leaf) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {
 	flags := n.meta.flags
 	if flags&consts.VARCHAR_KEYS != 0 {
@@ -163,6 +164,7 @@ func (n *leaf) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {
 		return n.key(i), nil
 	}
 }
+*/
 
 func (n *leaf) doBig(vc *Varchar, v []byte, do func([]byte) error) error {
 	return vc.Do(*slice.AsUint64(&v), func(bytes []byte) error {
