@@ -63,7 +63,7 @@ func (m *leafMeta) String() string {
 
 func (n *leaf) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, keys: <%v>, vals: <%v>",
+		"<leaf meta: <%v>, keys: <%v>, vals: <%v>>",
 		n.meta, n.keys()[:n.meta.keyCount*n.meta.keySize], n.vals()[:n.meta.keyCount*n.meta.valSize])
 }
 
@@ -315,6 +315,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 
 	err = checkOrder(v, n)
 	if err != nil {
+		log.Println(n)
 		return err
 	}
 

@@ -65,7 +65,7 @@ func (m *baseMeta) String() string {
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
-		"meta: <%v>, ptrs: <%v>",
+		"<internal meta: <%v>, ptrs: <%v>>",
 		n.meta, n.ptrs_uint64s())
 }
 
@@ -183,6 +183,7 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	}
 	err := checkOrder(v, n)
 	if err != nil {
+		log.Println(n)
 		return err
 	}
 	return nil
@@ -231,6 +232,7 @@ func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 	n.meta.keyCount++
 	err = checkOrder(v, n)
 	if err != nil {
+		log.Println(n)
 		return err
 	}
 	return nil
