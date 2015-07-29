@@ -237,7 +237,7 @@ func TestEndOfPureRun(x *testing.T) {
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				return cur.putKV(bpt.varchar, kv.key, kv.value)
+				return cur.putKV(bpt.varchar, kv.key, kv.value, duplicate)
 			}))
 		}
 		end, err := bpt.endOfPureRun(start)
@@ -280,7 +280,7 @@ func TestEndOfPureRunVarchar(x *testing.T) {
 				cur = next
 			}
 			t.assert_nil(bpt.doLeaf(cur, func(cur *leaf) error {
-				return cur.putKV(bpt.varchar, kv.key, kv.value)
+				return cur.putKV(bpt.varchar, kv.key, kv.value, duplicate)
 			}))
 		}
 		end, err := bpt.endOfPureRun(start)
@@ -390,12 +390,12 @@ func TestInternalInsertSplit(x *testing.T) {
 			v0, err := bpt.checkValue(kvs[0].value)
 			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(a, func(a *leaf) error {
-				return a.putKV(bpt.varchar, kvs[0].key, v0)
+				return a.putKV(bpt.varchar, kvs[0].key, v0, duplicate)
 			}))
 			vL, err := bpt.checkValue(kvs[LEAF_CAP].value)
 			t.assert_nil(err)
 			t.assert_nil(bpt.doLeaf(b, func(b *leaf) error {
-				return b.putKV(bpt.varchar, kvs[LEAF_CAP].key, vL)
+				return b.putKV(bpt.varchar, kvs[LEAF_CAP].key, vL, duplicate)
 			}))
 			t.assert_nil(I.putKP(bpt.varchar, kvs[0].key, a))
 			t.assert_nil(I.putKP(bpt.varchar, kvs[LEAF_CAP].key, b))
@@ -405,7 +405,7 @@ func TestInternalInsertSplit(x *testing.T) {
 			kv := kvs[i]
 			v, err := bpt.checkValue(kv.value)
 			t.assert_nil(err)
-			p, q, err := bpt.leafInsert(a, kv.key, v)
+			p, q, err := bpt.leafInsert(a, kv.key, v, duplicate)
 			t.assert_nil(err)
 			t.assert("p should be a", p == a)
 			t.assert("q should be 0", q == 0)
@@ -414,7 +414,7 @@ func TestInternalInsertSplit(x *testing.T) {
 			kv := kvs[i]
 			v, err := bpt.checkValue(kv.value)
 			t.assert_nil(err)
-			p, q, err := bpt.leafInsert(b, kv.key, v)
+			p, q, err := bpt.leafInsert(b, kv.key, v, duplicate)
 			t.assert_nil(err)
 			t.assert("p should be b", p == b)
 			t.assert("q should be 0", q == 0)
@@ -425,7 +425,7 @@ func TestInternalInsertSplit(x *testing.T) {
 		}
 		sv, err := bpt.checkValue(split_kv.value)
 		t.assert_nil(err)
-		p, q, err := bpt.internalInsert(I, split_kv.key, sv)
+		p, q, err := bpt.internalInsert(I, split_kv.key, sv, duplicate)
 		t.assert_nil(err)
 		t.assert("p should be I", p == I)
 		t.assert("q should not be 0", q != 0)

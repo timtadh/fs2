@@ -14,6 +14,14 @@ import (
 	"github.com/timtadh/fs2/slice"
 )
 
+type putMode uint8
+
+const (
+	duplicate putMode = 1 << iota
+	uniqueValue
+	unique
+)
+
 type leafMeta struct {
 	baseMeta
 	next    uint64
@@ -238,7 +246,7 @@ func (n *leaf) pure(v *Varchar) bool {
 	return true
 }
 
-func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
+func (n *leaf) putKV(v *Varchar, key []byte, value []byte, mode putMode) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")
 	}
@@ -253,11 +261,12 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	var idx int
+	var has bool
 	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
-		idx, _, err = find(v, n, key)
+		idx, has, err = find(v, n, key)
 	} else {
 		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
-			idx, _, err = find(v, n, key)
+			idx, has, err = find(v, n, key)
 			return err
 		})
 	}
@@ -265,52 +274,99 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		return err
 	}
 
-	keys := n.keys()
-	vals := n.vals()
-	keySize := int(n.meta.keySize)
-	valSize := int(n.meta.valSize)
-	if idx == int(n.meta.keyCount) {
-		// fantastic we don't nee to move any thing.
-		// we can just append
+	var replace bool
+	if has && mode == unique {
+		replace = true
+	} else if has && mode == uniqueValue {
+		for i := idx; i < int(n.meta.keyCount); i++ {
+			var myKey bool = false
+			if n.meta.flags&consts.VARCHAR_KEYS != 0 {
+				err := v.Do(*slice.AsUint64(&key), func(key []byte) error {
+					cmp, err := n.cmpKeyAt(v, i, key)
+					myKey = (cmp == 0)
+					return err
+				})
+				if err != nil {
+					return err
+				}
+			} else {
+				myKey = bytes.Equal(n.key(i), key)
+			}
+			if !myKey {
+				break
+			}
+			var sameVal bool = false
+			if n.meta.flags&consts.VARCHAR_VALS != 0 {
+				err := v.Do(*slice.AsUint64(&value), func(value []byte) error {
+					return n.doValueAt(v, i, func(other []byte) error {
+						sameVal = bytes.Equal(value, other)
+						return nil
+					})
+				})
+				if err != nil {
+					return err
+				}
+			} else {
+				sameVal = bytes.Equal(n.val(i), value)
+			}
+			if sameVal {
+				replace = true
+				idx = i
+				break
+			}
+		}
+	}
+
+	if replace {
+		copy(n.val(idx), value)
 	} else {
-		chunk := int(n.meta.keyCount) - idx
-		// move the keys
+		keys := n.keys()
+		vals := n.vals()
+		keySize := int(n.meta.keySize)
+		valSize := int(n.meta.valSize)
+		if idx == int(n.meta.keyCount) {
+			// fantastic we don't nee to move any thing.
+			// we can just append
+		} else {
+			chunk := int(n.meta.keyCount) - idx
+			// move the keys
+			{
+				chunkSize := chunk * keySize
+				s := idx * keySize
+				e := s + chunkSize
+				from := keys[s:e]
+				to := keys[s+keySize : e+keySize]
+				copy(to, from)
+			}
+			// move the vals
+			{
+				chunkSize := chunk * valSize
+				s := idx * valSize
+				e := s + chunkSize
+				from := vals[s:e]
+				to := vals[s+valSize : e+valSize]
+				copy(to, from)
+			}
+		}
+		// do the book keeping
+		n.meta.keyCount += 1
+		// copy in the new key
 		{
-			chunkSize := chunk * keySize
 			s := idx * keySize
-			e := s + chunkSize
-			from := keys[s:e]
-			to := keys[s+keySize : e+keySize]
-			copy(to, from)
+			e := s + keySize
+			key_slice := keys[s:e]
+			copy(key_slice, key)
 		}
-		// move the vals
+		// copy in the new val
 		{
-			chunkSize := chunk * valSize
 			s := idx * valSize
-			e := s + chunkSize
-			from := vals[s:e]
-			to := vals[s+valSize : e+valSize]
-			copy(to, from)
+			e := s + valSize
+			val_slice := vals[s:e]
+			copy(val_slice, value)
 		}
-	}
-	// do the book keeping
-	n.meta.keyCount += 1
-	// copy in the new key
-	{
-		s := idx * keySize
-		e := s + keySize
-		key_slice := keys[s:e]
-		copy(key_slice, key)
-	}
-	// copy in the new val
-	{
-		s := idx * valSize
-		e := s + valSize
-		val_slice := vals[s:e]
-		copy(val_slice, value)
-	}
-	if !bytes.Equal(value, n.val(idx)) {
-		return errors.Errorf("value not there after put")
+		if !bytes.Equal(value, n.val(idx)) {
+			return errors.Errorf("value not there after put")
+		}
 	}
 
 	err = checkOrder(v, n)
@@ -319,7 +375,6 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 
 	fidx := 0
-	var has bool
 	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
 		fidx, has, err = find(v, n, key)
 		if err != nil {
