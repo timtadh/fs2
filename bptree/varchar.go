@@ -402,6 +402,12 @@ func (v *Varchar) szAdd(length int, a uint64) error {
 }
 
 func (v *Varchar) szDel(length int, a uint64) error {
+	has, err := v.sizeTree.Has(makeBSize(length))
+	if err != nil {
+		return err
+	} else if !has {
+		return nil
+	}
 	return v.sizeTree.Remove(makeBSize(length), func(bytes []byte) bool {
 		return a == makeKey(bytes)
 	})
@@ -419,6 +425,12 @@ func (v *Varchar) indexRemove(length int, a uint64) error {
 	err := v.szDel(length, a)
 	if err != nil {
 		return err
+	}
+	has, err := v.posTree.Has(makeBKey(a))
+	if err != nil {
+		return err
+	} else if !has {
+		return nil
 	}
 	return v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
 }

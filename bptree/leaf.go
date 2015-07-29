@@ -316,6 +316,8 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 
 	err = checkOrder(v, n)
 	if err != nil {
+		log.Println("inserted", key, value)
+		log.Println("at", idx)
 		log.Println(n)
 		return err
 	}
@@ -333,11 +335,15 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 			return err
 		})
 		if err != nil {
+			log.Println("inserted", key, value)
+			log.Println("at", idx)
 			log.Println(n)
 			return err
 		}
 	}
 	if !has {
+		log.Println("inserted", key, value)
+		log.Println("at", idx)
 		log.Println(n)
 		return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
 	}
@@ -346,6 +352,8 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 			return nil
 		}
 	}
+	log.Println("inserted", key, value)
+	log.Println("at", idx)
 	log.Println(n)
 	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
 }
@@ -388,10 +396,10 @@ func (n *leaf) delKV(v *Varchar, key []byte, which func([]byte) bool) error {
 			break
 		}
 	}
-	return n.delItemAt(idx)
+	return n.delItemAt(v, idx)
 }
 
-func (n *leaf) delItemAt(idx int) error {
+func (n *leaf) delItemAt(v *Varchar, idx int) error {
 	// ok we have our key_idx
 	if idx+1 == int(n.meta.keyCount) {
 		// sweet we can just drop the last
@@ -427,6 +435,12 @@ func (n *leaf) delItemAt(idx int) error {
 	}
 	// do the book keeping
 	n.meta.keyCount--
+	err := checkOrder(v, n)
+	if err != nil {
+		log.Println("del at", idx)
+		log.Println(n)
+		return err
+	}
 	return nil
 }
 

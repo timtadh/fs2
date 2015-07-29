@@ -2,6 +2,7 @@ package bptree
 
 import (
 	"bytes"
+	"log"
 )
 
 import (
@@ -112,6 +113,7 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
  *    - else insert the new key/pointer into this block
  */
 func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+	// log.Println("internalInsert", n, key)
 	var i int
 	var ptr uint64
 	err = self.doInternal(n, func(n *internal) (err error) {
@@ -159,6 +161,12 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 		return nil
 	})
 	if err != nil {
+		self.doInternal(n, func(n *internal) (err error) {
+			log.Println(n)
+			return nil
+		})
+		log.Printf("n: %v, p: %v, q: %v", n, p, q)
+		log.Println(err)
 		return 0, 0, err
 	}
 	if must_split {
@@ -209,6 +217,7 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 }
 
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+	// log.Println("leafInsert", n, key)
 	var mustSplit bool = false
 	var vkey []byte = nil
 	if self.meta.flags&consts.VARCHAR_KEYS != 0 {
@@ -247,6 +256,7 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
  * key. This complicates the bytes.Compare line significantly.
  */
 func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64, err error) {
+	// log.Println("internalSplit", n, key)
 	a = n
 	b, err = self.newInternal()
 	if err != nil {
@@ -290,6 +300,7 @@ func (self *BpTree) internalSplit(n uint64, key []byte, ptr uint64) (a, b uint64
  * - if the key is less than b.keys[0] it will go in a else b
  */
 func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
+	// log.Println("leafSplit", n, key)
 	var isPure bool = false
 	a = n
 	err = self.doLeaf(a, func(n *leaf) (err error) {
@@ -355,6 +366,7 @@ func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, e
  *     - always return the current block as "a" and the new block as "b"
  */
 func (self *BpTree) pureLeafSplit(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
+	// log.Println("pureLeafSplit", n, key)
 	var unneeded bool = false
 	new_off, err := self.newLeaf() // this needs to be hoisted!!
 	if err != nil {

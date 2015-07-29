@@ -1,6 +1,8 @@
 package bptree
 
-import ()
+import (
+	"log"
+)
 
 import (
 	"github.com/timtadh/fs2/consts"
@@ -54,6 +56,7 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 }
 
 func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
+	// log.Println("internalRemove", n, key)
 	var i int
 	var kid uint64
 	err = self.doInternal(n, func(n *internal) (err error) {
@@ -81,8 +84,15 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 	if err != nil {
 		return 0, err
 	}
+	okid := kid
 	kid, err = self.remove(kid, sibling, key, where)
 	if err != nil {
+		self.doInternal(n, func(n *internal) (err error) {
+			log.Println(n)
+			return nil
+		})
+		log.Printf("n: %v, sibling: %v, okid %v,", n, sibling, okid)
+		log.Println(err)
 		return 0, err
 	}
 	if kid == 0 {
@@ -100,6 +110,12 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 			})
 		})
 		if err != nil {
+			self.doInternal(n, func(n *internal) (err error) {
+				log.Println(n)
+				return nil
+			})
+			log.Printf("n: %v, sibling: %v, okid %v, kid: %v", n, sibling, okid, kid)
+			log.Println(err)
 			return 0, err
 		}
 	}
@@ -117,8 +133,21 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 	return n, nil
 }
 
-func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
-	a, i, err := self.leafGetStart(a, key)
+func (self *BpTree) leafRemove(n, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
+	// log.Println("leafRemove", n, key)
+	a := n
+	var i int
+	var has bool
+	err = self.doLeaf(a, func(n *leaf) error {
+		i, has, err = find(self.varchar, n, key)
+		if err != nil {
+			return err
+		} else if !has {
+			log.Println(n)
+			return errors.Errorf("tree does not have key %v", key)
+		}
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -156,7 +185,7 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 					v := n.val(i)
 					vi = *slice.AsUint64(&v)
 				}
-				err = n.delItemAt(i)
+				err = n.delItemAt(self.varchar, i)
 				if err != nil {
 					return err
 				}
@@ -186,6 +215,21 @@ func (self *BpTree) leafRemove(a, sibling uint64, key []byte, where func([]byte)
 			if err != nil {
 				return 0, err
 			}
+		}
+	}
+	if b == sibling {
+		count := 0
+		err = self.doLeaf(n, func(n *leaf) error {
+			count = n.keyCount()
+			return nil
+		})
+		if err != nil {
+			return 0, err
+		}
+		if count == 0 {
+			return 0, nil
+		} else {
+			return n, nil
 		}
 	}
 	return b, nil

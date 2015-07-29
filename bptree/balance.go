@@ -2,6 +2,7 @@ package bptree
 
 import (
 	"bytes"
+	"log"
 )
 
 import (
@@ -27,6 +28,18 @@ func (a *internal) balance(v *Varchar, b *internal) error {
 	}
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
+	err = checkOrder(v, a)
+	if err != nil {
+		log.Println("balance point", m)
+		log.Println(a)
+		return err
+	}
+	err = checkOrder(v, b)
+	if err != nil {
+		log.Println("balance point", m)
+		log.Println(b)
+		return err
+	}
 	return nil
 }
 
@@ -42,7 +55,23 @@ func (a *leaf) balance(v *Varchar, b *leaf) error {
 		// we had a pure balance
 		return nil
 	}
-	return a.balanceAt(b, m)
+	err = a.balanceAt(b, m)
+	if err != nil {
+		return err
+	}
+	err = checkOrder(v, a)
+	if err != nil {
+		log.Println("balance point", m)
+		log.Println(a)
+		return err
+	}
+	err = checkOrder(v, b)
+	if err != nil {
+		log.Println("balance point", m)
+		log.Println(b)
+		return err
+	}
+	return nil
 }
 
 func (a *leaf) balanceAt(b *leaf, m int) error {

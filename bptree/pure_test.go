@@ -8,13 +8,13 @@ import (
 	"math/rand"
 )
 
-func (t *T) assert_hasKV(bpt *BpTree) func(key, value []byte) {
-	return func(key, value []byte) {
+func (t *T) assert_hasKV(bpt *BpTree) func(msg string, key, value []byte) {
+	return func(msg string, key, value []byte) {
 		// var err error = nil
 		// var has bool = true
 		has, err := bpt.hasKV(key, value)
 		t.assert_nil(err)
-		t.assert(fmt.Sprintf("should have found kv, %v, %v", key, value), has)
+		t.assert(fmt.Sprintf("%v : should have found kv, %v, %v", msg, key, value), has)
 	}
 }
 
@@ -50,8 +50,8 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
 		}
 	}
-	for _, kv := range kvs {
-		t.assert_hasKV(bpt)(kv.key, kv.value)
+	for i, kv := range kvs {
+		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
 	}
 	for i, kv := range kvs {
 		found := false
@@ -86,6 +86,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
 		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert_hasKV(bpt)("org", kv.key, kv.value)
 		dups := rand.Intn(500) + 250
 		for i := 0; i < dups; i++ {
 			// t.Log(i+2)
@@ -95,10 +96,58 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 			}
 			kvs = append(kvs, kv2)
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
+			t.assert_hasKV(bpt)(fmt.Sprintf("dup %v", i), kv2.key, kv2.value)
 		}
 	}
-	for _, kv := range kvs {
-		t.assert_hasKV(bpt)(kv.key, kv.value)
+	for i, kv := range kvs {
+		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
+	}
+	t.assert("bpt.Size() == len(kvs)", bpt.Size() == len(kvs))
+	// note, there is a good chance for inserting dups values for a key
+	// therefore, while it would better to check that there is no bugs
+	// in individually removing each value. I am going to instead just
+	// remove them all at once
+	for _, key := range keys {
+		t.assert_nil(bpt.Remove(key, func(v []byte) bool {
+			return true
+		}))
+	}
+	for _, key := range keys {
+		t.assert_notHas(bpt)(key)
+	}
+	clean()
+}
+
+func TestAddRemoveRepSplitRand(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	keys := make([][]byte, 0, 500)
+	kvs := make([]*KV, 0, 10000)
+	for i := 0; i < 10; i++ {
+		kv := &KV{
+			key:   t.rand_key(),
+			value: t.rand_value(8),
+		}
+		keys = append(keys, kv.key)
+		kvs = append(kvs, kv)
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	start := len(kvs)
+	dups := rand.Intn(500) + 1000
+	for i := 0; i < dups; i++ {
+		for j := 0; j < start; j++ {
+			kv := kvs[j]
+			// t.Log(i+2)
+			kv2 := &KV{
+				key:   kv.key,
+				value: t.rand_value(8),
+			}
+			kvs = append(kvs, kv2)
+			t.assert_nil(bpt.Add(kv2.key, kv2.value))
+		}
+	}
+	for i, kv := range kvs {
+		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
 	}
 	t.assert("bpt.Size() == len(kvs)", bpt.Size() == len(kvs))
 	// note, there is a good chance for inserting dups values for a key

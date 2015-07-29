@@ -338,7 +338,7 @@ func (self *BpTree) _getStart(n uint64, key []byte) (a uint64, i int, err error)
 	if flags&consts.INTERNAL != 0 {
 		return self.internalGetStart(n, key)
 	} else if flags&consts.LEAF != 0 {
-		return self.leafGetStart(n, key)
+		return self.leafGetStart(n, key, false, 0)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")
 	}
@@ -369,9 +369,12 @@ func (self *BpTree) internalGetStart(n uint64, key []byte) (a uint64, i int, err
 	return self._getStart(kid, key)
 }
 
-func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err error) {
+func (self *BpTree) leafGetStart(n uint64, key []byte, stop bool, end uint64) (a uint64, i int, err error) {
 	if key == nil {
 		return n, 0, nil
+	}
+	if stop && n == end {
+		return 0, 0, errors.Errorf("hit end %v %v %v", n, end, key)
 	}
 	var next uint64 = 0
 	err = self.doLeaf(n, func(n *leaf) (err error) {
@@ -398,7 +401,7 @@ func (self *BpTree) leafGetStart(n uint64, key []byte) (a uint64, i int, err err
 		return 0, 0, err
 	}
 	if next != 0 {
-		return self.leafGetStart(next, key)
+		return self.leafGetStart(next, key, stop, end)
 	}
 	return n, i, nil
 }

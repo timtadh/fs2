@@ -65,8 +65,8 @@ func (m *baseMeta) String() string {
 
 func (n *internal) String() string {
 	return fmt.Sprintf(
-		"<internal meta: <%v>, ptrs: <%v>>",
-		n.meta, n.ptrs_uint64s())
+		"<internal meta: <%v>, keys: <%v>, ptrs: <%v>>",
+		n.meta, n._keys(), n.ptrs_uint64s())
 }
 
 func (n *internal) key(i int) []byte {
@@ -74,6 +74,15 @@ func (n *internal) key(i int) []byte {
 	s := i * keySize
 	e := s + keySize
 	return n.bytes[s:e]
+}
+
+// this is for debugging
+func (n *internal) _keys() [][]byte {
+	keys := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		keys = append(keys, n.key(i))
+	}
+	return keys
 }
 
 func (n *internal) ptr(i int) *uint64 {
@@ -172,6 +181,31 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	if len(key) != int(n.meta.keySize) {
 		return errors.Errorf("key was the wrong size")
 	}
+	idx, has, err := find(v, n, key)
+	if err != nil {
+		return err
+	}
+	if has && i != idx {
+		log.Println(n)
+		n.doKeyAt(v, idx, func(x []byte) error {
+			k := n.key(idx)
+			if v != nil {
+				y, e := v.UnsafeGet(*slice.AsUint64(&k))
+				log.Println(e)
+				log.Println("key", x, y)
+			} else {
+				log.Println("key", x, "v was nil")
+			}
+			return nil
+		})
+		n.doKeyAt(v, i, func(x []byte) error {
+			log.Println("replacing", x)
+			return nil
+		})
+		return errors.Errorf("internal already had key %v, at %v, was going to put it at %v, replacing %v", key, idx, i, n.key(i))
+	}
+	oldk := make([]byte, len(n.key(i)))
+	copy(oldk, n.key(i))
 	flags := n.meta.flags
 	if flags&consts.VARCHAR_KEYS != 0 {
 		err := n.bigUpdateK(v, i, key)
@@ -181,8 +215,9 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	} else {
 		copy(n.key(i), key)
 	}
-	err := checkOrder(v, n)
+	err = checkOrder(v, n)
 	if err != nil {
+		log.Println("replaced key", oldk)
 		log.Println(n)
 		return err
 	}
@@ -269,6 +304,12 @@ func (n *internal) delItemAt(v *Varchar, i int) error {
 	*n.ptr(int(n.meta.keyCount - 1)) = 0
 	// do the book keeping
 	n.meta.keyCount--
+	err = checkOrder(v, n)
+	if err != nil {
+		log.Println("del at", i)
+		log.Println(n)
+		return err
+	}
 	return nil
 }
 
