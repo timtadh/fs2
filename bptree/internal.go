@@ -1,6 +1,7 @@
 package bptree
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"reflect"
@@ -106,6 +107,14 @@ func (n *internal) ptrs_uint64s() []uint64 {
 
 func (n *internal) keyCount() int {
 	return int(n.meta.keyCount)
+}
+
+func (n *internal) cmpKeyAt(vc *Varchar, i int, key []byte) (cmp int, err error) {
+	err = n.doKeyAt(vc, i, func(key_i []byte) error {
+		cmp = bytes.Compare(key, key_i)
+		return nil
+	})
+	return cmp, err
 }
 
 func (n *internal) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {

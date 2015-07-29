@@ -104,6 +104,30 @@ func (n *leaf) firstValue(vc *Varchar, key []byte) ([]byte, error) {
 	}
 }
 
+func (n *leaf) hasValue(vc *Varchar, key, value []byte) (bool, error) {
+	i, has, err := find(vc, n, key)
+	if err != nil {
+		return false, err
+	}
+	if !has {
+		return false, errors.Errorf("leaf does not have that key")
+	}
+	for ; i < int(n.meta.keyCount); i++ {
+		var eq bool
+		err := n.doValueAt(vc, i, func(value_i []byte) error {
+			eq = bytes.Equal(value, value_i)
+			return nil
+		})
+		if err != nil {
+			return false, err
+		}
+		if eq {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (n *leaf) doValueAt(vc *Varchar, i int, do func([]byte) error) error {
 	flags := n.meta.flags
 	if flags&consts.VARCHAR_VALS != 0 {
@@ -120,6 +144,14 @@ func (n *leaf) doKeyAt(vc *Varchar, i int, do func([]byte) error) error {
 	} else {
 		return do(n.key(i))
 	}
+}
+
+func (n *leaf) cmpKeyAt(vc *Varchar, i int, key []byte) (cmp int, err error) {
+	err = n.doKeyAt(vc, i, func(key_i []byte) error {
+		cmp = bytes.Compare(key, key_i)
+		return nil
+	})
+	return cmp, err
 }
 
 func (n *leaf) unsafeKeyAt(vc *Varchar, i int) ([]byte, error) {

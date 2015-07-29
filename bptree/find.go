@@ -1,7 +1,6 @@
 package bptree
 
 import (
-	"bytes"
 )
 
 import ()
@@ -9,7 +8,7 @@ import ()
 type keyed interface {
 	key(i int) []byte
 	doKeyAt(v *Varchar, i int, do func(key []byte) error) error
-	unsafeKeyAt(v *Varchar, i int) ([]byte, error)
+	cmpKeyAt(v *Varchar, i int, key []byte) (int, error)
 	keyCount() int
 }
 
@@ -19,8 +18,7 @@ func find(v *Varchar, keys keyed, key []byte) (int, bool, error) {
 	var m int
 	for l <= r {
 		m = ((r - l) >> 1) + l
-		key_m, err := keys.unsafeKeyAt(v, m)
-		cmp := bytes.Compare(key, key_m)
+		cmp, err := keys.cmpKeyAt(v, m, key)
 		if err != nil {
 			return 0, false, err
 		}
@@ -31,8 +29,7 @@ func find(v *Varchar, keys keyed, key []byte) (int, bool, error) {
 				if j == 0 {
 					return j, true, nil
 				}
-				key_j_1, err := keys.unsafeKeyAt(v, j-1)
-				cmp := bytes.Compare(key, key_j_1)
+				cmp, err := keys.cmpKeyAt(v, j-1, key)
 				if err != nil {
 					return 0, false, err
 				}

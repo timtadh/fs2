@@ -199,6 +199,49 @@ func TestPutDelKVRand(x *testing.T) {
 	}
 }
 
+func TestPutRepKVRand(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	defer clean()
+	for TEST := 0; TEST < TESTS*100; TEST++ {
+		KEYS := (TEST % 7) + 1
+		SIZE := 1027 + TEST*16
+		if SIZE > consts.BLOCKSIZE {
+			SIZE = consts.BLOCKSIZE
+		}
+		keys := make([][]byte, 0, KEYS)
+		for i := 0; i < KEYS; i++ {
+			keys = append(keys, t.rand_key())
+		}
+		n, err := newLeaf(0, make([]byte, SIZE), 8, 8)
+		t.assert_nil(err)
+		kvs := make([]*KV, 0, n.meta.keyCap/2)
+		// t.Log(n)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key:   keys[i % len(keys)],
+				value: t.rand_value(8),
+			}
+			if !n.fitsAnother() {
+				break
+			}
+			kvs = append(kvs, kv)
+			// t.Log(n)
+			t.assert_nil(n.putKV(bpt.varchar, kv.key, kv.value))
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
+			has, err := n.hasValue(bpt.varchar, kv.key, kv.value)
+			t.assert_nil(err)
+			t.assert("could not find value in leaf", has)
+		}
+		for _, kv := range kvs {
+			t.assert("could not find key in leaf", n._has(bpt.varchar, kv.key))
+			has, err := n.hasValue(bpt.varchar, kv.key, kv.value)
+			t.assert_nil(err)
+			t.assert("could not find value in leaf", has)
+		}
+	}
+}
+
 func TestPutKV(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
