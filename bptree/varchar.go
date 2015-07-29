@@ -217,11 +217,7 @@ func (v *Varchar) Alloc(length int) (a uint64, err error) {
 	if !found {
 		return v.allocNew(length, fullLength)
 	}
-	err = v.szDel(a_length, a)
-	if err != nil {
-		return 0, err
-	}
-	err = v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
+	err = v.indexRemove(a_length, a)
 	if err != nil {
 		return 0, err
 	}
@@ -340,10 +336,6 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		prev_a = makeKey(bprev_a)
 	}
 	if next_a > a && a+uint64(length) == next_a {
-		err = v.posTree.Remove(bnext_a, func(_ []byte) bool { return true })
-		if err != nil {
-			return err
-		}
 		var next_length int
 		err = v.doFree(a, func(cur *varFree) error {
 			return v.doFree(next_a, func(next *varFree) error {
@@ -357,7 +349,7 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		if err != nil {
 			return err
 		}
-		err = v.szDel(next_length, next_a)
+		err = v.indexRemove(next_length, next_a)
 		if err != nil {
 			return err
 		}
@@ -384,11 +376,11 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 			return err
 		}
 		if !mustInsert {
-			err = v.szDel(prev_length, prev_a)
+			err = v.indexRemove(prev_length, prev_a)
 			if err != nil {
 				return err
 			}
-			return v.szAdd(new_length, prev_a)
+			return v.indexAdd(new_length, prev_a)
 		}
 	}
 	if mustInsert {
@@ -400,11 +392,7 @@ func (v *Varchar) free(a uint64, length int) (err error) {
 		if err != nil {
 			return err
 		}
-		err = v.szAdd(a_length, a)
-		if err != nil {
-			return err
-		}
-		return v.posTree.Add(makeBKey(a), make([]byte, 0))
+		return v.indexAdd(a_length, a)
 	}
 	return nil
 }
@@ -417,6 +405,22 @@ func (v *Varchar) szDel(length int, a uint64) error {
 	return v.sizeTree.Remove(makeBSize(length), func(bytes []byte) bool {
 		return a == makeKey(bytes)
 	})
+}
+
+func (v *Varchar) indexAdd(length int, a uint64) error {
+	err := v.szAdd(length, a)
+	if err != nil {
+		return err
+	}
+	return v.posTree.Add(makeBKey(a), make([]byte, 0))
+}
+
+func (v *Varchar) indexRemove(length int, a uint64) error {
+	err := v.szDel(length, a)
+	if err != nil {
+		return err
+	}
+	return v.posTree.Remove(makeBKey(a), func(_ []byte) bool { return true })
 }
 
 // Interact with the contents of the varchar. The bytes passed into the
