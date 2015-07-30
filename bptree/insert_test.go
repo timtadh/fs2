@@ -195,6 +195,7 @@ func TestInsert3Level(x *testing.T) {
 		t.assert_nil(bpt.Add(kv.key, kv.value))
 		t.assert_has(bpt)(kv.key)
 	}
+	t.assert_nil(bpt.Verify())
 	// t.Log("start existence check")
 	for _, kv := range kvs {
 		// t.Log(i, len(kvs))

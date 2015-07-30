@@ -419,6 +419,10 @@ func (self *BlockFile) Free(offset uint64) error {
 		if errno != 0 {
 			return errors.Errorf("is_normal failed, %d", errno)
 		}*/
+	_, err := self.zero(offset, 1)
+	if err != nil {
+		return err
+	}
 	return self.ctrl(func(ctrl *ctrlblk) error {
 		head := ctrl.meta.free_head
 		return self.Do(offset, 1, func(free_bytes []byte) error {

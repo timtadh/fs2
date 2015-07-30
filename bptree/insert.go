@@ -48,10 +48,6 @@ func (self *BpTree) Add(key, value []byte) (err error) {
 	if len(key) != int(self.meta.keySize) && self.meta.flags&consts.VARCHAR_KEYS == 0 {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
-	err = self.Verify()
-	if err != nil {
-		return err
-	}
 	value, err = self.checkValue(value)
 	if err != nil {
 		return err
@@ -85,11 +81,7 @@ func (self *BpTree) Add(key, value []byte) (err error) {
 	}
 	self.meta.itemCount += 1
 	self.meta.root = root
-	err = self.writeMeta()
-	if err != nil {
-		return err
-	}
-	return self.Verify()
+	return self.writeMeta()
 }
 
 /* right is only set on split left is always set.

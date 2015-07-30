@@ -50,6 +50,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
 		}
 	}
+	t.assert_nil(bpt.Verify())
 	for i, kv := range kvs {
 		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
 	}
@@ -65,6 +66,7 @@ func TestAddRemovePuresNoSplitRand(x *testing.T) {
 			}
 			return false
 		}))
+		t.assert_nil(bpt.Verify())
 		t.assert("bpt.Size() == len(kvs) - (i + 1)", bpt.Size() == len(kvs)-(i+1))
 	}
 	for _, key := range keys {
@@ -99,6 +101,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 			t.assert_hasKV(bpt)(fmt.Sprintf("dup %v", i), kv2.key, kv2.value)
 		}
 	}
+	t.assert_nil(bpt.Verify())
 	for i, kv := range kvs {
 		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
 	}
@@ -111,6 +114,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 		t.assert_nil(bpt.Remove(key, func(v []byte) bool {
 			return true
 		}))
+		t.assert_nil(bpt.Verify())
 	}
 	for _, key := range keys {
 		t.assert_notHas(bpt)(key)

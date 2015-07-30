@@ -22,11 +22,6 @@ import (
 // 	}
 //
 func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
-	log.Println("removing", key)
-	err = self.Verify()
-	if err != nil {
-		return err
-	}
 	a, err := self.remove(0, self.meta.root, 0, key, where)
 	if err != nil {
 		return err
@@ -39,11 +34,7 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 	}
 	self.meta.itemCount -= 1
 	self.meta.root = a
-	err = self.writeMeta()
-	if err != nil {
-		return err
-	}
-	return self.Verify()
+	return self.writeMeta()
 }
 
 func (self *BpTree) remove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
