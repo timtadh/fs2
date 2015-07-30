@@ -408,8 +408,8 @@ func TestInternalInsertSplit(x *testing.T) {
 			t.assert_nil(err)
 			p, q, err := bpt.leafInsert(a, kv.key, v)
 			t.assert_nil(err)
-			t.assert("p should be a", p == a)
-			t.assert("q should be 0", q == 0)
+			t.assert(fmt.Sprintf("p should be a, at idx %v, cap %v", i, LEAF_CAP), p == a)
+			t.assert(fmt.Sprintf("q should be 0 a, at idx %v, cap %v", i, LEAF_CAP), q == 0)
 		}
 		for i := LEAF_CAP + 1; i < len(kvs); i++ {
 			kv := kvs[i]
@@ -417,8 +417,8 @@ func TestInternalInsertSplit(x *testing.T) {
 			t.assert_nil(err)
 			p, q, err := bpt.leafInsert(b, kv.key, v)
 			t.assert_nil(err)
-			t.assert("p should be b", p == b)
-			t.assert("q should be 0", q == 0)
+			t.assert(fmt.Sprintf("p should be b, at idx %v, cap %v", i, LEAF_CAP), p == b)
+			t.assert(fmt.Sprintf("q should be 0 a, at idx %v, cap %v", i, LEAF_CAP), q == 0)
 		}
 		split_kv := &KV{
 			key:   t.rand_key(),

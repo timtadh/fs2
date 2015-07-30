@@ -125,7 +125,7 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 func TestAddRemoveRepSplitRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
-	KEYS := 5
+	KEYS := 25
 	keys := make([][]byte, 0, 500)
 	kvs := make([]*KV, 0, 10000)
 	for i := 0; i < KEYS; i++ {
@@ -139,7 +139,7 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 		t.assert_nil(bpt.Verify())
 	}
 	start := len(kvs)
-	dups := rand.Intn(500) + 500
+	dups := rand.Intn(500) + 1000
 	for i := 0; i < dups; i++ {
 		for j := 0; j < start; j++ {
 			kv := kvs[j]
@@ -150,6 +150,92 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 			}
 			kvs = append(kvs, kv2)
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
+		}
+	}
+	t.assert_nil(bpt.Verify())
+	for i, kv := range kvs {
+		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
+	}
+	t.assert("bpt.Size() == len(kvs)", bpt.Size() == len(kvs))
+	// note, there is a good chance for inserting dups values for a key
+	// therefore, while it would better to check that there is no bugs
+	// in individually removing each value. I am going to instead just
+	// remove them all at once
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
+			return bytes.Equal(kv.value, v)
+		}))
+		t.assert_nil(bpt.Verify())
+	}
+	for _, key := range keys {
+		t.assert_notHas(bpt)(key)
+	}
+	t.assert("size == 0", bpt.Size() == 0)
+	clean()
+}
+
+func TestAddRemoveVsSplitRand(x *testing.T) {
+	t := (*T)(x)
+	mbpt := func()(*BpTree, func()) {
+		bf, bf_clean := t.blkfile()
+		bpt, err := New(bf, 4, 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bpt, bf_clean
+	}
+	bpt, clean := mbpt()
+	KEYS := 10
+	RMAMT := 10
+	keys := make([][]byte, 0, 500)
+	kvs := make([]*KV, 0, 10000)
+	for i := 0; i < KEYS; i++ {
+		kv := &KV{
+			key:   makeBSize(24 + i*4),
+			value: t.rand_value(8),
+		}
+		keys = append(keys, kv.key)
+		kvs = append(kvs, kv)
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert_nil(bpt.Verify())
+	}
+	start := len(kvs)
+	dups := 500
+	for i := 0; i < dups; i++ {
+		for k := 0; k < start; k++ {
+			kv := kvs[k]
+			// t.Log(i+2)
+			kv2 := &KV{
+				key:   kv.key,
+				value: t.rand_value(8),
+			}
+			kvs = append(kvs, kv2)
+			t.assert_nil(bpt.Add(kv2.key, kv2.value))
+			indices := make([]int, 0, RMAMT)
+			in := func(list []int, item int) bool {
+				for _, x := range list {
+					if x == item {
+						return true
+					}
+				}
+				return false
+			}
+			for j := 0; j < RMAMT; j++ {
+				idx := rand.Intn(len(kvs))
+				if !in(indices, idx) {
+					indices = append(indices, idx)
+				}
+			}
+			for _, j := range indices {
+				kv := kvs[j]
+				t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
+					return bytes.Equal(kv.value, v)
+				}))
+			}
+			for _, j := range indices {
+				kv := kvs[j]
+				t.assert_nil(bpt.Add(kv.key, kv.value))
+			}
 			t.assert_nil(bpt.Verify())
 		}
 	}

@@ -298,6 +298,16 @@ func (n *leaf) pure(v *Varchar) bool {
 	return true
 }
 
+// puts the key, value into the leaf node. The vkey is the varchar key
+// if this is a tree is in varchar key mode.
+func (n *leaf) put(v *Varchar, vkey, key, value []byte) (err error) {
+	if n.meta.flags&consts.VARCHAR_KEYS != 0 {
+		return n.putKV(v, vkey, value)
+	} else {
+		return n.putKV(v, key, value)
+	}
+}
+
 func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")

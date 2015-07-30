@@ -91,7 +91,8 @@ func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where 
 			log.Println(n.Debug(self.varchar))
 			return nil
 		})
-		log.Printf("n: %v, sibling: %v, okid %v,", n, sibling, okid)
+		log.Printf("was removing: %v", key)
+		log.Printf("n: %v, parent: %v, sibling: %v, okid %v, kid: %v", n, parent, sibling, okid, kid)
 		log.Println(err)
 		return 0, err
 	}
@@ -114,7 +115,8 @@ func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where 
 				log.Println(n.Debug(self.varchar))
 				return nil
 			})
-			log.Printf("n: %v, sibling: %v, okid %v, kid: %v", n, sibling, okid, kid)
+			log.Printf("was removing: %v", key)
+			log.Printf("n: %v, parent: %v, sibling: %v, okid %v, kid: %v", n, parent, sibling, okid, kid)
 			log.Println(err)
 			return 0, err
 		}
@@ -175,12 +177,8 @@ func (self *BpTree) leafRemove(parent, n, sibling uint64, key []byte, where func
 			}
 			return nil
 		})
-		log.Printf("n = %v, sibling = %v, node did not have key %v", n, sibling, key)
-		a, i, err = self.leafGetStart(n, key, true, sibling)
-		if err != nil {
-			log.Println("could not find key with get start", key)
-			return 0, err
-		}
+		log.Printf("n = %v, parent = %v, sibling = %v, node did not have key %v", n, parent, sibling, key)
+		return 0, errors.Errorf("n = %v, parent = %v, sibling = %v, node did not have key %v", n, parent, sibling, key)
 	}
 	next, err := self.forwardFrom(a, i, key)
 	if err != nil {

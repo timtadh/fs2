@@ -216,9 +216,22 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 	return slice.Uint64AsSlice(&k), nil
 }
 
+// if empty,
+//          then (do the put)
+// if   pure,   full,   sameKey
+//          then (go to the end and do the put)
+// If   pure, ! full,   sameKey
+//          then (do the put)
+// if   pure, ! sameKey
+//          then (do a leafSplit)
+// if ! pure,   full
+//          then (do a leafSplit)
+// if ! pure, ! full,
+//          then (do the put)
 func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
 	// log.Println("leafInsert", n, key)
 	var mustSplit bool = false
+	var mustPureInsert bool = false
 	var vkey []byte = nil
 	if self.meta.flags&consts.VARCHAR_KEYS != 0 {
 		vkey, err = self.newVarcharKey(n, key)
@@ -227,21 +240,96 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 		}
 	}
 	err = self.doLeaf(n, func(n *leaf) error {
-		if !n.fitsAnother() {
-			mustSplit = true
-			return nil
+		if n.keyCount() <= 1 {
+			return n.put(self.varchar, vkey, key, value)
 		}
-		if self.meta.flags&consts.VARCHAR_KEYS != 0 {
-			return n.putKV(self.varchar, vkey, value)
+		full := !n.fitsAnother()
+		pure := n.pure(self.varchar)
+		if pure {
+			cmp, err := n.cmpKeyAt(self.varchar, 0, key)
+			if err != nil {
+				return err
+			}
+			sameKey := cmp == 0
+			if sameKey {
+				if full {
+					// log.Println("   pure,   full,   sameKey")
+					mustPureInsert = true
+					return nil
+				} else {
+					// log.Println("   pure, ! full,   sameKey")
+					return n.put(self.varchar, vkey, key, value)
+				}
+			} else {
+				// log.Println("   pure,       , ! sameKey")
+				mustSplit = true
+				return nil
+			}
 		} else {
-			return n.putKV(self.varchar, key, value)
+			if full {
+				// log.Println(" ! pure, ! full,          ")
+				mustSplit = true
+				return nil
+			} else {
+				// log.Println(" ! pure,   full,          ")
+				return n.put(self.varchar, vkey, key, value)
+			}
 		}
 	})
 	if err != nil {
 		return 0, 0, err
 	}
-	if mustSplit {
+	if mustSplit && mustPureInsert {
+		return 0, 0, errors.Errorf("cannot do both a pureInsert and a leafSplit")
+	} else if mustPureInsert {
+		return self.pureLeafInsert(n, vkey, key, value)
+	} else if mustSplit {
 		return self.leafSplit(n, vkey, key, value)
+	}
+	return n, 0, nil
+}
+
+func (self *BpTree) pureLeafInsert(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
+	// log.Println("pureLeafInsert", n, key)
+	run, err := self.pureRun(n)
+	if err != nil {
+		return 0, 0, err
+	}
+	var inserted bool
+	for _, a := range run {
+		err := self.doLeaf(a, func(n *leaf) error {
+			if n.fitsAnother() {
+				inserted = true
+				return n.put(self.varchar, vkey, key, value)
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, 0, err
+		}
+		if inserted {
+			break
+		}
+	}
+	if !inserted {
+		// we chain on an extra block
+		e := run[len(run)-1]
+		b, err := self.newLeaf()
+		if err != nil {
+			return 0, 0, err
+		}
+		err = self.doLeaf(b, func(m *leaf) error {
+			return m.put(self.varchar, vkey, key, value)
+		})
+		if err != nil {
+			return 0, 0, err
+		}
+		err = self.doLeaf(e, func(o *leaf) error {
+			return self.insertListNode(b, e, o.meta.next)
+		})
+		if err != nil {
+			return 0, 0, err
+		}
 	}
 	return n, 0, nil
 }
@@ -471,6 +559,14 @@ func (self *BpTree) pureLeafSplit(n uint64, vkey, key, value []byte) (a, b uint6
 }
 
 func (self *BpTree) endOfPureRun(start uint64) (uint64, error) {
+	run, err := self.pureRun(start)
+	if err != nil {
+		return 0, err
+	}
+	return run[len(run)-1], nil
+}
+
+func (self *BpTree) pureRun(start uint64) ([]uint64, error) {
 	/* this algorithm was pretty tricky to port do to the "interesting"
 	 * memory management scheme that I am employing (everything inside
 	 * of "do" methods). Basically, the problem was it was mutating
@@ -490,7 +586,7 @@ func (self *BpTree) endOfPureRun(start uint64) (uint64, error) {
 		})
 	})
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	getNext := func(a uint64) (next uint64, err error) {
 		err = self.doLeaf(a, func(n *leaf) error {
@@ -511,22 +607,22 @@ func (self *BpTree) endOfPureRun(start uint64) (uint64, error) {
 		})
 		return valid, err
 	}
-	prev := start
 	cur := start
 	valid, err := isValid(cur)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
+	run := make([]uint64, 0, 10)
 	for valid {
-		prev = cur
+		run = append(run, cur)
 		cur, err = getNext(cur)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 		valid, err = isValid(cur)
 		if err != nil {
-			return 0, err
+			return nil, err
 		}
 	}
-	return prev, nil
+	return run, nil
 }

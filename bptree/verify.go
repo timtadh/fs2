@@ -10,6 +10,14 @@ import (
 	"github.com/timtadh/fs2/errors"
 )
 
+// Verify() error
+// Looks at the structure of the B+Tree and checks it conforms to the B+Tree structural
+// invariants. It can be used to look check for database corruption either from errors
+// in the algorithms or from disk or memory corruption. It should be noted that it
+// cannot check to ensure that no bits have flipped inside of keys and values as
+// currently not error correcting codes are generated for them. This only looks at the
+// structure of the tree itself. It could be corruption has occurred and this will not
+// find it as the tree is still a valid B+Tree.
 func (self *BpTree) Verify() (err error) {
 	return self.verify(0, 0, self.meta.root, 0)
 }
@@ -100,8 +108,15 @@ func (self *BpTree) leafVerify(parent uint64, idx int, n, sibling uint64) (err e
 		if n.meta.next != sibling {
 			log.Println("error in leafVerify")
 			log.Println("n.meta.next != sibling", n.meta.next, sibling)
-			log.Println("leaf", a, n.Debug(self.varchar))
-			return errors.Errorf("n.meta.next (%v) != sibling (%v)", n.meta.next, sibling)
+			self.doLeaf(n.meta.next, func(m *leaf) error {
+				log.Println("a", a, n.Debug(self.varchar))
+				log.Println("a.meta.next", n.meta.next, m.Debug(self.varchar))
+				return self.doLeaf(sibling, func(o *leaf) error {
+					log.Println("sibling", sibling, o.Debug(self.varchar))
+					return nil
+				})
+			})
+		return errors.Errorf("n.meta.next (%v) != sibling (%v)", n.meta.next, sibling)
 		}
 		return nil
 	})
