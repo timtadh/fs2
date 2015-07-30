@@ -44,11 +44,15 @@ store.
 // `Put`, this operation does not replace or modify any data in the
 // tree. It only adds this key. The B+ Tree supports duplicate keys and
 // even duplicate keys with the same value!
-func (self *BpTree) Add(key, value []byte) error {
+func (self *BpTree) Add(key, value []byte) (err error) {
 	if len(key) != int(self.meta.keySize) && self.meta.flags&consts.VARCHAR_KEYS == 0 {
 		return errors.Errorf("Key was not the correct size got, %v, expected, %v", len(key), self.meta.keySize)
 	}
-	value, err := self.checkValue(value)
+	err = self.Verify()
+	if err != nil {
+		return err
+	}
+	value, err = self.checkValue(value)
 	if err != nil {
 		return err
 	}
@@ -81,7 +85,11 @@ func (self *BpTree) Add(key, value []byte) error {
 	}
 	self.meta.itemCount += 1
 	self.meta.root = root
-	return self.writeMeta()
+	err = self.writeMeta()
+	if err != nil {
+		return err
+	}
+	return self.Verify()
 }
 
 /* right is only set on split left is always set.
@@ -162,7 +170,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	})
 	if err != nil {
 		self.doInternal(n, func(n *internal) (err error) {
-			log.Println(n)
+			log.Println(n.Debug(self.varchar))
 			return nil
 		})
 		log.Printf("n: %v, p: %v, q: %v", n, p, q)
@@ -311,8 +319,7 @@ func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, e
 		return 0, 0, err
 	}
 	if isPure {
-		a, b, err = self.pureLeafSplit(n, vkey, key, value)
-		return a, b, err
+		return self.pureLeafSplit(n, vkey, key, value)
 	}
 	b, err = self.newLeaf()
 	if err != nil {
@@ -331,9 +338,7 @@ func (self *BpTree) leafSplit(n uint64, vkey, key, value []byte) (a, b uint64, e
 			return m.doKeyAt(self.varchar, 0, func(mk []byte) error {
 				if self.meta.flags&consts.VARCHAR_KEYS != 0 {
 					if bytes.Compare(key, mk) < 0 {
-						return n.doKeyAt(self.varchar, 0, func(nk []byte) error {
-							return n.putKV(self.varchar, vkey, value)
-						})
+						return n.putKV(self.varchar, vkey, value)
 					} else {
 						return m.putKV(self.varchar, vkey, value)
 					}
@@ -395,6 +400,34 @@ func (self *BpTree) pureLeafSplit(n uint64, vkey, key, value []byte) (a, b uint6
 					return err
 				}
 				return self.doLeaf(e, func(m *leaf) (err error) {
+					err = node.doKeyAt(self.varchar, 0, func(a_key_0 []byte) error {
+						return m.doKeyAt(self.varchar, 0, func(e_key_0 []byte) error {
+							if !bytes.Equal(a_key_0, e_key_0) {
+								log.Println("a", a, node.Debug(self.varchar))
+								log.Println("e", e, m.Debug(self.varchar))
+								log.Println("went off of end of pure run")
+								return errors.Errorf("End of pure run went off of pure run")
+							}
+							if m.meta.next == 0 {
+								return nil
+							}
+							return self.doLeaf(m.meta.next, func(o *leaf) error {
+								return o.doKeyAt(self.varchar, 0, func(o_key_0 []byte) error {
+									if bytes.Equal(a_key_0, o_key_0) {
+										log.Println("a", a, node.Debug(self.varchar))
+										log.Println("e", e, m.Debug(self.varchar))
+										log.Println("e.meta.next", m.meta.next, o.Debug(self.varchar))
+										log.Println("did not find end of pure run")
+										return errors.Errorf("did not find end of pure run")
+									}
+									return nil
+								})
+							})
+						})
+					})
+					if err != nil {
+						return err
+					}
 					return m.doKeyAt(self.varchar, 0, func(m_key_0 []byte) error {
 						if m.fitsAnother() && bytes.Equal(key, m_key_0) {
 							unneeded = true
@@ -445,7 +478,7 @@ func (self *BpTree) pureLeafSplit(n uint64, vkey, key, value []byte) (a, b uint6
 	return a, b, nil
 }
 
-func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
+func (self *BpTree) endOfPureRun(start uint64) (uint64, error) {
 	/* this algorithm was pretty tricky to port do to the "interesting"
 	 * memory management scheme that I am employing (everything inside
 	 * of "do" methods). Basically, the problem was it was mutating
@@ -453,36 +486,55 @@ func (self *BpTree) endOfPureRun(start uint64) (a uint64, err error) {
 	 * the do methods. I had to find a way to hoist just the information
 	 * I needed.
 	 */
-	err = self.doLeaf(start, func(n *leaf) error {
+	var key []byte
+	err := self.doLeaf(start, func(n *leaf) error {
 		if n.meta.keyCount < 0 {
 			return errors.Errorf("block was empty")
 		}
-		return n.doKeyAt(self.varchar, 0, func(key []byte) error {
-			prev := start
-			next := n.meta.next
-			notDone := func(next uint64, node *leaf, node_key_0 []byte) bool {
-				return next != 0 && node.pure(self.varchar) && bytes.Equal(key, node_key_0)
-			}
-			not_done := notDone(next, n, key)
-			for not_done {
-				err = self.doLeaf(next, func(n *leaf) error {
-					prev = next
-					next = n.meta.next
-					return n.doKeyAt(self.varchar, 0, func(k []byte) error {
-						not_done = notDone(next, n, k)
-						return nil
-					})
-				})
-				if err != nil {
-					return err
-				}
-			}
-			a = prev
+		return n.doKeyAt(self.varchar, 0, func(k []byte) error {
+			key = make([]byte, len(k))
+			copy(key, k)
 			return nil
 		})
 	})
 	if err != nil {
 		return 0, err
 	}
-	return a, nil
+	getNext := func(a uint64) (next uint64, err error) {
+		err = self.doLeaf(a, func(n *leaf) error {
+			next= n.meta.next
+			return nil
+		})
+		return next, err
+	}
+	isValid := func(a uint64) (valid bool, err error) {
+		if a == 0 {
+			return false, nil
+		}
+		err = self.doLeaf(a, func(n *leaf) error {
+			return n.doKeyAt(self.varchar, 0, func(k []byte) error {
+				valid = bytes.Equal(key, k)
+				return nil
+			})
+		})
+		return valid, err
+	}
+	prev := start
+	cur := start
+	valid, err := isValid(cur)
+	if err != nil {
+		return 0, err
+	}
+	for valid {
+		prev = cur
+		cur, err = getNext(cur)
+		if err != nil {
+			return 0, err
+		}
+		valid, err = isValid(cur)
+		if err != nil {
+			return 0, err
+		}
+	}
+	return prev, nil
 }

@@ -69,6 +69,12 @@ func (n *internal) String() string {
 		n.meta, n._keys(), n.ptrs_uint64s())
 }
 
+func (n *internal) Debug(v *Varchar) string {
+	return fmt.Sprintf(
+		"<internal (debug) (vchar %v) meta: <%v>, keys: <%v>, ptrs: <%v>>",
+		v, n.meta, n._realKeys(v), n.ptrs_uint64s())
+}
+
 func (n *internal) key(i int) []byte {
 	keySize := int(n.meta.keySize)
 	s := i * keySize
@@ -81,6 +87,24 @@ func (n *internal) _keys() [][]byte {
 	keys := make([][]byte, 0, n.meta.keyCount)
 	for i := 0; i < int(n.meta.keyCount); i++ {
 		keys = append(keys, n.key(i))
+	}
+	return keys
+}
+
+// this is for debugging
+func (n *internal) _realKeys(v *Varchar) [][]byte {
+	keys := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		err := n.doKeyAt(v, i, func(key []byte) error {
+			k := make([]byte, len(key))
+			copy(k, key)
+			keys = append(keys, k)
+			return nil
+		})
+		if err != nil {
+			log.Println(i, err)
+			keys = append(keys, []byte{0, 0, 1, 1, 0, 0, 1, 1, 0, 0})
+		}
 	}
 	return keys
 }
@@ -186,7 +210,7 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 		return err
 	}
 	if has && i != idx {
-		log.Println(n)
+		log.Println(n.Debug(v))
 		n.doKeyAt(v, idx, func(x []byte) error {
 			k := n.key(idx)
 			if v != nil {
@@ -218,7 +242,7 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 	err = checkOrder(v, n)
 	if err != nil {
 		log.Println("replaced key", oldk)
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return err
 	}
 	return nil
@@ -267,7 +291,7 @@ func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 	n.meta.keyCount++
 	err = checkOrder(v, n)
 	if err != nil {
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return err
 	}
 	return nil
@@ -307,7 +331,7 @@ func (n *internal) delItemAt(v *Varchar, i int) error {
 	err = checkOrder(v, n)
 	if err != nil {
 		log.Println("del at", i)
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return err
 	}
 	return nil

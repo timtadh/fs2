@@ -16,7 +16,7 @@ import (
 
 func (t *T) bpt() (*BpTree, func()) {
 	bf, bf_clean := t.blkfile()
-	bpt, err := New(bf, 8, -1)
+	bpt, err := New(bf, -1, -1)
 	if err != nil {
 		t.Fatal(err)
 	}

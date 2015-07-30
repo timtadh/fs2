@@ -121,9 +121,10 @@ func TestAddRemovePuresSplitRand(x *testing.T) {
 func TestAddRemoveRepSplitRand(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
+	KEYS := 5
 	keys := make([][]byte, 0, 500)
 	kvs := make([]*KV, 0, 10000)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < KEYS; i++ {
 		kv := &KV{
 			key:   t.rand_key(),
 			value: t.rand_value(8),
@@ -131,9 +132,10 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
 		t.assert_nil(bpt.Add(kv.key, kv.value))
+		t.assert_nil(bpt.Verify())
 	}
 	start := len(kvs)
-	dups := rand.Intn(500) + 1000
+	dups := rand.Intn(500) + 500
 	for i := 0; i < dups; i++ {
 		for j := 0; j < start; j++ {
 			kv := kvs[j]
@@ -144,8 +146,10 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 			}
 			kvs = append(kvs, kv2)
 			t.assert_nil(bpt.Add(kv2.key, kv2.value))
+			t.assert_nil(bpt.Verify())
 		}
 	}
+	t.assert_nil(bpt.Verify())
 	for i, kv := range kvs {
 		t.assert_hasKV(bpt)(fmt.Sprintf("idx %v", i), kv.key, kv.value)
 	}
@@ -154,14 +158,16 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 	// therefore, while it would better to check that there is no bugs
 	// in individually removing each value. I am going to instead just
 	// remove them all at once
-	for _, key := range keys {
-		t.assert_nil(bpt.Remove(key, func(v []byte) bool {
-			return true
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
+			return bytes.Equal(kv.value, v)
 		}))
+		t.assert_nil(bpt.Verify())
 	}
 	for _, key := range keys {
 		t.assert_notHas(bpt)(key)
 	}
+	t.assert("size == 0", bpt.Size() == 0)
 	clean()
 }
 

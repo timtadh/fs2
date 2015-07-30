@@ -22,7 +22,12 @@ import (
 // 	}
 //
 func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
-	a, err := self.remove(self.meta.root, 0, key, where)
+	log.Println("removing", key)
+	err = self.Verify()
+	if err != nil {
+		return err
+	}
+	a, err := self.remove(0, self.meta.root, 0, key, where)
 	if err != nil {
 		return err
 	}
@@ -34,10 +39,14 @@ func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
 	}
 	self.meta.itemCount -= 1
 	self.meta.root = a
-	return self.writeMeta()
+	err = self.writeMeta()
+	if err != nil {
+		return err
+	}
+	return self.Verify()
 }
 
-func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
+func (self *BpTree) remove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
 		flags = consts.AsFlag(bytes)
@@ -47,15 +56,15 @@ func (self *BpTree) remove(n, sibling uint64, key []byte, where func([]byte) boo
 		return 0, err
 	}
 	if flags&consts.INTERNAL != 0 {
-		return self.internalRemove(n, sibling, key, where)
+		return self.internalRemove(parent, n, sibling, key, where)
 	} else if flags&consts.LEAF != 0 {
-		return self.leafRemove(n, sibling, key, where)
+		return self.leafRemove(parent, n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")
 	}
 }
 
-func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
+func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
 	// log.Println("internalRemove", n, key)
 	var i int
 	var kid uint64
@@ -85,10 +94,10 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		return 0, err
 	}
 	okid := kid
-	kid, err = self.remove(kid, sibling, key, where)
+	kid, err = self.remove(n, kid, sibling, key, where)
 	if err != nil {
 		self.doInternal(n, func(n *internal) (err error) {
-			log.Println(n)
+			log.Println(n.Debug(self.varchar))
 			return nil
 		})
 		log.Printf("n: %v, sibling: %v, okid %v,", n, sibling, okid)
@@ -111,7 +120,7 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 		})
 		if err != nil {
 			self.doInternal(n, func(n *internal) (err error) {
-				log.Println(n)
+				log.Println(n.Debug(self.varchar))
 				return nil
 			})
 			log.Printf("n: %v, sibling: %v, okid %v, kid: %v", n, sibling, okid, kid)
@@ -133,23 +142,54 @@ func (self *BpTree) internalRemove(n, sibling uint64, key []byte, where func([]b
 	return n, nil
 }
 
-func (self *BpTree) leafRemove(n, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
+func (self *BpTree) leafRemove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
 	// log.Println("leafRemove", n, key)
+	start := n
 	a := n
 	var i int
 	var has bool
 	err = self.doLeaf(a, func(n *leaf) error {
 		i, has, err = find(self.varchar, n, key)
-		if err != nil {
-			return err
-		} else if !has {
-			log.Println(n)
-			return errors.Errorf("tree does not have key %v", key)
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return 0, err
+	}
+	if !has {
+		self.doLeaf(n, func(n *leaf) error {
+			log.Println(a, n.Debug(self.varchar))
+			if n.meta.next != 0 {
+				self.doLeaf(n.meta.next, func(n *leaf) error {
+					log.Println("n.meta.next", n.Debug(self.varchar))
+					return nil
+				})
+			}
+			if sibling != 0 {
+				self.doLeaf(sibling, func(n *leaf) error {
+					log.Println("sibing", sibling, n.Debug(self.varchar))
+					return nil
+				})
+			}
+			if parent != 0 {
+				self.do(parent,
+					func(n *internal) error {
+						log.Println("parent", parent, n.Debug(self.varchar))
+						return nil
+					},
+					func(n *leaf) error {
+						log.Println("parent", parent, n.Debug(self.varchar))
+						return nil
+					},
+				)
+			}
+			return nil
+		})
+		log.Printf("n = %v, sibling = %v, node did not have key %v", n, sibling, key)
+		a, i, err = self.leafGetStart(n, key, true, sibling)
+		if err != nil {
+			log.Println("could not find key with get start", key)
+			return 0, err
+		}
 	}
 	next, err := self.forwardFrom(a, i, key)
 	if err != nil {
@@ -191,18 +231,23 @@ func (self *BpTree) leafRemove(n, sibling uint64, key []byte, where func([]byte)
 				}
 			}
 			if int(n.meta.keyCount) <= 0 {
+				next := n.meta.next
+				if a == start {
+					if next == 0 {
+						b = 0
+					} else if next != sibling {
+						b = next
+					} else {
+						b = 0
+					}
+				}
 				err = self.delListNode(a)
 				if err != nil {
 					return err
 				}
-				if n.meta.next == 0 {
-					b = 0
-				} else if sibling == 0 {
-					b = 0
-				} else if n.meta.next != sibling {
-					b = n.meta.next
-				} else {
-					b = 0
+				err = self.bf.Free(a)
+				if err != nil {
+					return err
 				}
 			}
 			return nil
@@ -217,9 +262,9 @@ func (self *BpTree) leafRemove(n, sibling uint64, key []byte, where func([]byte)
 			}
 		}
 	}
-	if b == sibling {
+	if b == sibling && sibling != 0 {
 		count := 0
-		err = self.doLeaf(n, func(n *leaf) error {
+		err = self.doLeaf(start, func(n *leaf) error {
 			count = n.keyCount()
 			return nil
 		})
@@ -229,7 +274,7 @@ func (self *BpTree) leafRemove(n, sibling uint64, key []byte, where func([]byte)
 		if count == 0 {
 			return 0, nil
 		} else {
-			return n, nil
+			return start, nil
 		}
 	}
 	return b, nil

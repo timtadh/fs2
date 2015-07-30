@@ -64,7 +64,13 @@ func (m *leafMeta) String() string {
 func (n *leaf) String() string {
 	return fmt.Sprintf(
 		"<leaf meta: <%v>, keys: <%v>, vals: <%v>>",
-		n.meta, n.keys()[:n.meta.keyCount*n.meta.keySize], n.vals()[:n.meta.keyCount*n.meta.valSize])
+		n.meta, n._keys(), n._vals())
+}
+
+func (n *leaf) Debug(v *Varchar) string {
+	return fmt.Sprintf(
+		"<leaf (debug) (vchar %v) meta: <%v>, keys: <%v>, vals: <%v>>",
+		v, n.meta, n._realKeys(v), n._realVals(v))
 }
 
 func (n *leaf) keyCount() int {
@@ -186,6 +192,60 @@ func (n *leaf) val(i int) []byte {
 	s := keyCap*keySize + valSize*i
 	e := s + valSize
 	return n.bytes[s:e]
+}
+
+// this is for debugging
+func (n *leaf) _keys() [][]byte {
+	keys := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		keys = append(keys, n.key(i))
+	}
+	return keys
+}
+
+// this is for debugging
+func (n *leaf) _vals() [][]byte {
+	vals := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		vals = append(vals, n.val(i))
+	}
+	return vals
+}
+
+// this is for debugging
+func (n *leaf) _realKeys(v *Varchar) [][]byte {
+	keys := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		err := n.doKeyAt(v, i, func(key []byte) error {
+			k := make([]byte, len(key))
+			copy(k, key)
+			keys = append(keys, k)
+			return nil
+		})
+		if err != nil {
+			log.Println(i, err)
+			keys = append(keys, []byte{0, 0, 1, 1, 0, 0, 1, 1, 0, 0})
+		}
+	}
+	return keys
+}
+
+// this is for debugging
+func (n *leaf) _realVals(v *Varchar) [][]byte {
+	vals := make([][]byte, 0, n.meta.keyCount)
+	for i := 0; i < int(n.meta.keyCount); i++ {
+		err := n.doValueAt(v, i, func(value []byte) error {
+			val := make([]byte, len(value))
+			copy(val, value)
+			vals = append(vals, val)
+			return nil
+		})
+		if err != nil {
+			log.Println(i, err)
+			vals = append(vals, []byte{0, 0, 1, 1, 0, 0, 1, 1, 0, 0})
+		}
+	}
+	return vals
 }
 
 func (n *leaf) keys() []byte {
@@ -310,7 +370,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		copy(val_slice, value)
 	}
 	if !bytes.Equal(value, n.val(idx)) {
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return errors.Errorf("value not there after put")
 	}
 
@@ -318,7 +378,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	if err != nil {
 		log.Println("inserted", key, value)
 		log.Println("at", idx)
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return err
 	}
 
@@ -337,14 +397,14 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		if err != nil {
 			log.Println("inserted", key, value)
 			log.Println("at", idx)
-			log.Println(n)
+			log.Println(n.Debug(v))
 			return err
 		}
 	}
 	if !has {
 		log.Println("inserted", key, value)
 		log.Println("at", idx)
-		log.Println(n)
+		log.Println(n.Debug(v))
 		return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
 	}
 	for ; fidx < int(n.meta.keyCount); fidx++ {
@@ -354,7 +414,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	}
 	log.Println("inserted", key, value)
 	log.Println("at", idx)
-	log.Println(n)
+	log.Println(n.Debug(v))
 	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
 }
 
