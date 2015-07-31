@@ -2,3 +2,6 @@ bin
 pkg
 *.swp
 *.swo
+bptree.test
+*.png
+*.pprof
