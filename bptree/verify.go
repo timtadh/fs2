@@ -184,3 +184,78 @@ func (self *BpTree) pureVerify(parent uint64, idx int, n, sibling uint64) (err e
 		})
 	})
 }
+
+
+func (self *BpTree) leafOrderVerify(parent uint64, idx int, n, sibling uint64) (err error) {
+	a := n
+	return self.doLeaf(a, func(n *leaf) error {
+		if n.keyCount() == 0 {
+			if parent != 0 {
+				log.Println("warn, keyCount == 0", a, parent, sibling)
+			}
+			return nil
+		}
+		err := checkOrder(self.varchar, n)
+		if err != nil {
+			log.Println("error in leafVerify")
+			log.Printf("out of order")
+			log.Println("leaf", a, n.Debug(self.varchar))
+			return err
+		}
+		if n.meta.next != 0 {
+			err = n.doKeyAt(self.varchar, n.keyCount()-1, func(last []byte) error {
+				return self.doLeaf(n.meta.next, func(m *leaf) error {
+					if m.keyCount() == 0 {
+						log.Println("a.meta.next has no keys", n.meta.next)
+						log.Println("a", a, n.Debug(self.varchar))
+						log.Println("a.meta.next", n.meta.next, m.Debug(self.varchar))
+						return nil
+					}
+					return m.doKeyAt(self.varchar, 0, func(first []byte) error {
+						cmp := bytes.Compare(last, first)
+						if cmp > 0 {
+							log.Println("a", a, n.Debug(self.varchar))
+							log.Println("a.meta.next", n.meta.next, m.Debug(self.varchar))
+							log.Printf("last %v", last)
+							log.Printf("first %v", first)
+							log.Println("last of a is greater than first of a.meta.next")
+							return errors.Errorf("last of a is greater than first of a.meta.next")
+						}
+						return nil
+					})
+				})
+			})
+			if err != nil {
+				return err
+			}
+		}
+		if n.meta.prev != 0 {
+			err = n.doKeyAt(self.varchar, 0, func(first []byte) error {
+				return self.doLeaf(n.meta.prev, func(m *leaf) error {
+					if m.keyCount() == 0 {
+						log.Println("a.meta.prev has no keys")
+						log.Println("a", a, n.Debug(self.varchar))
+						log.Println("a.meta.prev", n.meta.prev, m.Debug(self.varchar))
+						return nil
+					}
+					return m.doKeyAt(self.varchar, m.keyCount()-1, func(last []byte) error {
+						cmp := bytes.Compare(last, first)
+						if cmp > 0 {
+							log.Println("a.meta.prev", n.meta.prev, m.Debug(self.varchar))
+							log.Println("a", a, n.Debug(self.varchar))
+							log.Printf("last %v", last)
+							log.Printf("first %v", first)
+							log.Println("last of a.meta.prev is greater than first of a")
+							return errors.Errorf("last of a.meta.prev is greater than first of a")
+						}
+						return nil
+					})
+				})
+			})
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
