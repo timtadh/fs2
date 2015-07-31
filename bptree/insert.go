@@ -216,6 +216,23 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 	return slice.Uint64AsSlice(&k), nil
 }
 
+
+// Here is the situation. besides the truth table below about which action to
+// take several other factors go into this. The first is what exactly do we mean
+// when we say a block is "pure". On the surface this means that it only has one
+// kind of key. However, this fails at edge cases such as: the block empty, or
+// it only has one key. If we take pure to mean the block has all the same keys
+// AND there are more than two keys then there is a further problem. If the
+// block was once pure and had one or more pure blocks chained after it (in a
+// pure run) but now only has one key, then it could be made non-pure by an
+// rouge insert. This would result in the items in the chained blocks being
+// "lost". The solution is the block is pure if
+//
+// 1.   All the keys are the same
+// 2.   It has at least 1 key
+// 3.      ( It has more than 2 keys )
+//      OR ( It has less than 3 keys AND a chained block after it )
+//
 // if empty,
 //          then (do the put)
 // if   pure,   full,   sameKey
@@ -239,12 +256,15 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 			return 0, 0, err
 		}
 	}
+	pure, err := self.isPure(n)
+	if err != nil {
+		return 0, 0, err
+	}
 	err = self.doLeaf(n, func(n *leaf) error {
 		if n.keyCount() <= 1 {
 			return n.put(self.varchar, vkey, key, value)
 		}
 		full := !n.fitsAnother()
-		pure := n.pure(self.varchar)
 		if pure {
 			cmp, err := n.cmpKeyAt(self.varchar, 0, key)
 			if err != nil {
@@ -287,6 +307,46 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 		return self.leafSplit(n, vkey, key, value)
 	}
 	return n, 0, nil
+}
+
+// The block is pure if
+//
+// 1.   All the keys are the same
+// 2.   It has at least 1 key
+// 3.      ( It has more than 2 keys )
+//      OR ( It has less than 3 keys AND a chained block after it )
+//
+func (self *BpTree) isPure(a uint64) (pure bool, err error) {
+	err = self.doLeaf(a, func(n *leaf) (err error) {
+		count := n.keyCount()
+		if count == 0 {
+			pure = false
+			return nil
+		} else if n.pure(self.varchar) {
+			if count > 2 {
+				pure = true
+				return nil
+			} else {
+				run, err := self.pureRun(a)
+				if err != nil {
+					return err
+				}
+				if len(run) > 1 {
+					pure = true
+					return nil
+				}
+				pure = false
+				return nil
+			}
+		} else {
+			pure = false
+			return nil
+		}
+	})
+	if err != nil {
+		return false, err
+	}
+	return pure, nil
 }
 
 func (self *BpTree) pureLeafInsert(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
