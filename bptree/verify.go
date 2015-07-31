@@ -95,15 +95,15 @@ func (self *BpTree) leafVerify(parent uint64, idx int, n, sibling uint64) (err e
 			}
 			return nil
 		}
-		err := checkOrder(self.varchar, n)
+		if n.pure(self.varchar) {
+			return self.pureVerify(parent, idx, a, sibling)
+		}
+		err := self.leafOrderVerify(parent, idx, a, sibling)
 		if err != nil {
 			log.Println("error in leafVerify")
 			log.Printf("out of order")
 			log.Println("leaf", a, n.Debug(self.varchar))
 			return err
-		}
-		if n.pure(self.varchar) {
-			return self.pureVerify(parent, idx, a, sibling)
 		}
 		if n.meta.next != sibling {
 			log.Println("error in leafVerify")
@@ -125,13 +125,27 @@ func (self *BpTree) leafVerify(parent uint64, idx int, n, sibling uint64) (err e
 func (self *BpTree) pureVerify(parent uint64, idx int, n, sibling uint64) (err error) {
 	a := n
 	return self.doLeaf(a, func(n *leaf) error {
-		e, err := self.endOfPureRun(a)
+		run, err := self.pureRun(a)
 		if err != nil {
 			log.Println("error in pureVerify")
 			log.Println("end of pure run error")
 			log.Println("leaf", a, n.Debug(self.varchar))
 			return err
 		}
+		for i, x := range run {
+			err := self.leafOrderVerify(parent, idx, x, sibling)
+			if err != nil {
+				log.Println("error in pureVerify")
+				log.Printf("leafOrderVerify failed for run item %v", i)
+				log.Println("start of run", a, n.Debug(self.varchar))
+				self.doLeaf(x, func(o *leaf) error {
+					log.Println("cur item of run", x, o.Debug(self.varchar))
+					return nil
+				})
+				return err
+			}
+		}
+		e := run[len(run)-1]
 		return self.doLeaf(e, func(m *leaf) (err error) {
 			err = checkOrder(self.varchar, m)
 			if err != nil {

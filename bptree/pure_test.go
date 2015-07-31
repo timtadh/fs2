@@ -136,8 +136,8 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 		keys = append(keys, kv.key)
 		kvs = append(kvs, kv)
 		t.assert_nil(bpt.Add(kv.key, kv.value))
-		t.assert_nil(bpt.Verify())
 	}
+	t.assert_nil(bpt.Verify())
 	start := len(kvs)
 	dups := rand.Intn(500) + 1000
 	for i := 0; i < dups; i++ {
@@ -165,8 +165,8 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 		t.assert_nil(bpt.Remove(kv.key, func(v []byte) bool {
 			return bytes.Equal(kv.value, v)
 		}))
-		t.assert_nil(bpt.Verify())
 	}
+	t.assert_nil(bpt.Verify())
 	for _, key := range keys {
 		t.assert_notHas(bpt)(key)
 	}
