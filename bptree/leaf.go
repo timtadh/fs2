@@ -384,6 +384,9 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 		return errors.Errorf("value not there after put")
 	}
 
+	return nil
+
+	/*
 	err = checkOrder(v, n)
 	if err != nil {
 		log.Println("inserted", key, value)
@@ -426,6 +429,7 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	log.Println("at", idx)
 	log.Println(n.Debug(v))
 	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
+	*/
 }
 
 func (n *leaf) delKV(v *Varchar, key []byte, which func([]byte) bool) error {
@@ -505,12 +509,14 @@ func (n *leaf) delItemAt(v *Varchar, idx int) error {
 	}
 	// do the book keeping
 	n.meta.keyCount--
+	/*
 	err := checkOrder(v, n)
 	if err != nil {
 		log.Println("del at", idx)
 		log.Println(n)
 		return err
 	}
+	*/
 	return nil
 }
 
