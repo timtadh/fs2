@@ -22,8 +22,6 @@ func checkOrder(v *Varchar, n keyed) error {
 		err := n.doKeyAt(v, i-1, func(k_0 []byte) error {
 			return n.doKeyAt(v, i, func(k_1 []byte) error {
 				if bytes.Compare(k_0, k_1) > 0 {
-					log.Println(n)
-					log.Println(n.Debug(v))
 					log.Println("k_0", k_0)
 					log.Println("k_1", k_1)
 					return errors.Errorf("node was out of order %v %v %v", i-1, i, bytes.Compare(k_0, k_1))
@@ -32,6 +30,8 @@ func checkOrder(v *Varchar, n keyed) error {
 			})
 		})
 		if err != nil {
+			log.Println(n)
+			log.Println(n.Debug(v))
 			return err
 		}
 	}
