@@ -22,22 +22,30 @@ import (
 // 	}
 //
 func (self *BpTree) Remove(key []byte, where func([]byte) bool) (err error) {
-	a, err := self.remove(0, self.meta.root, 0, key, where)
+	cntDelta, root, err := self.remove(self.meta.root, key, where)
 	if err != nil {
 		return err
 	}
-	if a == 0 {
-		a, err = self.newLeaf()
-		if err != nil {
-			return err
-		}
-	}
-	self.meta.itemCount -= 1
-	self.meta.root = a
+	self.meta.itemCount -= cntDelta
+	self.meta.root = root
 	return self.writeMeta()
 }
 
-func (self *BpTree) remove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
+func (self *BpTree) remove(root uint64, key []byte, where func([]byte) bool) (cntDelta, newRoot uint64, err error) {
+	newRoot, err = self.delete(0, root, 0, key, where)
+	if err != nil {
+		return 0, 0, err
+	}
+	if newRoot == 0 {
+		newRoot, err = self.newLeaf()
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	return 1, newRoot, nil
+}
+
+func (self *BpTree) delete(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
 		flags = consts.AsFlag(bytes)
@@ -47,16 +55,16 @@ func (self *BpTree) remove(parent, n, sibling uint64, key []byte, where func([]b
 		return 0, err
 	}
 	if flags&consts.INTERNAL != 0 {
-		return self.internalRemove(parent, n, sibling, key, where)
+		return self.internalDelete(parent, n, sibling, key, where)
 	} else if flags&consts.LEAF != 0 {
-		return self.leafRemove(parent, n, sibling, key, where)
+		return self.leafDelete(parent, n, sibling, key, where)
 	} else {
 		return 0, errors.Errorf("Unknown block type")
 	}
 }
 
-func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
-	// log.Println("internalRemove", n, key)
+func (self *BpTree) internalDelete(parent, n, sibling uint64, key []byte, where func([]byte) bool) (a uint64, err error) {
+	// log.Println("internalDelete", n, key)
 	var i int
 	var kid uint64
 	err = self.doInternal(n, func(n *internal) (err error) {
@@ -85,7 +93,7 @@ func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where 
 		return 0, err
 	}
 	okid := kid
-	kid, err = self.remove(n, kid, sibling, key, where)
+	kid, err = self.delete(n, kid, sibling, key, where)
 	if err != nil {
 		self.doInternal(n, func(n *internal) (err error) {
 			log.Println(n.Debug(self.varchar))
@@ -135,8 +143,8 @@ func (self *BpTree) internalRemove(parent, n, sibling uint64, key []byte, where 
 	return n, nil
 }
 
-func (self *BpTree) leafRemove(parent, n, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
-	// log.Println("leafRemove", n, key)
+func (self *BpTree) leafDelete(parent, n, sibling uint64, key []byte, where func([]byte) bool) (b uint64, err error) {
+	// log.Println("leafDelete", n, key)
 	start := n
 	a := n
 	var i int

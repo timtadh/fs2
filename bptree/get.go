@@ -465,10 +465,14 @@ func (self *BpTree) leafLastKey(n uint64) (a uint64, i int, err error) {
  * or the last key equal to the search key.
  */
 func (self *BpTree) getEnd(key []byte) (a uint64, i int, err error) {
+	return self._getEnd(self.meta.root, key)
+}
+
+func (self *BpTree) _getEnd(root uint64, key []byte) (a uint64, i int, err error) {
 	if key == nil {
-		a, i, err = self.lastKey(self.meta.root)
+		a, i, err = self.lastKey(root)
 	} else {
-		a, i, err = self._getStart(self.meta.root, key)
+		a, i, err = self._getStart(root, key)
 	}
 	if err != nil {
 		return 0, 0, err

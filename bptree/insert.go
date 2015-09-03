@@ -52,19 +52,27 @@ func (self *BpTree) Add(key, value []byte) (err error) {
 	if err != nil {
 		return err
 	}
-	a, b, err := self.insert(self.meta.root, key, value)
+	cntDelta, root, err := self.add(self.meta.root, key, value, true)
 	if err != nil {
 		return err
+	}
+	self.meta.itemCount += cntDelta
+	self.meta.root = root
+	return self.writeMeta()
+}
+
+func (self *BpTree) add(root uint64, key, value []byte, allowDups bool) (cntDelta, newRoot uint64, err error) {
+	a, b, err := self.insert(root, key, value, allowDups)
+	if err != nil {
+		return 0, 0, err
 	} else if b == 0 {
-		self.meta.itemCount += 1
-		self.meta.root = a
-		return self.writeMeta()
+		return 1, a, nil
 	}
-	root, err := self.newInternal()
+	newRoot, err = self.newInternal()
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
-	err = self.doInternal(root, func(n *internal) error {
+	err = self.doInternal(newRoot, func(n *internal) error {
 		err := self.firstKey(a, func(akey []byte) error {
 			return n.putKP(self.varchar, akey, a)
 		})
@@ -74,21 +82,18 @@ func (self *BpTree) Add(key, value []byte) (err error) {
 		return self.firstKey(b, func(bkey []byte) error {
 			return n.putKP(self.varchar, bkey, b)
 		})
-		return nil
 	})
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
-	self.meta.itemCount += 1
-	self.meta.root = root
-	return self.writeMeta()
+	return 1, newRoot, nil
 }
 
 /* right is only set on split left is always set.
  * - When split is false left is the pointer to block
  * - When split is true left is the pointer to the new left block
  */
-func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) insert(n uint64, key, value []byte, allowDups bool) (a, b uint64, err error) {
 	var flags consts.Flag
 	err = self.bf.Do(n, 1, func(bytes []byte) error {
 		flags = consts.AsFlag(bytes)
@@ -98,9 +103,9 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
 		return 0, 0, err
 	}
 	if flags&consts.INTERNAL != 0 {
-		return self.internalInsert(n, key, value)
+		return self.internalInsert(n, key, value, allowDups)
 	} else if flags&consts.LEAF != 0 {
-		return self.leafInsert(n, key, value)
+		return self.leafInsert(n, key, value, allowDups)
 	} else {
 		return 0, 0, errors.Errorf("Unknown block type")
 	}
@@ -112,7 +117,7 @@ func (self *BpTree) insert(n uint64, key, value []byte) (a, b uint64, err error)
  *    - if the block is full, split this block
  *    - else insert the new key/pointer into this block
  */
-func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, err error) {
+func (self *BpTree) internalInsert(n uint64, key, value []byte, allowDups bool) (a, b uint64, err error) {
 	// log.Println("internalInsert", n, key)
 	var i int
 	var ptr uint64
@@ -133,7 +138,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	if err != nil {
 		return 0, 0, err
 	}
-	p, q, err := self.insert(ptr, key, value)
+	p, q, err := self.insert(ptr, key, value, allowDups)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -181,7 +186,7 @@ func (self *BpTree) internalInsert(n uint64, key, value []byte) (a, b uint64, er
 	return a, b, nil
 }
 
-func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error) {
+func (self *BpTree) newVarcharKey(n uint64, key []byte, allowDups bool) (vkey []byte, err error) {
 	var has bool
 	err = self.doLeaf(n, func(n *leaf) error {
 		var idx int
@@ -216,6 +221,20 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 	return slice.Uint64AsSlice(&k), nil
 }
 
+func (self *BpTree) leafInsert(n uint64, key, value []byte, allowDups bool) (a, b uint64, err error) {
+	var vkey []byte = nil
+	if self.meta.flags&consts.VARCHAR_KEYS != 0 {
+		vkey, err = self.newVarcharKey(n, key, allowDups)
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	if allowDups {
+		return self.leafDupAllowInsert(n, vkey, key, value)
+	} else {
+		return self.leafNoDupInsert(n, vkey, key, value)
+	}
+}
 
 // Here is the situation. besides the truth table below about which action to
 // take several other factors go into this. The first is what exactly do we mean
@@ -245,17 +264,10 @@ func (self *BpTree) newVarcharKey(n uint64, key []byte) (vkey []byte, err error)
 //          then (do a leafSplit)
 // if ! pure, ! full,
 //          then (do the put)
-func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err error) {
-	// log.Println("leafInsert", n, key)
+func (self *BpTree) leafDupAllowInsert(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
+	// log.Println("leafDupAllowInsert", n, key)
 	var mustSplit bool = false
 	var mustPureInsert bool = false
-	var vkey []byte = nil
-	if self.meta.flags&consts.VARCHAR_KEYS != 0 {
-		vkey, err = self.newVarcharKey(n, key)
-		if err != nil {
-			return 0, 0, err
-		}
-	}
 	pure, err := self.isPure(n)
 	if err != nil {
 		return 0, 0, err
@@ -304,6 +316,36 @@ func (self *BpTree) leafInsert(n uint64, key, value []byte) (a, b uint64, err er
 	} else if mustPureInsert {
 		return self.pureLeafInsert(n, vkey, key, value)
 	} else if mustSplit {
+		return self.leafSplit(n, vkey, key, value)
+	}
+	return n, 0, nil
+}
+
+func (self *BpTree) leafNoDupInsert(n uint64, vkey, key, value []byte) (a, b uint64, err error) {
+	// log.Println("leafNoDupInsert", n, key)
+	var mustSplit bool = false
+	// no need to check for purity as this tree will have unique keys
+	err = self.doLeaf(n, func(n *leaf) error {
+		if n.keyCount() <= 0 {
+			return n.put(self.varchar, vkey, key, value)
+		}
+		full := !n.fitsAnother()
+		idx, has, err := find(self.varchar, n, key)
+		if err != nil {
+			return err
+		} else if has {
+			return n.updateValueAt(self.varchar, idx, value)
+		} else if full {
+			mustSplit = true
+			return nil
+		} else {
+			return n.put(self.varchar, vkey, key, value)
+		}
+	})
+	if err != nil {
+		return 0, 0, err
+	}
+	if mustSplit {
 		return self.leafSplit(n, vkey, key, value)
 	}
 	return n, 0, nil

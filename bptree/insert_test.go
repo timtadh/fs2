@@ -406,7 +406,7 @@ func TestInternalInsertSplit(x *testing.T) {
 			kv := kvs[i]
 			v, err := bpt.checkValue(kv.value)
 			t.assert_nil(err)
-			p, q, err := bpt.leafInsert(a, kv.key, v)
+			p, q, err := bpt.leafInsert(a, kv.key, v, true)
 			t.assert_nil(err)
 			t.assert(fmt.Sprintf("p should be a, at idx %v, cap %v", i, LEAF_CAP), p == a)
 			t.assert(fmt.Sprintf("q should be 0 a, at idx %v, cap %v", i, LEAF_CAP), q == 0)
@@ -415,7 +415,7 @@ func TestInternalInsertSplit(x *testing.T) {
 			kv := kvs[i]
 			v, err := bpt.checkValue(kv.value)
 			t.assert_nil(err)
-			p, q, err := bpt.leafInsert(b, kv.key, v)
+			p, q, err := bpt.leafInsert(b, kv.key, v, true)
 			t.assert_nil(err)
 			t.assert(fmt.Sprintf("p should be b, at idx %v, cap %v", i, LEAF_CAP), p == b)
 			t.assert(fmt.Sprintf("q should be 0 a, at idx %v, cap %v", i, LEAF_CAP), q == 0)
@@ -426,7 +426,7 @@ func TestInternalInsertSplit(x *testing.T) {
 		}
 		sv, err := bpt.checkValue(split_kv.value)
 		t.assert_nil(err)
-		p, q, err := bpt.internalInsert(I, split_kv.key, sv)
+		p, q, err := bpt.internalInsert(I, split_kv.key, sv, true)
 		t.assert_nil(err)
 		t.assert("p should be I", p == I)
 		t.assert("q should not be 0", q != 0)

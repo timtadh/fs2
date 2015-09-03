@@ -298,6 +298,29 @@ func (n *leaf) pure(v *Varchar) bool {
 	return true
 }
 
+func (n *leaf) updateValueAt(v *Varchar, i int, value []byte) (err error) {
+	if i < 0 || i >= int(n.meta.keyCount) {
+		return errors.Errorf("idx is out of range")
+	}
+	if len(value) != int(n.meta.valSize) {
+		return errors.Errorf("value was the wrong size")
+	}
+	flags := n.meta.flags
+	if flags&consts.VARCHAR_VALS != 0 {
+		oldv := n.val(i)
+		err = v.Deref(*slice.AsUint64(&oldv))
+		if err != nil {
+			return err
+		}
+		err = v.Ref(*slice.AsUint64(&value))
+		if err != nil {
+			return err
+		}
+	}
+	copy(n.val(i), value)
+	return nil
+}
+
 // puts the key, value into the leaf node. The vkey is the varchar key
 // if this is a tree is in varchar key mode.
 func (n *leaf) put(v *Varchar, vkey, key, value []byte) (err error) {
@@ -308,7 +331,30 @@ func (n *leaf) put(v *Varchar, vkey, key, value []byte) (err error) {
 	}
 }
 
+func (n *leaf) find(v *Varchar, key []byte) (idx int, has bool, err error) {
+	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
+		return find(v, n, key)
+	} else {
+		err = v.Do(*slice.AsUint64(&key), func(key []byte) (e error) {
+			idx, has, e = find(v, n, key)
+			return e
+		})
+		if err != nil {
+			return 0, false, err
+		}
+		return idx, has, nil
+	}
+}
+
 func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
+	idx, _, err := n.find(v, key)
+	if err != nil {
+		return err
+	}
+	return n.doPutKV(v, idx, key, value)
+}
+
+func (n *leaf) doPutKV(v *Varchar, idx int, key, value []byte) (err error) {
 	if len(value) != int(n.meta.valSize) {
 		return errors.Errorf("value was the wrong size")
 	}
@@ -321,20 +367,6 @@ func (n *leaf) putKV(v *Varchar, key []byte, value []byte) (err error) {
 	if !n.fitsAnother() {
 		return errors.Errorf("block is full (value doesn't fit)")
 	}
-
-	var idx int
-	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
-		idx, _, err = find(v, n, key)
-	} else {
-		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
-			idx, _, err = find(v, n, key)
-			return err
-		})
-	}
-	if err != nil {
-		return err
-	}
-
 	keys := n.keys()
 	vals := n.vals()
 	keySize := int(n.meta.keySize)
