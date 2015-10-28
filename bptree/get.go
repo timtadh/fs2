@@ -24,7 +24,10 @@ func doIter(run func() (KVIterator, error), do func(key, value []byte) error) er
 	}
 	var key, value []byte
 	for key, value, err, kvi = kvi(); kvi != nil; key, value, err, kvi = kvi() {
-		do(key, value)
+		e := do(key, value)
+		if e != nil {
+			return e
+		}
 	}
 	return err
 }
@@ -36,7 +39,10 @@ func doItemIter(run func() (Iterator, error), do func([]byte) error) error {
 	}
 	var item []byte
 	for item, err, it = it(); it != nil; item, err, it = it() {
-		do(item)
+		e := do(item)
+		if e != nil {
+			return e
+		}
 	}
 	return err
 }
