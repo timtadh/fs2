@@ -40,6 +40,15 @@ func AsUint64(bytes *[]byte) *uint64 {
 	return (*uint64)(s.Array)
 }
 
+func Int32AsSlice(i *int32) []byte {
+	s := &Slice{
+		Array: unsafe.Pointer(i),
+		Len:   4,
+		Cap:   4,
+	}
+	return *s.AsBytes()
+}
+
 func Int64AsSlice(i *int64) []byte {
 	s := &Slice{
 		Array: unsafe.Pointer(i),
