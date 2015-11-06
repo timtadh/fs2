@@ -73,6 +73,10 @@ is a great place to start to learn more about the ubiquitous B+ Tree.
    persisted) it is recommend you use a file backed memory map. The OS treats
    pages in the file cache different than pages which are not backed by files.
 
+7. The command `fs2-generic` can generate a wrapper specialized to your data
+   type. Typing saved! To use `go install github.com/timtadh/fs2/fs2-generic`.
+   Get help with `fs2-generic --help`
+
 ### Limitations
 
 1. Not thread safe and therefore no transactions which you only need with
