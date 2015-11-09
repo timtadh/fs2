@@ -1,5 +1,5 @@
 /*
-fs2-generic -- Generate type specialized wrappers around fs2 structures.
+A command to generate type specialized wrappers around fs2 structures.
 
 Since Go does not support generics and is not going to support generics anytime
 soon, this program will produce a wrapper specialized to the supplied types. It
