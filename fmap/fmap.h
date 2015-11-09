@@ -14,7 +14,6 @@
  * along with goiso.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _GNU_SOURCE
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -148,34 +147,4 @@ anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
  */
 int
 resize(void *old_addr, void **new_addr, int fd, size_t new_length);
-
-/* is_sequential(addr, offset, length)
- *
- * mark the address + offset, for length as a sequential segment.
- *
- * (addr) the address of the mapping
- *
- * (offset) the start of the sequential region
- *
- * (length) the length of the sequential region
- *
- * (returns) 0 on success and an errno value on failure
- */
-int
-is_sequential(void *addr, size_t offset, size_t length);
-
-/* is_normal(addr, offset, length)
- *
- * mark the address + offset, for length as a normal segment.
- *
- * (addr) the address of the mapping
- *
- * (offset) the start of the sequential region
- *
- * (length) the length of the sequential region
- *
- * (returns) 0 on success and an errno value on failure
- */
-int
-is_normal(void *addr, size_t offset, size_t length);
 

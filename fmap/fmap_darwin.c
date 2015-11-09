@@ -1,3 +1,4 @@
+// +build darwin
 /* Copyright (c) 2015 Tim Henderson
  * Release under the GNU General Public License version 3.
  *
@@ -29,7 +30,7 @@ create_anon_mmap(void **addr, size_t length) {
 		NULL, // address hint
 		length,
 		PROT_READ | PROT_WRITE, // protection flags (rw)
-		MAP_ANONYMOUS | MAP_PRIVATE, // anon map
+		MAP_ANON, // anon map
 		-1, // the fd
 		0 // the offset into the file
 	);
@@ -57,8 +58,7 @@ create_mmap(void **addr, int fd) {
 		NULL, // address hint
 		length,
 		PROT_READ | PROT_WRITE, // protection flags (rw)
-		MAP_SHARED | MAP_POPULATE, // writes reflect in the file,
-								   // prepopulate the tlb
+		MAP_SHARED , // writes reflect in the file,
 		fd,
 		0 // the offset into the file
 	);
@@ -113,7 +113,7 @@ sync_mmap(void *addr, int fd) {
 	if (err != 0) {
 		return err;
 	}
-	int ret = msync(addr, length, MS_ASYNC | MS_INVALIDATE);
+	int ret = msync(addr, length, MS_SYNC);
 	if (ret != 0) {
 		int err = errno;
 		errno = 0;
@@ -124,6 +124,20 @@ sync_mmap(void *addr, int fd) {
 	return 0;
 }
 
+// this seems impossible with darwin :-( ....
+// not sure how to do it as their is no mremap ...
+// possible idea:
+// 1. try to extend the mapping by creating a new mapping at the end of this
+//     mapping. It would be convient if only one munmap call to munmap was
+//     required to unmap the whole region. If not a linked list of mmaps is
+//     going to need to be created such that munmap can unlink them. If this
+//     succeeds the map has been "resized" and it is ok to return 0 with the
+//     new_addr set to the old_addr.
+// 2. If 1 fails, then mmap a whole new region of the full size. If this fails
+//    the whole call fails.
+// 3. Copy the contents of the old map to the new with memcpy.
+// 4. Unmap the old region
+// 5. Return the new map in new_addr.
 int
 anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
 		new_length) {
@@ -172,6 +186,7 @@ fd_resize(int fd, size_t new_length) {
 	return 0;
 }
 
+// This needs to be changed to a munmap and mmap call. Pain in the neck.
 int
 resize(void *old_addr, void **new_addr, int fd, size_t new_length) {
 	size_t old_length;
@@ -197,30 +212,6 @@ resize(void *old_addr, void **new_addr, int fd, size_t new_length) {
 		return err;
 	}
 	*new_addr = mapped;
-	return 0;
-}
-
-int
-is_sequential(void *addr, size_t offset, size_t length) {
-	return do_madvise(MADV_SEQUENTIAL, addr, offset, length);
-}
-
-int
-is_normal(void *addr, size_t offset, size_t length) {
-	return do_madvise(MADV_NORMAL, addr, offset, length);
-}
-
-int
-do_madvise(int flag, void *addr, size_t offset, size_t length) {
-	void *start = (void *)((size_t)(addr) + offset);
-	int ret = madvise(start, length, flag);
-	if (ret != 0) {
-		int err = errno;
-		errno = 0;
-		char *msg = strerror(err);
-		fprintf(stderr, "MADVISE ERROR: %s\n", msg);
-		return err;
-	}
 	return 0;
 }
 
