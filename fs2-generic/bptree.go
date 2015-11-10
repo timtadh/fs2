@@ -138,6 +138,7 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 	}
 
 	err = bptreeTmpl.Execute(fout, map[string]interface{} {
+		"argv": strings.Join(os.Args, " \\\n*     "),
 		"packageName": packageName,
 		"imports": imports,
 		"keySize": keySize,
