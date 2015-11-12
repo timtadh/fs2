@@ -46,12 +46,11 @@ import (
 import (
 	"github.com/timtadh/fs2/bptree"
 	"github.com/timtadh/fs2/fmap"
-)
+){{if .imports}}
 
-import (
-	{{range $imp := .imports}}"{{$imp}}"
-	{{end}}
-)
+import ({{range $imp := .imports}}
+	"{{$imp}}"{{end}}
+){{end}}
 
 
 type MultiMap interface {
