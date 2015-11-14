@@ -243,3 +243,17 @@ func TestFindRegress(x *testing.T) {
 	clean()
 }
 
+
+func TestRangeRegress(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	t.assert_nil(bpt.Add([]byte{0,1,0,2,0,0,0,0}, t.rand_key()))
+	from := []byte{0,1,0,1,0,0,0,0}
+	to := []byte{0,1,0,0,0,0,0,0}
+	t.assert_nil(bpt.DoRange(from, to, func(k, v []byte) error {
+		t.assert("found key when it wasn't in tree", false)
+		return nil
+	}))
+	clean()
+}
+
