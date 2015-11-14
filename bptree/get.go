@@ -512,6 +512,8 @@ func (self *BpTree) forward(from, to []byte) (bi bpt_iterator, err error) {
 	a, i, err := self.getStart(from)
 	if err != nil {
 		return nil, err
+	} else if from == nil {
+		return self.forwardFrom(a, i, to)
 	}
 	var less bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
@@ -568,6 +570,8 @@ func (self *BpTree) backward(from, to []byte) (bi bpt_iterator, err error) {
 	a, i, err := self.getEnd(from)
 	if err != nil {
 		return nil, err
+	} else if from == nil {
+		return self.backwardFrom(a, i, to)
 	}
 	var greater bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
