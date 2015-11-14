@@ -513,6 +513,21 @@ func (self *BpTree) forward(from, to []byte) (bi bpt_iterator, err error) {
 	if err != nil {
 		return nil, err
 	}
+	var less bool = false
+	err = self.doLeaf(a, func(n *leaf) error {
+		return n.doKeyAt(self.varchar, i, func(k []byte) error {
+			less = bytes.Compare(k, from) < 0
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	} else if less {
+		bi = func() (uint64, int, error, bpt_iterator) {
+			return 0, 0, nil, nil
+		}
+		return bi, nil
+	}
 	return self.forwardFrom(a, i, to)
 }
 

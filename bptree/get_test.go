@@ -102,3 +102,144 @@ func TestIterateBackward(x *testing.T) {
 		clean()
 	}
 }
+
+func TestFind(x *testing.T) {
+	t := (*T)(x)
+	LEAF_CAP := 190
+	for TEST := 0; TEST < TESTS; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make(KVS, 0, LEAF_CAP*5)
+		for i := 0; i < cap(kvs); i++ {
+			kv := &KV{
+				key:   t.rand_key(),
+				value: t.rand_key(),
+			}
+			kvs = append(kvs, kv)
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		sort.Sort(kvs)
+		for _, kv := range kvs {
+			t.assert_nil(bpt.DoFind(kv.key, func(k, v []byte) error {
+				t.assert(fmt.Sprintf("kv.key '%v' == '%v' k", kv.key, k), bytes.Equal(kv.key, k))
+				t.assert(fmt.Sprintf("kv.value '%v' == '%v' v", kv.value, v), bytes.Equal(kv.value, v))
+				return nil
+			}))
+		}
+		clean()
+	}
+}
+
+func TestFindSequence(x *testing.T) {
+	t := (*T)(x)
+	LEAF_CAP := 190
+	for TEST := 0; TEST < TESTS; TEST++ {
+		bpt, clean := t.bpt()
+		kvs := make(KVS, 0, LEAF_CAP*5)
+		for i := 0; i < cap(kvs); i++ {
+			k := uint64(cap(kvs)-i+1)
+			kv := &KV{
+				key:   t.bkey(&k),
+				value: t.rand_key(),
+			}
+			kvs = append(kvs, kv)
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		sort.Sort(kvs)
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		for _, kv := range kvs {
+			t.assert_nil(bpt.Add(kv.key, kv.value))
+		}
+		sort.Sort(kvs)
+		for _, kv := range kvs {
+			t.assert_nil(bpt.DoFind(kv.key, func(k, v []byte) error {
+				t.assert(fmt.Sprintf("kv.key '%v' == '%v' k", kv.key, k), bytes.Equal(kv.key, k))
+				t.assert(fmt.Sprintf("kv.value '%v' == '%v' v", kv.value, v), bytes.Equal(kv.value, v))
+				return nil
+			}))
+		}
+		clean()
+	}
+}
+
+func TestFindPrefixes(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	kvs := KVS{
+		{[]byte{1,}, t.rand_key()},
+		{[]byte{1,1,}, t.rand_key()},
+		{[]byte{1,1,1,}, t.rand_key()},
+	}
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	sort.Sort(kvs)
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	sort.Sort(kvs)
+	for _, kv := range kvs {
+		t.assert_nil(bpt.DoFind(kv.key, func(k, v []byte) error {
+			t.assert(fmt.Sprintf("kv.key '%v' == '%v' k", kv.key, k), bytes.Equal(kv.key, k))
+			t.assert(fmt.Sprintf("kv.value '%v' == '%v' v", kv.value, v), bytes.Equal(kv.value, v))
+			return nil
+		}))
+	}
+	clean()
+}
+
+func TestFindPrefixPartial(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	kvs := KVS{
+		{[]byte{0,1,0,3,0,5,0,1,0,2,0,3}, t.rand_key()},
+		{[]byte{0,2,0,3,0,5,0,7,0,1,0,2,0,3}, t.rand_key()},
+		{[]byte{0,3,0,2,0,5,0,7,0,9,0,1,0,2}, t.rand_key()},
+	}
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	sort.Sort(kvs)
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	for _, kv := range kvs {
+		t.assert_nil(bpt.Add(kv.key, kv.value))
+	}
+	sort.Sort(kvs)
+	for _, kv := range kvs {
+		t.assert_nil(bpt.DoFind(kv.key, func(k, v []byte) error {
+			t.assert(fmt.Sprintf("kv.key '%v' == '%v' k", kv.key, k), bytes.Equal(kv.key, k))
+			t.assert(fmt.Sprintf("kv.value '%v' == '%v' v", kv.value, v), bytes.Equal(kv.value, v))
+			return nil
+		}))
+	}
+	clean()
+}
+
+func TestFindRegress(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	t.assert_nil(bpt.Add([]byte{0,1,0,2,0,0,0,0}, t.rand_key()))
+	key := []byte{0,1,0,3,0,0,0,0}
+	t.assert_nil(bpt.DoFind(key, func(k, v []byte) error {
+		t.assert("found key when it wasn't in tree", false)
+		return nil
+	}))
+	clean()
+}
+
