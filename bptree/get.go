@@ -517,6 +517,10 @@ func (self *BpTree) forward(from, to []byte) (bi bpt_iterator, err error) {
 	}
 	var less bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
+		if n.meta.keyCount == 0 {
+			// this happens when the tree is empty!
+			return nil
+		}
 		return n.doKeyAt(self.varchar, i, func(k []byte) error {
 			less = bytes.Compare(k, from) < 0
 			return nil
@@ -575,6 +579,10 @@ func (self *BpTree) backward(from, to []byte) (bi bpt_iterator, err error) {
 	}
 	var greater bool = false
 	err = self.doLeaf(a, func(n *leaf) error {
+		if n.meta.keyCount == 0 {
+			// this happens when the tree is empty!
+			return nil
+		}
 		return n.doKeyAt(self.varchar, i, func(k []byte) error {
 			greater = bytes.Compare(k, from) > 0
 			return nil

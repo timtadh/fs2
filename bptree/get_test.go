@@ -8,6 +8,33 @@ import (
 	"sort"
 )
 
+func TestIterateEmpty(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	t.assert_nil(bpt.DoIterate(func(k, v []byte) error {
+		return fmt.Errorf("found something in empty tree %v %v", k, v)
+	}))
+	clean()
+}
+
+func TestFindEmpty(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	t.assert_nil(bpt.DoFind([]byte("wizard"), func(k, v []byte) error {
+		return fmt.Errorf("found something in empty tree %v %v", k, v)
+	}))
+	clean()
+}
+
+func TestRangeBackwardEmpty(x *testing.T) {
+	t := (*T)(x)
+	bpt, clean := t.bpt()
+	t.assert_nil(bpt.DoRange([]byte("wizard"), []byte("apple"), func(k, v []byte) error {
+		return fmt.Errorf("found something in empty tree %v %v", k, v)
+	}))
+	clean()
+}
+
 func TestIterate(x *testing.T) {
 	t := (*T)(x)
 	LEAF_CAP := 190
