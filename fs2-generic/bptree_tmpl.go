@@ -121,30 +121,50 @@ func DoValue(run func() (ValueIterator, error), do func({{.valueType}}) error) e
 	return err
 }
 
-
 type BpTree struct {
 	bf *fmap.BlockFile
 	bpt *bptree.BpTree
-	mutex sync.Mutex
+	mutex sync.Mutex{{if .useParameters}}
+	serializeKey func({{.keyType}}) []byte
+	serializeValue func({{.valueType}}) []byte
+	deserializeKey func([]byte) {{.keyType}}
+	deserializeValue func([]byte) {{.valueType}}{{end}}
 }
 
-func AnonBpTree() (*BpTree, error) {
+{{if .useParameters}}func AnonBpTree(
+	serializeKey func({{.keyType}}) []byte,
+	serializeValue func({{.valueType}}) []byte,
+	deserializeKey func([]byte) {{.keyType}},
+	deserializeValue func([]byte) {{.valueType}},
+) (*BpTree, error) { {{else}}func AnonBpTree() (*BpTree, error) { {{end}}
 	bf, err := fmap.Anonymous(fmap.BLOCKSIZE)
 	if err != nil {
 		return nil, err
 	}
-	return newBpTree(bf)
+	{{if .useParameters}}return newBpTree(bf, serializeKey, serializeValue, deserializeKey, deserializeValue){{else}}return newBpTree(bf){{end}}
 }
 
-func NewBpTree(path string) (*BpTree, error) {
+{{if .useParameters}}func NewBpTree(
+	path string,
+	serializeKey func({{.keyType}}) []byte,
+	serializeValue func({{.valueType}}) []byte,
+	deserializeKey func([]byte) {{.keyType}},
+	deserializeValue func([]byte) {{.valueType}},
+) (*BpTree, error) { {{else}}func NewBpTree(path string) (*BpTree, error) { {{end}}
 	bf, err := fmap.CreateBlockFile(path)
 	if err != nil {
 		return nil, err
 	}
-	return newBpTree(bf)
+	{{if .useParameters}}return newBpTree(bf, serializeKey, serializeValue, deserializeKey, deserializeValue){{else}}return newBpTree(bf){{end}}
 }
 
-func OpenBpTree(path string) (*BpTree, error) {
+{{if .useParameters}}func OpenBpTree(
+	path string,
+	serializeKey func({{.keyType}}) []byte,
+	serializeValue func({{.valueType}}) []byte,
+	deserializeKey func([]byte) {{.keyType}},
+	deserializeValue func([]byte) {{.valueType}},
+) (*BpTree, error) { {{else}}func OpenBpTree(path string) (*BpTree, error) { {{end}}
 	bf, err := fmap.OpenBlockFile(path)
 	if err != nil {
 		return nil, err
@@ -155,19 +175,33 @@ func OpenBpTree(path string) (*BpTree, error) {
 	}
 	b := &BpTree{
 		bf: bf,
-		bpt: bpt,
+		bpt: bpt,{{if .useParameters}}
+		serializeKey: serializeKey,
+		serializeValue: serializeValue,
+		deserializeKey: deserializeKey,
+		deserializeValue: deserializeValue,{{end}}
 	}
 	return b, nil
 }
 
-func newBpTree(bf *fmap.BlockFile) (*BpTree, error) {
+{{if .useParameters}}func newBpTree(
+	bf *fmap.BlockFile,
+	serializeKey func({{.keyType}}) []byte,
+	serializeValue func({{.valueType}}) []byte,
+	deserializeKey func([]byte) {{.keyType}},
+	deserializeValue func([]byte) {{.valueType}},
+) (*BpTree, error) { {{else}}func newBpTree(bf *fmap.BlockFile) (*BpTree, error) { {{end}}
 	bpt, err := bptree.New(bf, {{.keySize}}, {{.valueSize}})
 	if err != nil {
 		return nil, err
 	}
 	b := &BpTree{
 		bf: bf,
-		bpt: bpt,
+		bpt: bpt,{{if .useParameters}}
+		serializeKey: serializeKey,
+		serializeValue: serializeValue,
+		deserializeKey: deserializeKey,
+		deserializeValue: deserializeValue,{{end}}
 	}
 	return b, nil
 }
