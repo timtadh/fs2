@@ -81,14 +81,16 @@ bptree
       func([]byte) T
 
   Options
-    -h, --help                     view this message
-    --key-size=<int>               default: variably sized
-    --key-empty=<string>           empty value, default:nil
+    -h, --help                         view this message
+    --use-parameterized-serialization  supply the serialization functions
+                                       to the BpTree constructors
+    --key-size=<int>                   default: variably sized
+    --key-empty=<string>               empty value, default:nil
     --key-type=<type>
     --key-serializer=<func>
     --key-deserializer=<func>
-    --value-size=<int>             default: variably sized
-    --value-empty=<string>         empty value, default:nil
+    --value-size=<int>                 default: variably sized
+    --value-empty=<string>             empty value, default:nil
     --value-type=<type>
     --value-serializer=<func>
     --value-deserializer=<func>

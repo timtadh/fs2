@@ -44,6 +44,8 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 		"h",
 		[]string{
 			"help",
+			"wat",
+			"use-parameterized-serialization",
 			"key-size=",
 			"key-empty=",
 			"key-type=",
@@ -61,6 +63,7 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 		Usage(ErrorCodes["opts"])
 	}
 
+	parameters := false
 	keySize := -1
 	keyEmpty := "nil"
 	keyType := ""
@@ -76,6 +79,8 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 		switch oa.Opt() {
 		case "-h", "--help":
 			Usage(0)
+		case "--use-parameterized-serialization":
+			parameters = true
 		case "--key-size":
 			keySize = ParseInt(oa.Arg())
 		case "--key-empty":
@@ -112,24 +117,43 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 		Usage(ErrorCodes["opts"])
 	}
 
-	if keySerializer == "" {
+	if !parameters && keySerializer == "" {
 		fmt.Fprintln(os.Stderr, "Must supply a key-serializer")
 		Usage(ErrorCodes["opts"])
+	} else if parameters && keySerializer != "" {
+		fmt.Fprintln(os.Stderr, "Cannot supply serialization funcs and use serialization through constructor parameters")
+		Usage(ErrorCodes["opts"])
 	}
 
-	if valueSerializer == "" {
+	if !parameters && valueSerializer == "" {
 		fmt.Fprintln(os.Stderr, "Must supply a value-serializer")
 		Usage(ErrorCodes["opts"])
+	} else if parameters && valueSerializer != "" {
+		fmt.Fprintln(os.Stderr, "Cannot supply serialization funcs and use serialization through constructor parameters")
+		Usage(ErrorCodes["opts"])
 	}
 
-	if keyDeserializer == "" {
+	if !parameters && keyDeserializer == "" {
 		fmt.Fprintln(os.Stderr, "Must supply a key-deserializer")
 		Usage(ErrorCodes["opts"])
+	} else if parameters && keyDeserializer != "" {
+		fmt.Fprintln(os.Stderr, "Cannot supply serialization funcs and use serialization through constructor parameters")
+		Usage(ErrorCodes["opts"])
 	}
 
-	if valueDeserializer == "" {
+	if !parameters && valueDeserializer == "" {
 		fmt.Fprintln(os.Stderr, "Must supply a value-deserializer")
 		Usage(ErrorCodes["opts"])
+	} else if parameters && valueDeserializer != "" {
+		fmt.Fprintln(os.Stderr, "Cannot supply serialization funcs and use serialization through constructor parameters")
+		Usage(ErrorCodes["opts"])
+	}
+
+	if parameters {
+		keySerializer = "b.serializeKey"
+		valueSerializer = "b.serializeValue"
+		keyDeserializer = "b.deserializeKey"
+		valueDeserializer = "b.deserializeValue"
 	}
 
 	imports := make([]string, 0, len(paths))
@@ -138,8 +162,10 @@ func BpTree(fout io.Writer, packageName string, args []string) {
 	}
 
 	err = bptreeTmpl.Execute(fout, map[string]interface{} {
+		"argv": strings.Join(os.Args, " \\\n*     "),
 		"packageName": packageName,
 		"imports": imports,
+		"useParameters": parameters,
 		"keySize": keySize,
 		"valueSize": valueSize,
 		"keyEmpty": keyEmpty,
