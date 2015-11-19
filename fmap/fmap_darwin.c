@@ -30,7 +30,7 @@ create_anon_mmap(void **addr, size_t length) {
 		NULL, // address hint
 		length,
 		PROT_READ | PROT_WRITE, // protection flags (rw)
-		MAP_ANON, // anon map
+		MAP_ANON | MAP_PRIVATE, // anon map
 		-1, // the fd
 		0 // the offset into the file
 	);
@@ -58,7 +58,7 @@ create_mmap(void **addr, int fd) {
 		NULL, // address hint
 		length,
 		PROT_READ | PROT_WRITE, // protection flags (rw)
-		MAP_SHARED , // writes reflect in the file,
+		MAP_SHARED, // writes reflect in the file,
 		fd,
 		0 // the offset into the file
 	);
@@ -141,17 +141,46 @@ sync_mmap(void *addr, int fd) {
 int
 anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
 		new_length) {
-	void *mapped = mremap(
-		old_addr,
-		old_length,
-		new_length,
-		MREMAP_MAYMOVE
+	if (new_length <= old_length) {
+		*new_addr = old_addr;
+		return 0;
+	}
+	void *extension = mmap(
+		old_addr + old_length, // start at end of previous mapping
+		(new_length - old_length), // just add the new length
+		PROT_READ | PROT_WRITE, // read write
+		MAP_ANON | MAP_PRIVATE | MAP_FIXED, // anon map, at this locatation
+		-1, // no fd
+		0, // no offset
 	);
+	if (extension != MAP_FAILED) {
+		*new_addr = old_addr;
+		return 0
+	}
+	// else we are going to go with a fall back of a new address space plus a
+	// memcopy
+	void *mapped = mmap(
+		NULL,
+		new_length,
+		PROT_READ | PROT_WRITE, // read write
+		MAP_ANON | MAP_PRIVATE, // anon map
+		-1, // no fd
+		0, // no offset
+	)
 	if (mapped == MAP_FAILED) {
 		int err = errno;
 		errno = 0;
 		char *msg = strerror(err);
 		fprintf(stderr, "MREMAP ERROR: %s\n", msg);
+		return err;
+	}
+	memcpy(mapped, old_addr, old_length);
+	int err = munmap(old_addr, old_length);
+	if (err != 0) {
+		int err = errno;
+		errno = 0;
+		char *msg = strerror(err);
+		fprintf(stderr, "MUNMAP ERROR: %s\n", msg);
 		return err;
 	}
 	*new_addr = mapped;
@@ -198,20 +227,14 @@ resize(void *old_addr, void **new_addr, int fd, size_t new_length) {
 	if (err != 0) {
 		return err;
 	}
-	void *mapped = mremap(
-		old_addr,
-		old_length,
-		new_length,
-		MREMAP_MAYMOVE
-	);
-	if (mapped == MAP_FAILED) {
+	int ret = munmap(old_addr, old_length);
+	if (ret != 0) {
 		int err = errno;
 		errno = 0;
 		char *msg = strerror(err);
-		fprintf(stderr, "MREMAP ERROR: %s\n", msg);
+		fprintf(stderr, "MUNMAP ERROR: %s\n", msg);
 		return err;
 	}
-	*new_addr = mapped;
-	return 0;
+	return create_mmap(new_addr, fd);
 }
 
