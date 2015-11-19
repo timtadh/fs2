@@ -1,4 +1,4 @@
-// +build darwin
+//+build darwin
 /* Copyright (c) 2015 Tim Henderson
  * Release under the GNU General Public License version 3.
  *
@@ -151,11 +151,11 @@ anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
 		PROT_READ | PROT_WRITE, // read write
 		MAP_ANON | MAP_PRIVATE | MAP_FIXED, // anon map, at this locatation
 		-1, // no fd
-		0, // no offset
+		0 // no offset
 	);
 	if (extension != MAP_FAILED) {
 		*new_addr = old_addr;
-		return 0
+		return 0;
 	}
 	// else we are going to go with a fall back of a new address space plus a
 	// memcopy
@@ -165,8 +165,8 @@ anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
 		PROT_READ | PROT_WRITE, // read write
 		MAP_ANON | MAP_PRIVATE, // anon map
 		-1, // no fd
-		0, // no offset
-	)
+		0 // no offset
+	);
 	if (mapped == MAP_FAILED) {
 		int err = errno;
 		errno = 0;

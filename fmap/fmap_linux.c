@@ -1,4 +1,4 @@
-// +build linux
+//+build linux
 /* Copyright (c) 2015 Tim Henderson
  * Release under the GNU General Public License version 3.
  *
