@@ -5,19 +5,14 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2"
 	"github.com/timtadh/fs2/consts"
 	"github.com/timtadh/fs2/errors"
 )
 
-// This type of iterator is used for iterating over keys OR values.
-type Iterator func() (item []byte, err error, i Iterator)
-
-// This type of iterator is used for iterating over keys AND values.
-type KVIterator func() (key, value []byte, err error, kvi KVIterator)
-
 type bpt_iterator func() (a uint64, idx int, err error, bi bpt_iterator)
 
-func doIter(run func() (KVIterator, error), do func(key, value []byte) error) error {
+func doIter(run func() (fs2.Iterator, error), do func(key, value []byte) error) error {
 	kvi, err := run()
 	if err != nil {
 		return err
@@ -32,7 +27,7 @@ func doIter(run func() (KVIterator, error), do func(key, value []byte) error) er
 	return err
 }
 
-func doItemIter(run func() (Iterator, error), do func([]byte) error) error {
+func doItemIter(run func() (fs2.ItemIterator, error), do func([]byte) error) error {
 	it, err := run()
 	if err != nil {
 		return err
@@ -61,7 +56,7 @@ func doItemIter(run func() (Iterator, error), do func([]byte) error) error {
 // version of this is being considered.
 func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 	return doIter(
-		func() (KVIterator, error) { return self.Iterate() },
+		func() (fs2.Iterator, error) { return self.Iterate() },
 		do,
 	)
 }
@@ -88,7 +83,7 @@ func (self *BpTree) DoIterate(do func(key, value []byte) error) error {
 // Note, it is safe for the keys and values to escape the iterator
 // context.  They are copied into it so you cannot harm the tree. An
 // unsafe version of this is being considered.
-func (self *BpTree) Iterate() (kvi KVIterator, err error) {
+func (self *BpTree) Iterate() (kvi fs2.Iterator, err error) {
 	return self.Range(nil, nil)
 }
 
@@ -96,20 +91,20 @@ func (self *BpTree) Iterate() (kvi KVIterator, err error) {
 // details
 func (self *BpTree) DoKeys(do func([]byte) error) error {
 	return doItemIter(
-		func() (Iterator, error) { return self.Keys() },
+		func() (fs2.ItemIterator, error) { return self.Keys() },
 		do,
 	)
 }
 
 // Iterate over all of the keys in the tree. See Iterate() for usage
 // details
-func (self *BpTree) Keys() (it Iterator, err error) {
+func (self *BpTree) Keys() (it fs2.ItemIterator, err error) {
 	kvi, err := self.Iterate()
 	if err != nil {
 		return nil, err
 	}
 	var pk []byte
-	it = func() (key []byte, err error, _it Iterator) {
+	it = func() (key []byte, err error, _it fs2.ItemIterator) {
 		for key == nil || bytes.Equal(pk, key) {
 			key, _, err, kvi = kvi()
 			if err != nil {
@@ -129,19 +124,19 @@ func (self *BpTree) Keys() (it Iterator, err error) {
 // details
 func (self *BpTree) DoValues(do func([]byte) error) error {
 	return doItemIter(
-		func() (Iterator, error) { return self.Values() },
+		func() (fs2.ItemIterator, error) { return self.Values() },
 		do,
 	)
 }
 
 // Iterate over all of the values in the tree. See Iterate() for usage
 // details
-func (self *BpTree) Values() (it Iterator, err error) {
+func (self *BpTree) Values() (it fs2.ItemIterator, err error) {
 	kvi, err := self.Iterate()
 	if err != nil {
 		return nil, err
 	}
-	it = func() (value []byte, err error, _it Iterator) {
+	it = func() (value []byte, err error, _it fs2.ItemIterator) {
 		_, value, err, kvi = kvi()
 		if err != nil {
 			return nil, err, nil
@@ -158,14 +153,14 @@ func (self *BpTree) Values() (it Iterator, err error) {
 // DoIterate() for usage details.
 func (self *BpTree) DoFind(key []byte, do func(key, value []byte) error) error {
 	return doIter(
-		func() (KVIterator, error) { return self.Find(key) },
+		func() (fs2.Iterator, error) { return self.Find(key) },
 		do,
 	)
 }
 
 // Iterate over all of the key/values pairs with the given key. See
 // Iterate() for usage details.
-func (self *BpTree) Find(key []byte) (kvi KVIterator, err error) {
+func (self *BpTree) Find(key []byte) (kvi fs2.Iterator, err error) {
 	return self.Range(key, key)
 }
 
@@ -189,14 +184,14 @@ func (self *BpTree) Count(key []byte) (count int, err error) {
 // for usage details.
 func (self *BpTree) DoBackward(do func(key, value []byte) error) error {
 	return doIter(
-		func() (KVIterator, error) { return self.Backward() },
+		func() (fs2.Iterator, error) { return self.Backward() },
 		do,
 	)
 }
 
 // Iterate over all of the key/values pairs in reverse. See Iterate()
 // for usage details.
-func (self *BpTree) Backward() (kvi KVIterator, err error) {
+func (self *BpTree) Backward() (kvi fs2.Iterator, err error) {
 	var bi bpt_iterator
 	bi, err = self.backward(nil, nil)
 	if err != nil {
@@ -209,7 +204,7 @@ func (self *BpTree) Backward() (kvi KVIterator, err error) {
 // inclusive. See DoIterate() for usage details.
 func (self *BpTree) DoRange(from, to []byte, do func(key, value []byte) error) error {
 	return doIter(
-		func() (KVIterator, error) { return self.Range(from, to) },
+		func() (fs2.Iterator, error) { return self.Range(from, to) },
 		do,
 	)
 }
@@ -227,7 +222,7 @@ func (self *BpTree) rangeIterator(from, to []byte) (bi bpt_iterator, err error) 
 
 // Iterate over all of the key/values pairs between [from, to]
 // inclusive. See Iterate() for usage details.
-func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
+func (self *BpTree) Range(from, to []byte) (kvi fs2.Iterator, err error) {
 	bi, err := self.rangeIterator(from, to)
 	if err != nil {
 		return nil, err
@@ -235,7 +230,7 @@ func (self *BpTree) Range(from, to []byte) (kvi KVIterator, err error) {
 	return self._range(bi)
 }
 
-func (self *BpTree) UnsafeRange(from, to []byte) (kvi KVIterator, err error) {
+func (self *BpTree) UnsafeRange(from, to []byte) (kvi fs2.Iterator, err error) {
 	bi, err := self.rangeIterator(from, to)
 	if err != nil {
 		return nil, err
@@ -243,13 +238,13 @@ func (self *BpTree) UnsafeRange(from, to []byte) (kvi KVIterator, err error) {
 	return self._rangeUnsafe(bi)
 }
 
-func (self *BpTree) _range(bi bpt_iterator) (kvi KVIterator, err error) {
+func (self *BpTree) _range(bi bpt_iterator) (kvi fs2.Iterator, err error) {
 	unsafeKvi, err := self._rangeUnsafe(bi)
 	if err != nil {
 		return nil, err
 	}
 	// fmt.Println(errors.Errorf("called _range"))
-	kvi = func() (key, value []byte, e error, it KVIterator) {
+	kvi = func() (key, value []byte, e error, it fs2.Iterator) {
 		var k []byte
 		var v []byte
 		k, v, err, unsafeKvi = unsafeKvi()
@@ -269,8 +264,8 @@ func (self *BpTree) _range(bi bpt_iterator) (kvi KVIterator, err error) {
 	return kvi, nil
 }
 
-func (self *BpTree) _rangeUnsafe(bi bpt_iterator) (kvi KVIterator, err error) {
-	kvi = func() (key, value []byte, e error, it KVIterator) {
+func (self *BpTree) _rangeUnsafe(bi bpt_iterator) (kvi fs2.Iterator, err error) {
+	kvi = func() (key, value []byte, e error, it fs2.Iterator) {
 		var a uint64
 		var i int
 		a, i, err, bi = bi()
