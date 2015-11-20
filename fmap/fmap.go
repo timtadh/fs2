@@ -9,7 +9,6 @@ import (
 	// "hash/crc32"
 	"os"
 	"reflect"
-	"syscall"
 	"unsafe"
 )
 
@@ -189,7 +188,7 @@ func OpenBlockFile(path string) (*BlockFile, error) {
 }
 
 // The flag used when creating the file
-var CREATEFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME | os.O_TRUNC
+var CREATEFLAG = os.O_RDWR | os.O_CREATE | os.O_TRUNC
 
 func anon_create(blksize uint32) (unsafe.Pointer, uint64, error) {
 	ptr, err := do_anon_map(blksize)
@@ -220,7 +219,7 @@ func create(path string, blksize uint32) (*os.File, unsafe.Pointer, uint64, erro
 }
 
 // The flag used when opening the file
-var OPENFLAG = os.O_RDWR | os.O_CREATE | syscall.O_NOATIME
+var OPENFLAG = os.O_RDWR | os.O_CREATE
 
 func open(path string) (*os.File, unsafe.Pointer, error) {
 	f, err := do_open(path, OPENFLAG)
