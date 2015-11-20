@@ -44,6 +44,7 @@ import (
 )
 
 import (
+	"github.com/timtadh/fs2"
 	"github.com/timtadh/fs2/bptree"
 	"github.com/timtadh/fs2/fmap"
 ){{if .imports}}
@@ -247,7 +248,7 @@ func (b *BpTree) Has(key {{.keyType}}) (bool, error) {
 	return b.bpt.Has({{.serializeKey}}(key))
 }
 
-func (b *BpTree) kvIter(kvi bptree.KVIterator) (it Iterator) {
+func (b *BpTree) kvIter(kvi fs2.Iterator) (it Iterator) {
 	it = func() (key {{.keyType}}, value {{.valueType}}, err error, _ Iterator) {
 		b.mutex.Lock()
 		defer b.mutex.Unlock()
@@ -266,7 +267,7 @@ func (b *BpTree) kvIter(kvi bptree.KVIterator) (it Iterator) {
 	return it
 }
 
-func (b *BpTree) keyIter(raw bptree.Iterator) (it KeyIterator) {
+func (b *BpTree) keyIter(raw fs2.ItemIterator) (it KeyIterator) {
 	it = func() (key {{.keyType}}, err error, _ KeyIterator) {
 		b.mutex.Lock()
 		defer b.mutex.Unlock()
@@ -284,7 +285,7 @@ func (b *BpTree) keyIter(raw bptree.Iterator) (it KeyIterator) {
 	return it
 }
 
-func (b *BpTree) valueIter(raw bptree.Iterator) (it ValueIterator) {
+func (b *BpTree) valueIter(raw fs2.ItemIterator) (it ValueIterator) {
 	it = func() (value {{.valueType}}, err error, _ ValueIterator) {
 		b.mutex.Lock()
 		defer b.mutex.Unlock()
