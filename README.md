@@ -325,7 +325,7 @@ Assuming you already have the code downloaded and in your GOPATH just run:
 
     $ go install github.com/timtadh/fs2/fs2-generic
 
-### How to generate a wrapper for the B+ Tree
+#### How to generate a wrapper for the B+ Tree
 
     $ fs2-generic \
         --output=src/output/package/file.go \
@@ -337,6 +337,18 @@ Assuming you already have the code downloaded and in your GOPATH just run:
             --value-type=my/package/name/Type \
             --value-serializer=my/package/name/Func \
             --value-deserializer=my/package/name/Func
+
+#### How to generate a wrapper for the MMList
+
+    $ fs2-generic \
+        --output=src/output/package/file.go \
+        --package-name=package \
+        mmlist \
+            --item-type=my/package/name/Type \
+            --item-serializer=my/package/name/Func \
+            --item-deserializer=my/package/name/Func
+
+#### Variations
 
 Supplying a pointer type:
 
