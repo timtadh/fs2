@@ -94,6 +94,33 @@ bptree
     --value-type=<type>
     --value-serializer=<func>
     --value-deserializer=<func>
+
+mmlist
+
+  $ fs2-generic mmlist --item-type=my/package/name/Type \
+                       --item-serializer=my/package/name/Func \
+                       --item-deserializer=my/package/name/Func
+
+  Supplying a pointer type:
+
+      --item-type=*my/package/name/Type
+
+  Serializer Type Signature (let T be a type parameter)
+
+      func(T) ([]byte)
+
+  Deserializer Type Signature (let T be a type parameter)
+
+      func([]byte) T
+
+  Options
+    -h, --help                         view this message
+    --use-parameterized-serialization  supply the serialization functions
+                                       to the BpTree constructors
+    --item-empty=<string>              empty value, default:nil
+    --item-type=<type>
+    --item-serializer=<func>
+    --item-deserializer=<func>
 `
 
 func Usage(code int) {
@@ -146,6 +173,7 @@ func main() {
 
 	types := map[string]func(io.Writer,string,[]string) {
 		"bptree": BpTree,
+		"mmlist": MMList,
 	}
 
 	outputPath := ""
