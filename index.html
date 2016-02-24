@@ -1,0 +1,627 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Fs2 by timtadh</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Fs2</h1>
+        <p>File Structures 2 - Memory Mapped File Structures for Go (golang)</p>
+
+        <p class="view"><a href="https://github.com/timtadh/fs2">View the Project on GitHub <small>timtadh/fs2</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/timtadh/fs2/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/timtadh/fs2/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/timtadh/fs2">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="fs2---file-structures-2" class="anchor" href="#fs2---file-structures-2" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>fs2 - File Structures 2</h1>
+
+<p>by Tim Henderson (<a href="mailto:tadh@case.edu">tadh@case.edu</a>)</p>
+
+<p>Licensed under the GNU GPL version 3 or at your option any later version. If you
+need another licensing option please contact me directly.</p>
+
+<h3>
+<a id="what-is-this" class="anchor" href="#what-is-this" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>What is this?</h3>
+
+<ol>
+<li>A <a href="#b-tree">B+ Tree</a> implementation</li>
+<li>A <a href="#mmlist">list</a> implemenation supporting O(1) Append, Pop, Get and Set operations.</li>
+<li>A <a href="#fs2-generic">command</a> to generate type specific wrappers around the above
+structures. It's generic, in Go, kinda.</li>
+<li>A <a href="#fmap">platform</a> for implementing memory mapped high performance file
+structures in Go.</li>
+</ol>
+
+<h3>
+<a id="why-did-you-make-this" class="anchor" href="#why-did-you-make-this" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Why did you make this?</h3>
+
+<p>In my academic research some of the algorithms I work on (such as frequent
+subgraph mining) have exponential characteristics in their memory usage. In
+order to run these algorithms on larger data sets they need to be able to
+transparently cache less popular parts of the data to disk. However, in general
+it is best to keep as much data in memory as possible.</p>
+
+<p>Of course, there are many options for such data stores. I could have used a off
+the shelf database, however I also want to explore ways to achieve higher
+performance than those solutions offer.</p>
+
+<h4>
+<a id="have-you-worked-on-this-type-of-system-before" class="anchor" href="#have-you-worked-on-this-type-of-system-before" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Have you worked on this type of system before?</h4>
+
+<p>I have! In the golang world I believe I was the first to implement a disk backed
+B+ Tree. Here is an <a href="https://github.com/timtadh/file-structures/commit/aedff4a077e16eb87e2d0f8ed4bc676debf7c572">early
+commit</a>
+from  my <a href="https://github.com/timtadh/file-structures">file-structures
+repository</a>. Note the date: February
+21, 2010. Go was made public in November of 2009 (the first weekly was November
+06, 2009). I started work on the B+ Tree in January of 2010.</p>
+
+<p>This particular experiment is a follow up to my work in the file-structures
+repository. I have used those structures successfully many times but I want to
+experiment with new ways of doing things to achieve better results. Besides my
+disk backed versions of these structures you can also find good implementations
+of in memory version in my
+<a href="https://github.com/timtadh/data-structures">data-structures repository</a>.</p>
+
+<h2>
+<a id="b-tree" class="anchor" href="#b-tree" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>B+ Tree</h2>
+
+<p><a href="https://godoc.org/github.com/timtadh/fs2/bptree">docs</a></p>
+
+<p>This is a disk backed low level "key-value store". The closest thing similar to
+what it offers is <a href="https://github.com/boltdb/bolt">Bolt DB</a>.  My <a href="http://hackthology.com/lessons-learned-while-implementing-a-btree.html">blog
+post</a>
+is a great place to start to learn more about the ubiquitous B+ Tree.</p>
+
+<h3>
+<a id="features" class="anchor" href="#features" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Features</h3>
+
+<ol>
+<li><p>Variable length size key or fixed sized keys. Fixed sized keys should be kept
+relatively short, less than 1024 bytes (the shorter the better). Variable
+length keys can be up to 2^31 - 1 bytes long.</p></li>
+<li><p>Variable length values or fixed sized values. Fixed sized values should also
+be kept short, less than 1024 bytes. Variable length values can be up to
+2^31 - 1 bytes long.</p></li>
+<li><p>Duplicate key support. Duplicates are kept out of the index and only occur in
+the leaves.</p></li>
+<li><p>Data is only written to disk when you tell it (or when need due to OS level
+page management).</p></li>
+<li><p>Simple (but low level) interface.</p></li>
+<li><p>Can operate in either a anonymous memory map or in a file backed memory map.
+If you plan to have a very large tree (even one that never needs to be
+persisted) it is recommend you use a file backed memory map. The OS treats
+pages in the file cache different than pages which are not backed by files.</p></li>
+<li><p>The command <code>fs2-generic</code> can generate a wrapper specialized to your data
+type. Typing saved! To use <code>go install github.com/timtadh/fs2/fs2-generic</code>.
+Get help with <code>fs2-generic --help</code></p></li>
+</ol>
+
+<h3>
+<a id="limitations" class="anchor" href="#limitations" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Limitations</h3>
+
+<ol>
+<li><p>Not thread safe and therefore no transactions which you only need with
+multiple threads.</p></li>
+<li><p>Maximum fixed key/value size is ~1350 bytes.</p></li>
+<li><p>Maximum variable length key/value size is 2^31 - 1</p></li>
+<li><p>This is not a database. You could make it into a database or build a database
+on top of it.</p></li>
+</ol>
+
+<h3>
+<a id="quick-start" class="anchor" href="#quick-start" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Quick Start</h3>
+
+<p><a href="https://godoc.org/github.com/timtadh/fs2/bptree#BpTree">usage docs on godoc</a></p>
+
+<p>Importing</p>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-k">import</span> (
+    <span class="pl-s"><span class="pl-pds">"</span>github.com/timtadh/fs2/bptree<span class="pl-pds">"</span></span>
+    <span class="pl-s"><span class="pl-pds">"</span>github.com/timtadh/fs2/fmap<span class="pl-pds">"</span></span>
+)</pre></div>
+
+<p>Creating a new B+ Tree (fixed key size, variable length value size).</p>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-smi">bf</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> fmap.<span class="pl-c1">CreateBlockFile</span>(<span class="pl-s"><span class="pl-pds">"</span>/path/to/file<span class="pl-pds">"</span></span>)
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}
+<span class="pl-k">defer</span> bf.<span class="pl-c1">Close</span>()
+<span class="pl-smi">bpt</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> bptree.<span class="pl-c1">New</span>(bf, <span class="pl-c1">8</span>, -<span class="pl-c1">1</span>)
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}
+<span class="pl-c">// do stuff with bpt</span></pre></div>
+
+<p>Opening a B+ Tree</p>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-smi">bf</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> fmap.<span class="pl-c1">OpenBlockFile</span>(<span class="pl-s"><span class="pl-pds">"</span>/path/to/file<span class="pl-pds">"</span></span>)
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}
+<span class="pl-k">defer</span> bf.<span class="pl-c1">Close</span>()
+<span class="pl-smi">bpt</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> bptree.<span class="pl-c1">Open</span>(bf)
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}
+<span class="pl-c">// do stuff with bpt</span></pre></div>
+
+<p>Add a key/value pair. Note, since this is low level you have to serialize your
+keys and values. The length of the []byte representing the key must exactly
+match the key size of the B+ Tree. You can find out what that was set to by
+called <code>bpt.KeySize()</code></p>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-k">import</span> (
+    <span class="pl-s"><span class="pl-pds">"</span>encoding/binary<span class="pl-pds">"</span></span>
+)
+
+<span class="pl-k">var</span> <span class="pl-smi">key</span> <span class="pl-k">uint64</span> = <span class="pl-c1">12</span>
+<span class="pl-smi">value</span> <span class="pl-k">:=</span> <span class="pl-s"><span class="pl-pds">"</span>hello world<span class="pl-pds">"</span></span>
+<span class="pl-smi">kBytes</span> <span class="pl-k">:=</span> <span class="pl-c1">make</span>([]<span class="pl-k">byte</span>, <span class="pl-c1">8</span>)
+binary.<span class="pl-c1">PutUvarint</span>(kBytes, key)
+<span class="pl-smi">err</span> <span class="pl-k">:=</span> bpt.<span class="pl-c1">Add</span>(kBytes, []<span class="pl-k">byte</span>(value))
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}</pre></div>
+
+<p>As you can see it can be a little verbose to serialize and de-serialize your
+keys and values. So be sure to wrap that up in utility functions or even to wrap
+the interface of the B+ Tree so that client code does not have to think about
+it.</p>
+
+<p>Since a B+Tree is a "multi-map" meaning there may be more than one value per
+key. There is no "Get" method. To retrieve the values associated with a key use
+the <code>Find</code> method.</p>
+
+<div class="highlight highlight-source-go"><pre>{
+    <span class="pl-k">var</span> <span class="pl-smi">key</span>, <span class="pl-smi">value</span> []<span class="pl-k">byte</span>
+    <span class="pl-smi">kvi</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> bpt.<span class="pl-c1">Find</span>(kBytes)
+    <span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+    <span class="pl-k">for</span> key, value, err, kvi = <span class="pl-c1">kvi</span>(); kvi != <span class="pl-c1">nil</span>; key, value, err, kvi = <span class="pl-c1">kvi</span>() {
+        <span class="pl-c">// do stuff with the keys and values</span>
+    }
+    <span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+}</pre></div>
+
+<p>That interface is easy to misuse if you do not check the error values as show in
+the example above. An easier interface is provided for all of the iterators
+(Range, Find, Keys, Values, Iterate) called the Do interface.</p>
+
+<div class="highlight highlight-source-go"><pre>err = bpt.<span class="pl-c1">DoFind</span>(kBytes, <span class="pl-c1">func</span>(key, value []<span class="pl-k">byte</span>) <span class="pl-k">error</span> {
+    <span class="pl-c">// do stuff with the keys and values</span>
+    <span class="pl-k">return</span> <span class="pl-c1">nil</span>
+})
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}</pre></div>
+
+<p>It is recommended that you always use the Do* interfaces. The other is provided
+if the cost of extra method calls is too high.</p>
+
+<p>Removal is also slightly more complicated due to the duplicate keys.  This
+example will remove all key/value pairs associated with the given key:</p>
+
+<div class="highlight highlight-source-go"><pre>err = bpt.<span class="pl-c1">Remove</span>(kBytes, <span class="pl-c1">func</span>(value []<span class="pl-k">byte</span>) <span class="pl-k">bool</span> {
+    <span class="pl-k">return</span> <span class="pl-c1">true</span>
+})
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}</pre></div>
+
+<p>to remove just the one I added earlier do:</p>
+
+<div class="highlight highlight-source-go"><pre>err = bpt.<span class="pl-c1">Remove</span>(kBytes, <span class="pl-c1">func</span>(v []<span class="pl-k">byte</span>) <span class="pl-k">bool</span> {
+    <span class="pl-k">return</span> bytes.<span class="pl-c1">Equal</span>(v, []<span class="pl-k">byte</span>(value))
+})
+<span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+    log.<span class="pl-c1">Fatal</span>(err)
+}</pre></div>
+
+<p>That wraps up the basic usage. If you want to ensure that the bytes you have
+written are in fact on disk you have 2 options</p>
+
+<ol>
+<li><p>call bf.Sync() - Note this uses the async mmap interface under the hood. The
+bytes are not guaranteed to hit the disk after this returns but they will go
+there soon.</p></li>
+<li><p>call bf.Close()</p></li>
+</ol>
+
+<h2>
+<a id="mmlist" class="anchor" href="#mmlist" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>MMList</h2>
+
+<p><a href="https://godoc.org/github.com/timtadh/fs2/mmlist">docs</a></p>
+
+<p>A Memory Mapped List. This list works more like a stack and less like a queue.
+It is not a good thing to build a job queue on. It is a good thing to build a
+large set of items which can be efficiently randomly sampled. It uses the same
+<code>varchar</code> system that the B+Tree uses so it can store variably sized items up to
+2^31 - 1 bytes long.</p>
+
+<p>Operations</p>
+
+<ol>
+<li>
+<code>Size</code> O(1)</li>
+<li>
+<code>Append</code> O(1)</li>
+<li>
+<code>Pop</code> O(1)</li>
+<li>
+<code>Get</code> O(1)</li>
+<li>
+<code>Set</code> O(1)</li>
+<li>
+<code>Swap</code> O(1)</li>
+<li>
+<code>SwapDelete</code> O(1)</li>
+</ol>
+
+<p>I will consider implementing a <code>Delete</code> method. However, it will be <code>O(n)</code> since
+this is implemented a bit like an <code>ArrayList</code> under the hood. The actual way it
+works is there is a B+Tree which indexes to list index blocks. The list index
+blocks hold pointers (511 of them) to varchar locations. I considered having a
+restricted 2 level index but that would have limited the size of the list to a
+maximum of ~1 billion items which was uncomfortably small to me. In the future
+the implementation may change to use something more like an ISAM index which
+will be a bit more compact for this use case.</p>
+
+<h3>
+<a id="quickstart" class="anchor" href="#quickstart" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Quickstart</h3>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-k">package</span> main
+
+<span class="pl-k">import</span> (
+    <span class="pl-s"><span class="pl-pds">"</span>binary<span class="pl-pds">"</span></span>
+    <span class="pl-s"><span class="pl-pds">"</span>log<span class="pl-pds">"</span></span>
+)
+
+<span class="pl-k">import</span> (
+    <span class="pl-s"><span class="pl-pds">"</span>github.com/timtadh/fs2/fmap<span class="pl-pds">"</span></span>
+    <span class="pl-s"><span class="pl-pds">"</span>github.com/timtadh/fs2/mmlist<span class="pl-pds">"</span></span>
+)
+
+<span class="pl-k">func</span> <span class="pl-en">main</span>() {
+    <span class="pl-smi">file</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> fmap.<span class="pl-c1">CreateBlockFile</span>(<span class="pl-s"><span class="pl-pds">"</span>/tmp/file<span class="pl-pds">"</span></span>)
+    <span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+    <span class="pl-k">defer</span> file.<span class="pl-c1">Close</span>()
+    <span class="pl-smi">list</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> mmlist.<span class="pl-c1">New</span>(file)
+    <span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+    <span class="pl-smi">idx</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> list.<span class="pl-c1">Append</span>([]<span class="pl-k">byte</span>(<span class="pl-s"><span class="pl-pds">"</span>hello<span class="pl-pds">"</span></span>))
+    <span class="pl-k">if</span> err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+    <span class="pl-k">if</span> <span class="pl-smi">d</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> list.<span class="pl-c1">Get</span>(idx); err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    } <span class="pl-k">else</span> <span class="pl-k">if</span> !bytes.<span class="pl-c1">Equal</span>([]<span class="pl-k">byte</span>(<span class="pl-s"><span class="pl-pds">"</span>hello<span class="pl-pds">"</span></span>), d) {
+        log.<span class="pl-c1">Fatal</span>(<span class="pl-s"><span class="pl-pds">"</span>bytes where not hello<span class="pl-pds">"</span></span>)
+    }
+    <span class="pl-k">if</span> <span class="pl-smi">err</span> <span class="pl-k">:=</span> list.<span class="pl-c1">Set</span>(idx, <span class="pl-s"><span class="pl-pds">"</span>bye!<span class="pl-pds">"</span></span>); err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    }
+    <span class="pl-k">if</span> <span class="pl-smi">d</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> list.<span class="pl-c1">Get</span>(idx); err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    } <span class="pl-k">else</span> <span class="pl-k">if</span> !bytes.<span class="pl-c1">Equal</span>([]<span class="pl-k">byte</span>(<span class="pl-s"><span class="pl-pds">"</span>bye!<span class="pl-pds">"</span></span>), d) {
+        log.<span class="pl-c1">Fatal</span>(<span class="pl-s"><span class="pl-pds">"</span>bytes where not bye!<span class="pl-pds">"</span></span>)
+    }
+    <span class="pl-k">if</span> <span class="pl-smi">d</span>, <span class="pl-smi">err</span> <span class="pl-k">:=</span> list.<span class="pl-c1">Pop</span>(); err != <span class="pl-c1">nil</span> {
+        log.<span class="pl-c1">Fatal</span>(err)
+    } <span class="pl-k">else</span> <span class="pl-k">if</span> !bytes.<span class="pl-c1">Equal</span>([]<span class="pl-k">byte</span>(<span class="pl-s"><span class="pl-pds">"</span>bye!<span class="pl-pds">"</span></span>), d) {
+        log.<span class="pl-c1">Fatal</span>(<span class="pl-s"><span class="pl-pds">"</span>bytes where not bye!<span class="pl-pds">"</span></span>)
+    }
+}</pre></div>
+
+<h2>
+<a id="fs2-generic" class="anchor" href="#fs2-generic" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a><code>fs2-generic</code>
+</h2>
+
+<p>A command to generate type specialized wrappers around fs2 structures.</p>
+
+<p>Since Go does not support generics and is not going to support generics anytime
+soon, this program will produce a wrapper specialized to the supplied types. It
+is essentially manually implementing type specialized generics in a very limited
+form.  All fs2 structures operate on sequences of bytes, aka <code>[]byte</code>, because
+they memory mapped and file backed structures. Therefore, the supplied types
+must be serializable to be used as keys and values in an fs2 structure.</p>
+
+<h3>
+<a id="how-to-install" class="anchor" href="#how-to-install" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>How to install</h3>
+
+<p>Assuming you already have the code downloaded and in your GOPATH just run:</p>
+
+<pre><code>$ go install github.com/timtadh/fs2/fs2-generic
+</code></pre>
+
+<h4>
+<a id="how-to-generate-a-wrapper-for-the-b-tree" class="anchor" href="#how-to-generate-a-wrapper-for-the-b-tree" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>How to generate a wrapper for the B+ Tree</h4>
+
+<pre><code>$ fs2-generic \
+    --output=src/output/package/file.go \
+    --package-name=package \
+    bptree \
+        --key-type=my/package/name/Type \
+        --key-serializer=my/package/name/Func \
+        --key-deserializer=my/package/name/Func \
+        --value-type=my/package/name/Type \
+        --value-serializer=my/package/name/Func \
+        --value-deserializer=my/package/name/Func
+</code></pre>
+
+<h4>
+<a id="how-to-generate-a-wrapper-for-the-mmlist" class="anchor" href="#how-to-generate-a-wrapper-for-the-mmlist" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>How to generate a wrapper for the MMList</h4>
+
+<pre><code>$ fs2-generic \
+    --output=src/output/package/file.go \
+    --package-name=package \
+    mmlist \
+        --item-type=my/package/name/Type \
+        --item-serializer=my/package/name/Func \
+        --item-deserializer=my/package/name/Func
+</code></pre>
+
+<h4>
+<a id="variations" class="anchor" href="#variations" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Variations</h4>
+
+<p>Supplying a pointer type:</p>
+
+<pre><code>--key-type=*my/package/name/Type
+--value-type=*my/package/name/Type
+</code></pre>
+
+<p>Serializer Type Signature (let T be a type parameter)</p>
+
+<pre><code>func(T) ([]byte)
+</code></pre>
+
+<p>Deserializer Type Signature (let T be a type parameter)</p>
+
+<pre><code>func([]byte) T
+</code></pre>
+
+<p>Fixed sized types can have their sizes specified with</p>
+
+<pre><code>--key-size=&lt;# of bytes&gt;
+--value-size=&lt;# of bytes&gt;
+</code></pre>
+
+<p>If the generated file is going into the same package that the types and
+function are declared in one should drop the package specifiers</p>
+
+<pre><code>$ fs2-generic \
+    --output=src/output/package/file.go \
+    --package-name=package \
+    bptree \
+        --key-type=KeyType \
+        --key-serializer=SerializeKey \
+        --key-deserializer=DeserializeKey \
+        --value-type=ValueType \
+        --value-serializer=SerializeValue \
+        --value-deserializer=DeserializeValue
+</code></pre>
+
+<p>If <code>nil</code> is not a valid "empty" value for your type (for instance it is an
+integer, a float, or a struct value) then your must supply a valid "empty"
+value. Here is an example of a tree with int32 keys and float64 values:</p>
+
+<pre><code>$ fs2-generic \
+    --output=src/output/package/file.go \
+    --package-name=package \
+    bptree \
+        --key-type=int32 \
+        --key-size=4 \
+        --key-empty=0 \
+        --key-serializer=SerializeInt32 \
+        --key-deserializer=DeserializeInt32 \
+        --value-type=float64 \
+        --value-size=8 \
+        --value-empty=0.0 \
+        --value-serializer=SerializeFloat64 \
+        --value-deserializer=DeserializeFloat64
+</code></pre>
+
+<h3>
+<a id="using-with-go-generate" class="anchor" href="#using-with-go-generate" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Using with <code>go generate</code>
+</h3>
+
+<p>The fs2-generic command can be used on conjunction with <code>go generate</code>. To do so
+simply create a <code>.go</code> file in the package where the generated code should live.
+For example, let's pretend that we want to create a B+Tree with 3 dimension
+integer points as keys and float64's as values. Lets create a package structure
+for that (assuming you are in the root of your $GOPATH)</p>
+
+<pre><code>mkdir ./src/edu/cwru/eecs/pointbptree/
+touch ./src/edu/cwru/eecs/pointbptree/types.go
+</code></pre>
+
+<p><code>types.go</code> should then have the point defined + functions for serialization.
+Below is the full example. Note the top line specifies how to generate the file
+<code>./src/edu/cwru/eecs/pointbptree/wrapper.go</code>. To generate it run <code>go generate
+edu/cwru/eecs/pointbptree</code>.</p>
+
+<div class="highlight highlight-source-go"><pre><span class="pl-c">//go:generate fs2-generic --output=wrapper.go --package-name=pointbptree bptree --key-type=*Point --key-size=12 --key-empty=nil --key-serializer=SerializePoint --key-deserializer=DeserializePoint --value-type=float64 --value-size=8 --value-empty=0.0 --value-serializer=SerializeFloat64 --value-deserializer=DeserializeFloat64</span>
+<span class="pl-k">package</span> pointbptree
+
+<span class="pl-k">import</span> (
+    <span class="pl-s"><span class="pl-pds">"</span>encoding/binary<span class="pl-pds">"</span></span>
+    <span class="pl-s"><span class="pl-pds">"</span>math<span class="pl-pds">"</span></span>
+)
+
+<span class="pl-k">type</span> <span class="pl-v">Point</span> <span class="pl-k">struct</span> {
+    <span class="pl-v">X</span>, <span class="pl-v">Y</span>, <span class="pl-v">Z</span> <span class="pl-k">int32</span>
+}
+
+<span class="pl-k">func</span> <span class="pl-en">SerializePoint</span>(<span class="pl-v">p</span> *<span class="pl-v">Point</span>) []<span class="pl-v">byte</span> {
+    <span class="pl-smi">bytes</span> <span class="pl-k">:=</span> <span class="pl-c1">make</span>([]<span class="pl-k">byte</span>, <span class="pl-c1">4</span>*<span class="pl-c1">3</span>)
+    binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">PutUint32</span>(bytes[<span class="pl-c1">0</span>:<span class="pl-c1">04</span>], <span class="pl-c1">uint32</span>(p.<span class="pl-smi">X</span>))
+    binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">PutUint32</span>(bytes[<span class="pl-c1">4</span>:<span class="pl-c1">08</span>], <span class="pl-c1">uint32</span>(p.<span class="pl-smi">Y</span>))
+    binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">PutUint32</span>(bytes[<span class="pl-c1">8</span>:<span class="pl-c1">12</span>], <span class="pl-c1">uint32</span>(p.<span class="pl-smi">Z</span>))
+    <span class="pl-k">return</span> bytes
+}
+
+<span class="pl-k">func</span> <span class="pl-en">DeserializePoint</span>(<span class="pl-v">bytes</span> []<span class="pl-v">byte</span>) *<span class="pl-v">Point</span> {
+    <span class="pl-k">return</span> &amp;Point{
+        X: <span class="pl-c1">int32</span>(binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">Uint32</span>(bytes[<span class="pl-c1">0</span>:<span class="pl-c1">04</span>])),
+        Y: <span class="pl-c1">int32</span>(binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">Uint32</span>(bytes[<span class="pl-c1">4</span>:<span class="pl-c1">08</span>])),
+        Z: <span class="pl-c1">int32</span>(binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">Uint32</span>(bytes[<span class="pl-c1">8</span>:<span class="pl-c1">12</span>])),
+    }
+}
+
+<span class="pl-k">func</span> <span class="pl-en">SerializeFloat64</span>(<span class="pl-v">f</span> <span class="pl-v">float64</span>) []<span class="pl-v">byte</span> {
+    <span class="pl-smi">bytes</span> <span class="pl-k">:=</span> <span class="pl-c1">make</span>([]<span class="pl-k">byte</span>, <span class="pl-c1">8</span>)
+    binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">PutUint64</span>(bytes, math.<span class="pl-c1">Float64bits</span>(f))
+    <span class="pl-k">return</span> bytes
+}
+
+<span class="pl-k">func</span> <span class="pl-en">DeserializeFloat64</span>(<span class="pl-v">bytes</span> []<span class="pl-v">byte</span>) <span class="pl-v">float64</span> {
+    <span class="pl-k">return</span> math.<span class="pl-c1">Float64frombits</span>(binary.<span class="pl-smi">BigEndian</span>.<span class="pl-c1">Uint64</span>(bytes))
+}</pre></div>
+
+<h2>
+<a id="fmap" class="anchor" href="#fmap" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>FMap</h2>
+
+<p><a href="https://godoc.org/github.com/timtadh/fs2/fmap">docs</a></p>
+
+<p>FMap provides a block oriented interface for implementing memory mapped file
+structures. It is block oriented because memory mapped structures <strong>should</strong> be
+block aligned. By making the interface block oriented, the programmer is forced
+to write the structures in a block oriented fashion. I use it with
+<a href="https://godoc.org/github.com/timtadh/fs2/slice">fs2/slice</a> which provides a
+simple way to cast []byte to other types of pointers. You can accomplish a
+similar thing with just using the <code>reflect</code> package but you might find
+<code>fs2/slice</code> more convenient.</p>
+
+<p>FMap provides an interface for creating both anonymous and file backed memory
+maps. It supports resizing the memory maps dynamically via allocation and free
+methods. Note, when an allocation occurs the underlying file and memory map
+<strong>may</strong> resize using <code>mremap</code> with the flag <code>MREMAP_MAYMOVE</code>. So don't let
+pointers escape your memory map! Keep everything as file offsets and be happy!</p>
+
+<h2>
+<a id="memory-mapped-io-versus-readwrite" class="anchor" href="#memory-mapped-io-versus-readwrite" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Memory Mapped IO versus Read/Write</h2>
+
+<p>A key motivation of this work is to explore memory mapped IO versus a read/write
+interface in the context of Go. I have two hypotheses:</p>
+
+<ol>
+<li><p>The operating system is good at page management generally. While, we know
+more about how to manage the structure of B+Trees, VarChar stores, and Linear
+Hash tables than the OS there is no indication that from Go you can achieve
+better performance. Therefore, I hypothesize that leaving it to the OS will
+lead to a smaller working set and a faster data structure in general.</p></li>
+<li><p>You can make Memory Mapping performant in Go. There are many challenges here.
+The biggest of which is that there are no dynamically size array TYPES in go.
+The size of the array is part of the type, you have to use slices. This
+creates complications when hooking up structures which contain slices to mmap
+allocated blocks of memory. I hypothesize that this repository can achieve
+good (enough) performance here.</p></li>
+</ol>
+
+<p>In my past experience using the read/write interface I have encountered two
+challenges:</p>
+
+<ol>
+<li><p>When using the read/write interface one needs to block and cache management.
+In theory databases which bypass the OS cache management get better
+performance. In practice, there are challenges achieving this from a garbage
+collected language.</p></li>
+<li><p>Buffer management is a related problem. In the past I have relied on Go's
+built in memory management scheme. This often become a bottle neck. To solve
+this problem, one must implement custom allocators and buffer management
+subsystems.</p></li>
+</ol>
+
+<p>Memory mapped IO avoids both of these problems by delegating them to the
+operating system. If the OS does a good job, then this system will perform well.
+If it does a bad job it will perform poorly. The reason why systems such as
+Oracle circumvent all OS level functions for page management is the designers
+believe: a) they can do it better, and b) it provides consistent performance
+across platforms.</p>
+
+<p>Memory mapped IO in Go has several challenges.</p>
+
+<ol>
+<li><p>You have to subvert type and memory safety.</p></li>
+<li><p>There is no dynamically sized arrays. Therefore, everything has to use
+slices. This means that you can't just point a <code>struct</code> at a memory mapped
+block and expect it work if it has slices in it. Instead, some book keeping
+needs to be done to hook up the slices properly. This adds overhead.</p></li>
+</ol>
+
+<p>The results so far:</p>
+
+<ol>
+<li><p>It can be done</p></li>
+<li><p>Integrating (partial) runtime checking for safety can be achieved through the
+use of the "do" interface.</p></li>
+<li><p>The performance numbers look like they are as good or better than the
+Linear Hash table I implemented in my file-structures repository.</p></li>
+</ol>
+
+<h2>
+<a id="related-projects" class="anchor" href="#related-projects" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Related Projects</h2>
+
+<ol>
+<li>
+<a href="https://github.com/timtadh/file-structures">file-structures</a> - A collection
+of file-structures includes: B+Tree, BTree, Linear Hash Table, VarChar Store.</li>
+<li>
+<a href="https://github.com/timtadh/data-structures">data-structures</a> - A collection
+of in memory data structures. Includes a B+Tree.</li>
+<li>
+<a href="https://github.com/boltdb/bolt">boltdb</a> - a mmap'ed b+ tree based key/value
+store.</li>
+<li>
+<a href="https://github.com/syndtr/goleveldb">goleveldb</a> - another database written
+in go</li>
+<li>
+<a href="https://github.com/cznic/b">cznic/b</a> - an in memory b+ tree</li>
+<li>
+<a href="https://github.com/xiang90/bplustree">xiang90/bplustree</a> - an in memory b+
+tree</li>
+<li>your project here.</li>
+</ol>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/timtadh">timtadh</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-20145944-2");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+  </body>
+</html>
