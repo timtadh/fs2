@@ -171,7 +171,7 @@ func TestFindSequence(x *testing.T) {
 		bpt, clean := t.bpt()
 		kvs := make(KVS, 0, LEAF_CAP*5)
 		for i := 0; i < cap(kvs); i++ {
-			k := uint64(cap(kvs)-i+1)
+			k := uint64(cap(kvs) - i + 1)
 			kv := &KV{
 				key:   t.bkey(&k),
 				value: t.rand_key(),
@@ -204,9 +204,9 @@ func TestFindPrefixes(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
 	kvs := KVS{
-		{[]byte{1,}, t.rand_key()},
-		{[]byte{1,1,}, t.rand_key()},
-		{[]byte{1,1,1,}, t.rand_key()},
+		{[]byte{1}, t.rand_key()},
+		{[]byte{1, 1}, t.rand_key()},
+		{[]byte{1, 1, 1}, t.rand_key()},
 	}
 	for _, kv := range kvs {
 		t.assert_nil(bpt.Add(kv.key, kv.value))
@@ -233,9 +233,9 @@ func TestFindPrefixPartial(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
 	kvs := KVS{
-		{[]byte{0,1,0,3,0,5,0,1,0,2,0,3}, t.rand_key()},
-		{[]byte{0,2,0,3,0,5,0,7,0,1,0,2,0,3}, t.rand_key()},
-		{[]byte{0,3,0,2,0,5,0,7,0,9,0,1,0,2}, t.rand_key()},
+		{[]byte{0, 1, 0, 3, 0, 5, 0, 1, 0, 2, 0, 3}, t.rand_key()},
+		{[]byte{0, 2, 0, 3, 0, 5, 0, 7, 0, 1, 0, 2, 0, 3}, t.rand_key()},
+		{[]byte{0, 3, 0, 2, 0, 5, 0, 7, 0, 9, 0, 1, 0, 2}, t.rand_key()},
 	}
 	for _, kv := range kvs {
 		t.assert_nil(bpt.Add(kv.key, kv.value))
@@ -261,8 +261,8 @@ func TestFindPrefixPartial(x *testing.T) {
 func TestFindRegress(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
-	t.assert_nil(bpt.Add([]byte{0,1,0,2,0,0,0,0}, t.rand_key()))
-	key := []byte{0,1,0,3,0,0,0,0}
+	t.assert_nil(bpt.Add([]byte{0, 1, 0, 2, 0, 0, 0, 0}, t.rand_key()))
+	key := []byte{0, 1, 0, 3, 0, 0, 0, 0}
 	t.assert_nil(bpt.DoFind(key, func(k, v []byte) error {
 		t.assert("found key when it wasn't in tree", false)
 		return nil
@@ -270,17 +270,15 @@ func TestFindRegress(x *testing.T) {
 	clean()
 }
 
-
 func TestRangeRegress(x *testing.T) {
 	t := (*T)(x)
 	bpt, clean := t.bpt()
-	t.assert_nil(bpt.Add([]byte{0,1,0,2,0,0,0,0}, t.rand_key()))
-	from := []byte{0,1,0,1,0,0,0,0}
-	to := []byte{0,1,0,0,0,0,0,0}
+	t.assert_nil(bpt.Add([]byte{0, 1, 0, 2, 0, 0, 0, 0}, t.rand_key()))
+	from := []byte{0, 1, 0, 1, 0, 0, 0, 0}
+	to := []byte{0, 1, 0, 0, 0, 0, 0, 0}
 	t.assert_nil(bpt.DoRange(from, to, func(k, v []byte) error {
 		t.assert("found key when it wasn't in tree", false)
 		return nil
 	}))
 	clean()
 }
-

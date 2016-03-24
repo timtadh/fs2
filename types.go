@@ -1,6 +1,5 @@
 package fs2
 
-
 type MultiMap interface {
 	Keys() (ItemIterator, error)
 	Values() (ItemIterator, error)
@@ -50,4 +49,3 @@ func DoItem(run func() (ItemIterator, error), do func([]byte) error) error {
 	}
 	return err
 }
-

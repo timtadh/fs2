@@ -419,48 +419,48 @@ func (n *leaf) doPutKV(v *Varchar, idx int, key, value []byte) (err error) {
 	return nil
 
 	/*
-	err = checkOrder(v, n)
-	if err != nil {
-		log.Println("inserted", key, value)
-		log.Println("at", idx)
-		log.Println(n.Debug(v))
-		return err
-	}
-
-	fidx := 0
-	var has bool
-	if n.meta.flags&consts.VARCHAR_KEYS == 0 {
-		fidx, has, err = find(v, n, key)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
-			fidx, has, err = find(v, n, key)
-			return err
-		})
+		err = checkOrder(v, n)
 		if err != nil {
 			log.Println("inserted", key, value)
 			log.Println("at", idx)
 			log.Println(n.Debug(v))
 			return err
 		}
-	}
-	if !has {
+
+		fidx := 0
+		var has bool
+		if n.meta.flags&consts.VARCHAR_KEYS == 0 {
+			fidx, has, err = find(v, n, key)
+			if err != nil {
+				return err
+			}
+		} else {
+			err = v.Do(*slice.AsUint64(&key), func(key []byte) (err error) {
+				fidx, has, err = find(v, n, key)
+				return err
+			})
+			if err != nil {
+				log.Println("inserted", key, value)
+				log.Println("at", idx)
+				log.Println(n.Debug(v))
+				return err
+			}
+		}
+		if !has {
+			log.Println("inserted", key, value)
+			log.Println("at", idx)
+			log.Println(n.Debug(v))
+			return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
+		}
+		for ; fidx < int(n.meta.keyCount); fidx++ {
+			if bytes.Equal(value, n.val(fidx)) {
+				return nil
+			}
+		}
 		log.Println("inserted", key, value)
 		log.Println("at", idx)
 		log.Println(n.Debug(v))
-		return errors.Errorf("could not find key after put (insert idx: %v fidx: %v)", idx, fidx)
-	}
-	for ; fidx < int(n.meta.keyCount); fidx++ {
-		if bytes.Equal(value, n.val(fidx)) {
-			return nil
-		}
-	}
-	log.Println("inserted", key, value)
-	log.Println("at", idx)
-	log.Println(n.Debug(v))
-	return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
+		return errors.Errorf("could not find value after put (insert idx: %v, fidx: %v)", idx, fidx)
 	*/
 }
 
@@ -542,12 +542,12 @@ func (n *leaf) delItemAt(v *Varchar, idx int) error {
 	// do the book keeping
 	n.meta.keyCount--
 	/*
-	err := checkOrder(v, n)
-	if err != nil {
-		log.Println("del at", idx)
-		log.Println(n)
-		return err
-	}
+		err := checkOrder(v, n)
+		if err != nil {
+			log.Println("del at", idx)
+			log.Println(n)
+			return err
+		}
 	*/
 	return nil
 }

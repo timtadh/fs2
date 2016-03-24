@@ -52,8 +52,8 @@ func (self *BpTree) internalVerify(parent uint64, idx int, n, sibling uint64) (e
 		}
 		for i := 0; i < n.keyCount(); i++ {
 			var sib uint64
-			if i + 1 < n.keyCount() {
-				sib = *n.ptr(i+1)
+			if i+1 < n.keyCount() {
+				sib = *n.ptr(i + 1)
 			} else if sibling != 0 {
 				self.doInternal(sibling, func(sn *internal) error {
 					sib = *sn.ptr(0)
@@ -116,7 +116,7 @@ func (self *BpTree) leafVerify(parent uint64, idx int, n, sibling uint64) (err e
 					return nil
 				})
 			})
-		return errors.Errorf("n.meta.next (%v) != sibling (%v)", n.meta.next, sibling)
+			return errors.Errorf("n.meta.next (%v) != sibling (%v)", n.meta.next, sibling)
 		}
 		return nil
 	})
@@ -198,7 +198,6 @@ func (self *BpTree) pureVerify(parent uint64, idx int, n, sibling uint64) (err e
 		})
 	})
 }
-
 
 func (self *BpTree) leafOrderVerify(parent uint64, idx int, n, sibling uint64) (err error) {
 	a := n

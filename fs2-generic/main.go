@@ -35,14 +35,13 @@ import (
 	"github.com/timtadh/getopt"
 )
 
-
 var ErrorCodes map[string]int = map[string]int{
-	"usage":   0,
-	"version": 2,
-	"opts":    3,
-	"badint":  5,
-	"baddir":  6,
-	"badfile": 7,
+	"usage":    0,
+	"version":  2,
+	"opts":     3,
+	"badint":   5,
+	"baddir":   6,
+	"badfile":  7,
 	"template": 7,
 }
 
@@ -171,7 +170,7 @@ func main() {
 		Usage(ErrorCodes["opts"])
 	}
 
-	types := map[string]func(io.Writer,string,[]string) {
+	types := map[string]func(io.Writer, string, []string){
 		"bptree": BpTree,
 		"mmlist": MMList,
 	}
@@ -228,4 +227,3 @@ func main() {
 
 	typefunc(fout, packageName, args[1:])
 }
-

@@ -86,14 +86,14 @@ func MMList(fout io.Writer, packageName string, args []string) {
 		imports = append(imports, k)
 	}
 
-	err = mmlistTmpl.Execute(fout, map[string]interface{} {
-		"argv": strings.Join(os.Args, " \\\n*     "),
-		"packageName": packageName,
-		"imports": imports,
-		"useParameters": parameters,
-		"itemEmpty": itemEmpty,
-		"itemType": itemType,
-		"serializeItem": itemSerializer,
+	err = mmlistTmpl.Execute(fout, map[string]interface{}{
+		"argv":            strings.Join(os.Args, " \\\n*     "),
+		"packageName":     packageName,
+		"imports":         imports,
+		"useParameters":   parameters,
+		"itemEmpty":       itemEmpty,
+		"itemType":        itemType,
+		"serializeItem":   itemSerializer,
 		"deserializeItem": itemDeserializer,
 	})
 	if err != nil {
@@ -101,4 +101,3 @@ func MMList(fout io.Writer, packageName string, args []string) {
 		Usage(ErrorCodes["template"])
 	}
 }
-

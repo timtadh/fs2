@@ -28,18 +28,18 @@ func (a *internal) balance(v *Varchar, b *internal) error {
 	b.meta.keyCount = a.meta.keyCount - uint16(m)
 	a.meta.keyCount = uint16(m)
 	/*
-	err = checkOrder(v, a)
-	if err != nil {
-		log.Println("balance point", m)
-		log.Println(a)
-		return err
-	}
-	err = checkOrder(v, b)
-	if err != nil {
-		log.Println("balance point", m)
-		log.Println(b)
-		return err
-	}
+		err = checkOrder(v, a)
+		if err != nil {
+			log.Println("balance point", m)
+			log.Println(a)
+			return err
+		}
+		err = checkOrder(v, b)
+		if err != nil {
+			log.Println("balance point", m)
+			log.Println(b)
+			return err
+		}
 	*/
 	return nil
 }
@@ -61,18 +61,18 @@ func (a *leaf) balance(v *Varchar, b *leaf) error {
 		return err
 	}
 	/*
-	err = checkOrder(v, a)
-	if err != nil {
-		log.Println("balance point", m)
-		log.Println(a)
-		return err
-	}
-	err = checkOrder(v, b)
-	if err != nil {
-		log.Println("balance point", m)
-		log.Println(b)
-		return err
-	}
+		err = checkOrder(v, a)
+		if err != nil {
+			log.Println("balance point", m)
+			log.Println(a)
+			return err
+		}
+		err = checkOrder(v, b)
+		if err != nil {
+			log.Println("balance point", m)
+			log.Println(b)
+			return err
+		}
 	*/
 	return nil
 }

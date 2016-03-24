@@ -692,7 +692,7 @@ func (self *BpTree) pureRun(start uint64) ([]uint64, error) {
 	}
 	getNext := func(a uint64) (next uint64, err error) {
 		err = self.doLeaf(a, func(n *leaf) error {
-			next= n.meta.next
+			next = n.meta.next
 			return nil
 		})
 		return next, err

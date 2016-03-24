@@ -240,12 +240,12 @@ func (n *internal) updateK(v *Varchar, i int, key []byte) error {
 		copy(n.key(i), key)
 	}
 	/*
-	err = checkOrder(v, n)
-	if err != nil {
-		log.Println("replaced key", oldk)
-		log.Println(n.Debug(v))
-		return err
-	}
+		err = checkOrder(v, n)
+		if err != nil {
+			log.Println("replaced key", oldk)
+			log.Println(n.Debug(v))
+			return err
+		}
 	*/
 	return nil
 }
@@ -292,11 +292,11 @@ func (n *internal) putKP(v *Varchar, key []byte, p uint64) (err error) {
 	}
 	n.meta.keyCount++
 	/*
-	err = checkOrder(v, n)
-	if err != nil {
-		log.Println(n.Debug(v))
-		return err
-	}
+		err = checkOrder(v, n)
+		if err != nil {
+			log.Println(n.Debug(v))
+			return err
+		}
 	*/
 	return nil
 }
@@ -333,12 +333,12 @@ func (n *internal) delItemAt(v *Varchar, i int) error {
 	// do the book keeping
 	n.meta.keyCount--
 	/*
-	err = checkOrder(v, n)
-	if err != nil {
-		log.Println("del at", i)
-		log.Println(n.Debug(v))
-		return err
-	}
+		err = checkOrder(v, n)
+		if err != nil {
+			log.Println("del at", i)
+			log.Println(n.Debug(v))
+			return err
+		}
 	*/
 	return nil
 }

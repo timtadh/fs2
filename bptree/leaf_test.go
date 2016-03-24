@@ -219,7 +219,7 @@ func TestPutRepKVRand(x *testing.T) {
 		// t.Log(n)
 		for i := 0; i < cap(kvs); i++ {
 			kv := &KV{
-				key:   keys[i % len(keys)],
+				key:   keys[i%len(keys)],
 				value: t.rand_value(8),
 			}
 			if !n.fitsAnother() {

@@ -176,7 +176,7 @@ func TestAddRemoveRepSplitRand(x *testing.T) {
 
 func TestAddRemoveVsSplitRand(x *testing.T) {
 	t := (*T)(x)
-	mbpt := func()(*BpTree, func()) {
+	mbpt := func() (*BpTree, func()) {
 		bf, bf_clean := t.blkfile()
 		bpt, err := New(bf, 4, 8)
 		if err != nil {
