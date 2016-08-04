@@ -43,6 +43,12 @@ disk backed versions of these structures you can also find good implementations
 of in memory version in my
 [data-structures repository](https://github.com/timtadh/data-structures).
 
+#### Limitations
+
+Currently, fs2 is only available for Linux. I am looking for assistance making a
+darwin (Mac OS) port and a Windows port. Please get in touch if you are
+interested and have a Mac or Windows PC.
+
 ## B+ Tree
 
 [docs](https://godoc.org/github.com/timtadh/fs2/bptree)
