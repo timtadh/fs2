@@ -8,7 +8,7 @@ need another licensing option please contact me directly.
 ### What is this?
 
 1. A [B+ Tree](#b-tree) implementation
-2. A [list](#mmlist) implemenation supporting O(1) Append, Pop, Get and Set operations.
+2. A [list](#mmlist) implementation supporting O(1) Append, Pop, Get and Set operations.
 3. A [command](#fs2-generic) to generate type specific wrappers around the above
    structures. It's generic, in Go, kinda.
 4. A [platform](#fmap) for implementing memory mapped high performance file
