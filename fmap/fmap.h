@@ -166,3 +166,31 @@ int is_sequential(void *addr, size_t offset, size_t length);
  * (returns) 0 on success and an errno value on failure
  */
 int is_normal(void *addr, size_t offset, size_t length);
+
+/* fd_size(fd, size)
+ *
+ * finds the size of the file backing the file descriptor.
+ *
+ * (fd) the file descriptor
+ *
+ * (size) the output variable. an int pointer where the size will be written
+ *
+ * (returns) 0 on success and an errno value on failure
+ */
+int fd_size(int fd, size_t *size);
+
+/* do_madvise(flag, *addr, offset, length)
+ *
+ * mark the address + offset, with the given madvise flag
+ *
+ * (flag) the flag to apply to the range
+ *
+ * (addr) the address of the mapping
+ *
+ * (offset) the start of the sequential region
+ *
+ * (length) the length of the sequential region
+ *
+ * (returns) 0 on success and an errno value on failure
+ */
+int do_madvise(int flag, void *addr, size_t offset, size_t length);
