@@ -19,8 +19,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 /* memclr(*addr, size)
@@ -28,9 +28,7 @@
  * clears the memory starting at addr, for size.
  *
  */
-void
-memclr(void *addr, size_t size);
-
+void memclr(void *addr, size_t size);
 
 /* create_anon_mmap(*addr, length)
  *
@@ -44,8 +42,7 @@ memclr(void *addr, size_t size);
  *
  * (returns) 0 on success and an errno value of failure.
  */
-int
-create_anon_mmap(void ** addr, size_t fd);
+int create_anon_mmap(void **addr, size_t fd);
 
 /* create_mmap(*addr, fd)
  *
@@ -59,8 +56,7 @@ create_anon_mmap(void ** addr, size_t fd);
  *
  * (returns) 0 on success and an errno value of failure.
  */
-int
-create_mmap(void ** addr, int fd);
+int create_mmap(void **addr, int fd);
 
 /* destroy_anon_map(addr, length)
  *
@@ -72,8 +68,7 @@ create_mmap(void ** addr, int fd);
  *
  * (returns) 0 on success and an errno value on failure.
  */
-int
-destroy_anon_mmap(void *addr, size_t length);
+int destroy_anon_mmap(void *addr, size_t length);
 
 /* destroy_map(addr, length)
  *
@@ -86,9 +81,7 @@ destroy_anon_mmap(void *addr, size_t length);
  *
  * (returns) 0 on success and an errno value on failure.
  */
-int
-destroy_mmap(void *addr, int fd);
-
+int destroy_mmap(void *addr, int fd);
 
 /* sync_map(addr, length)
  *
@@ -103,8 +96,7 @@ destroy_mmap(void *addr, int fd);
  *
  * (returns) 0 on success and an errno value on failure.
  */
-int
-sync_mmap(void *addr, int fd);
+int sync_mmap(void *addr, int fd);
 
 /* resize(addr, new_addr, fd, new_length)
  *
@@ -124,9 +116,8 @@ sync_mmap(void *addr, int fd);
  *
  * (returns) 0 on success and an errno value on failure.
  */
-int
-anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
-		new_length);
+int anon_resize(void *old_addr, void **new_addr, size_t old_length,
+                size_t new_length);
 
 /* resize(addr, new_addr, fd, new_length)
  *
@@ -146,8 +137,7 @@ anon_resize(void *old_addr, void **new_addr, size_t old_length, size_t
  *
  * (returns) 0 on success and an errno value on failure.
  */
-int
-resize(void *old_addr, void **new_addr, int fd, size_t new_length);
+int resize(void *old_addr, void **new_addr, int fd, size_t new_length);
 
 /* is_sequential(addr, offset, length)
  *
@@ -161,8 +151,7 @@ resize(void *old_addr, void **new_addr, int fd, size_t new_length);
  *
  * (returns) 0 on success and an errno value on failure
  */
-int
-is_sequential(void *addr, size_t offset, size_t length);
+int is_sequential(void *addr, size_t offset, size_t length);
 
 /* is_normal(addr, offset, length)
  *
@@ -176,6 +165,4 @@ is_sequential(void *addr, size_t offset, size_t length);
  *
  * (returns) 0 on success and an errno value on failure
  */
-int
-is_normal(void *addr, size_t offset, size_t length);
-
+int is_normal(void *addr, size_t offset, size_t length);
